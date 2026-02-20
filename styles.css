@@ -8,14 +8,16 @@
   --border: #1d3349;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Noto Sans TC', 'Inter', system-ui, sans-serif;
   background: radial-gradient(circle at 20% 10%, #14314f, var(--bg));
   color: var(--text);
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
 .hero {
@@ -24,18 +26,32 @@ body {
   padding: 72px 24px 32px;
 }
 
-.eyebrow { color: var(--accent); font-weight: 700; letter-spacing: 0.04em; }
+.eyebrow {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
 
-h1 { font-size: clamp(2rem, 5vw, 3.4rem); margin: 0; }
-h2 { margin-top: 0; }
+h1 {
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  margin: 0;
+}
+
+h2 {
+  margin-top: 0;
+}
 
 .subtitle {
   font-size: 1.25rem;
   margin: 8px 0;
   color: #c8ddf7;
+  font-weight: 700;
 }
 
-.description { color: var(--muted); max-width: 760px; }
+.description {
+  color: var(--muted);
+  max-width: 760px;
+}
 
 .container {
   max-width: 960px;

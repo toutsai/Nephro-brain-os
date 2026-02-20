@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nephro Brain OS</title>
+    <title>Nephro Brain OS｜腎臟科智慧中樞</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
     <script type="module">
       import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
@@ -17,61 +17,61 @@
     <header class="hero">
       <p class="eyebrow">From Literature to Intelligence.</p>
       <h1>Nephro Brain OS</h1>
-      <p class="subtitle">The Intelligence Operating System for Nephrology</p>
+      <p class="subtitle">腎臟科智慧中樞的作業系統</p>
       <p class="description">
-        AI-augmented knowledge infrastructure that integrates literature, evidence,
-        and clinical reasoning into a unified nephrology intelligence hub.
+        以 AI 強化的知識基礎設施，整合文獻、證據與臨床推理，
+        打造可持續演化的腎臟科智慧平台。
       </p>
       <div class="cta-row">
-        <a href="#modules" class="btn primary">Explore NB Insight</a>
-        <a href="#architecture" class="btn">View System Architecture</a>
+        <a href="#modules" class="btn primary">探索 NB Insight</a>
+        <a href="#architecture" class="btn">查看系統架構</a>
       </div>
     </header>
 
     <main class="container">
       <section>
-        <h2>The Problem</h2>
+        <h2>為什麼需要 Nephro Brain OS？</h2>
         <p>
-          Nephrology knowledge is expanding rapidly, while clinical time remains
-          limited. Traditional tools summarize documents; they rarely synthesize
-          evidence into transparent, actionable reasoning.
+          腎臟科知識成長速度極快，臨床端卻常面臨時間不足與資訊分散。
+          多數工具只做到「摘要」，難以做到可追溯、可解釋、可落地的證據整合。
+          Nephro Brain OS 的目標，是把資訊轉化為可行動的臨床智慧。
         </p>
       </section>
 
       <section id="modules">
-        <h2>Core Modules</h2>
+        <h2>核心模組</h2>
         <div class="grid">
           <article class="card">
             <h3>🔎 NB Insight</h3>
-            <p>Daily literature intelligence engine for ESRD / AKI / CKD.</p>
+            <p>每日 ESRD / AKI / CKD 文獻匯入、重點萃取與趨勢洞察。</p>
           </article>
           <article class="card">
             <h3>💬 NB Consult</h3>
-            <p>Evidence-synthesis Q&A with citations and guideline cross-reference.</p>
+            <p>以證據合成為核心的臨床問答，附 PMID 與指引對照依據。</p>
           </article>
           <article class="card">
             <h3>🎓 NB Teach</h3>
-            <p>Slide outlines, mindmap outputs, and multi-level teaching content.</p>
+            <p>自動生成教學投影片大綱、心智圖與分眾教學素材。</p>
           </article>
           <article class="card">
             <h3>🩺 NB Assist</h3>
-            <p>Decision-support logic for dialysis and CKD pathway workflows.</p>
+            <p>支援透析與 CKD 流程的決策邏輯層，協助臨床判斷。</p>
           </article>
         </div>
       </section>
 
       <section id="architecture">
-        <h2>Architecture Overview</h2>
+        <h2>架構總覽</h2>
         <pre class="mermaid">
 flowchart TD
-  A[PubMed / Guidelines / Feeds] --> B[Ingestion + Dedupe]
-  B --> C[Knowledge Core\nPostgres + Vector DB + Metadata]
-  C --> D[Reasoning Layer\nPICO + Evidence Synthesis + Citations]
+  A[PubMed / 指引 / 資訊來源] --> B[資料匯入 + 去重]
+  B --> C[Knowledge Core\nPostgres + 向量資料庫 + Metadata]
+  C --> D[Reasoning Layer\nPICO + 證據整合 + 引用]
   D --> E1[NB Insight]
   D --> E2[NB Consult]
   D --> E3[NB Teach]
   D --> E4[NB Assist]
-  E1 --> F[Export Layer\nLINE / Slides / Podcast / Mindmap]
+  E1 --> F[輸出層\nLINE / Slides / Podcast / Mindmap]
   E2 --> F
   E3 --> F
   E4 --> F
@@ -79,12 +79,12 @@ flowchart TD
       </section>
 
       <section>
-        <h2>Trust & Explainability</h2>
+        <h2>可信任與可解釋</h2>
         <ul>
-          <li>PMID citation transparency</li>
-          <li>Guideline version tagging</li>
-          <li>Evidence level labeling</li>
-          <li>AI-augmented, clinician-led decisions</li>
+          <li>PMID 引用透明可追溯</li>
+          <li>指引版本標註</li>
+          <li>Evidence level 分級顯示</li>
+          <li>AI 輔助、醫師主導決策</li>
         </ul>
       </section>
     </main>
