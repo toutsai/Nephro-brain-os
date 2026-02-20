@@ -1,92 +1,482 @@
 <!doctype html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Nephro Brain OS｜腎臟科智慧中樞</title>
+    <meta name="description" content="AI-augmented intelligence operating system for nephrology. 整合文獻、證據與臨床推理的腎臟科智慧平台。" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
     <script type="module">
       import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-      mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+
+      function initMermaid() {
+        const theme = document.documentElement.getAttribute('data-theme');
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: theme === 'light' ? 'default' : 'dark',
+          flowchart: { curve: 'basis', padding: 16 }
+        });
+        mermaid.run();
+      }
+
+      // Theme toggle
+      window.toggleTheme = function () {
+        const html = document.documentElement;
+        const current = html.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', next);
+        localStorage.setItem('nb-theme', next);
+        document.getElementById('theme-icon').textContent = next === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
+        // Re-render mermaid
+        const el = document.querySelector('.mermaid');
+        if (el) {
+          el.removeAttribute('data-processed');
+          el.innerHTML = el.getAttribute('data-source');
+          initMermaid();
+        }
+      };
+
+      // Restore saved theme
+      const saved = localStorage.getItem('nb-theme');
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+        document.addEventListener('DOMContentLoaded', () => {
+          document.getElementById('theme-icon').textContent = saved === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
+        });
+      }
+
+      document.addEventListener('DOMContentLoaded', initMermaid);
     </script>
   </head>
   <body>
+
+    <!-- ===== Navigation ===== -->
+    <nav class="nav">
+      <div class="nav-inner">
+        <a class="nav-brand" href="#">NB &mdash; OS</a>
+        <ul class="nav-links">
+          <li><a href="#modules">模組</a></li>
+          <li><a href="#architecture">架構</a></li>
+          <li><a href="#philosophy">理念</a></li>
+          <li><a href="#vision">願景</a></li>
+          <li><button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme"><span id="theme-icon">&#9728;&#65039;</span></button></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- ===== Hero ===== -->
     <header class="hero">
-      <p class="eyebrow">From Literature to Intelligence.</p>
+      <span class="hero-eyebrow">From Literature to Intelligence</span>
       <h1>Nephro Brain OS</h1>
-      <p class="subtitle">腎臟科智慧中樞的作業系統</p>
-      <p class="description">
-        以 AI 強化的知識基礎設施，整合文獻、證據與臨床推理，
-        打造可持續演化的腎臟科智慧平台。
+      <p class="hero-subtitle">腎臟科智慧中樞的作業系統</p>
+      <p class="hero-tagline">The Intelligence Operating System for Nephrology</p>
+      <p class="hero-desc">
+        以 AI 強化的知識基礎設施，整合文獻、證據與臨床推理，<br />
+        打造專科醫師可持續演化的智慧中樞平台。<br />
+        <em>AI-augmented, clinician-led.</em>
       </p>
       <div class="cta-row">
-        <a href="#modules" class="btn primary">探索 NB Insight</a>
+        <a href="#modules" class="btn primary">探索核心模組</a>
         <a href="#architecture" class="btn">查看系統架構</a>
+        <a href="#vision" class="btn">發展藍圖</a>
       </div>
     </header>
 
-    <main class="container">
-      <section>
+    <div class="container">
+
+      <!-- ===== Problem / Solution ===== -->
+      <section class="section-card section-gap">
         <h2>為什麼需要 Nephro Brain OS？</h2>
-        <p>
-          腎臟科知識成長速度極快，臨床端卻常面臨時間不足與資訊分散。
-          多數工具只做到「摘要」，難以做到可追溯、可解釋、可落地的證據整合。
-          Nephro Brain OS 的目標，是把資訊轉化為可行動的臨床智慧。
-        </p>
+        <p class="section-lead">腎臟科知識成長速度極快，臨床端卻常面臨時間不足與資訊分散的困境。</p>
+
+        <div class="problem-grid">
+          <div class="problem-item">
+            <div class="icon">&#128218;</div>
+            <h4>文獻爆量</h4>
+            <p>每日 PubMed 新刊出的腎臟科相關論文數量持續增長</p>
+          </div>
+          <div class="problem-item">
+            <div class="icon">&#128260;</div>
+            <h4>指引快速更新</h4>
+            <p>KDIGO、ADA、ESC 等指引頻繁修訂，追蹤不易</p>
+          </div>
+          <div class="problem-item">
+            <div class="icon">&#128200;</div>
+            <h4>證據等級異質</h4>
+            <p>RCT、觀察性研究、case report 混雜，需分層判讀</p>
+          </div>
+          <div class="problem-item">
+            <div class="icon">&#127471;&#127484;</div>
+            <h4>在地化需求</h4>
+            <p>台灣健保給付邏輯與國際指引不完全一致</p>
+          </div>
+        </div>
+
+        <div class="solution-box">
+          <h3>解決方案</h3>
+          <p>
+            多數工具只做到「摘要」，Nephro Brain OS 做的是<strong>「臨床轉譯」</strong>。<br />
+            從結構化知識、證據分層到決策輔助 &mdash; 把資訊轉化為可行動的臨床智慧。
+          </p>
+        </div>
       </section>
 
-      <section id="modules">
+      <!-- ===== Core Modules ===== -->
+      <section id="modules" class="section-card section-gap">
         <h2>核心模組</h2>
-        <div class="grid">
-          <article class="card">
-            <h3>🔎 NB Insight</h3>
-            <p>每日 ESRD / AKI / CKD 文獻匯入、重點萃取與趨勢洞察。</p>
+        <p class="section-lead">四大模組各司其職，組成完整的專科知識工作流。</p>
+
+        <div class="module-grid">
+          <!-- NB Insight -->
+          <article class="module-card">
+            <div class="module-header">
+              <div class="module-icon insight">&#128269;</div>
+              <div>
+                <h3>NB Insight</h3>
+                <span class="module-sub">每日文獻智慧引擎</span>
+              </div>
+            </div>
+            <p>自動匯入 ESRD / AKI / CKD 最新文獻，產出臨床等級的結構化摘要。</p>
+            <ul class="module-features">
+              <li>PubMed 自動抓取與去重</li>
+              <li>中文臨床重點 + PICO 結構</li>
+              <li>Evidence level 自動標示</li>
+              <li>主題趨勢追蹤與演進分析</li>
+            </ul>
           </article>
-          <article class="card">
-            <h3>💬 NB Consult</h3>
-            <p>以證據合成為核心的臨床問答，附 PMID 與指引對照依據。</p>
+
+          <!-- NB Consult -->
+          <article class="module-card">
+            <div class="module-header">
+              <div class="module-icon consult">&#128172;</div>
+              <div>
+                <h3>NB Consult</h3>
+                <span class="module-sub">證據合成問答引擎</span>
+              </div>
+            </div>
+            <p>以 RAG 為基礎的臨床問答，結合知識庫與即時 PubMed 檢索。</p>
+            <ul class="module-features">
+              <li>知識庫 + 外部文獻雙軌檢索</li>
+              <li>回答附 PMID 與指引引用</li>
+              <li>證據等級與不確定性標示</li>
+              <li>多輪對話記憶累積</li>
+            </ul>
           </article>
-          <article class="card">
-            <h3>🎓 NB Teach</h3>
-            <p>自動生成教學投影片大綱、心智圖與分眾教學素材。</p>
+
+          <!-- NB Teach -->
+          <article class="module-card">
+            <div class="module-header">
+              <div class="module-icon teach">&#127891;</div>
+              <div>
+                <h3>NB Teach</h3>
+                <span class="module-sub">教學內容生成引擎</span>
+              </div>
+            </div>
+            <p>同一筆資料，依受眾自動轉譯為不同層次的教學素材。</p>
+            <ul class="module-features">
+              <li>投影片大綱自動生成</li>
+              <li>心智圖結構輸出</li>
+              <li>Case-based 教學格式</li>
+              <li>住院醫師 vs 護理師分眾版</li>
+            </ul>
           </article>
-          <article class="card">
-            <h3>🩺 NB Assist</h3>
-            <p>支援透析與 CKD 流程的決策邏輯層，協助臨床判斷。</p>
+
+          <!-- NB Assist -->
+          <article class="module-card">
+            <div class="module-header">
+              <div class="module-icon assist">&#129658;</div>
+              <div>
+                <h3>NB Assist</h3>
+                <span class="module-sub">臨床決策輔助層</span>
+              </div>
+            </div>
+            <p>嵌入專科思維的決策邏輯層，協助臨床流程判斷。</p>
+            <ul class="module-features">
+              <li>透析液鉀離子調整邏輯</li>
+              <li>CKD 分期治療演算法</li>
+              <li>CRRT 流量建議路徑</li>
+              <li>台灣健保給付規則層</li>
+            </ul>
           </article>
         </div>
       </section>
 
-      <section id="architecture">
-        <h2>架構總覽</h2>
-        <pre class="mermaid">
-flowchart TD
-  A[PubMed / 指引 / 資訊來源] --> B[資料匯入 + 去重]
-  B --> C[Knowledge Core\nPostgres + 向量資料庫 + Metadata]
-  C --> D[Reasoning Layer\nPICO + 證據整合 + 引用]
-  D --> E1[NB Insight]
-  D --> E2[NB Consult]
-  D --> E3[NB Teach]
-  D --> E4[NB Assist]
-  E1 --> F[輸出層\nLINE / Slides / Podcast / Mindmap]
-  E2 --> F
-  E3 --> F
-  E4 --> F
-        </pre>
+      <!-- ===== Data Flow ===== -->
+      <section class="section-card section-gap">
+        <h2>資料流程</h2>
+        <p class="section-lead">從文獻到臨床行動的五步驟知識轉譯流程。</p>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="step-num">1</div>
+            <h4>擷取</h4>
+            <p>PubMed / 指引 / RSS 自動匯入</p>
+          </div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">
+            <div class="step-num">2</div>
+            <h4>結構化</h4>
+            <p>去重 + PICO + 證據等級 + 向量化</p>
+          </div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">
+            <div class="step-num">3</div>
+            <h4>儲存</h4>
+            <p>Inbox / Library / 知識庫分層管理</p>
+          </div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">
+            <div class="step-num">4</div>
+            <h4>推理</h4>
+            <p>RAG 檢索 + 證據合成 + 臨床判斷</p>
+          </div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">
+            <div class="step-num">5</div>
+            <h4>產出</h4>
+            <p>LINE / Slides / Podcast / Mindmap</p>
+          </div>
+        </div>
       </section>
 
-      <section>
+      <!-- ===== Architecture ===== -->
+      <section id="architecture" class="section-card section-gap">
+        <h2>架構總覽</h2>
+        <p class="section-lead">三層架構：Knowledge Core &rarr; Reasoning Layer &rarr; Presentation Layer</p>
+        <div class="mermaid-wrap">
+          <pre class="mermaid" data-source="flowchart TD
+  subgraph Input[&quot;資料來源&quot;]
+    A1[PubMed API]
+    A2[KDIGO / 治療指引]
+    A3[Journal RSS]
+  end
+
+  subgraph Core[&quot;Knowledge Core&quot;]
+    B[資料匯入 + 去重 + Metadata]
+    C[(Postgres + pgvector)]
+    D[Evidence Hierarchy]
+    E[Taiwan NHI Rules]
+  end
+
+  subgraph Reasoning[&quot;Reasoning Layer&quot;]
+    F[PICO Structuring]
+    G[Evidence Synthesis]
+    H[Clinical Logic]
+  end
+
+  subgraph Modules[&quot;模組層&quot;]
+    M1[NB Insight]
+    M2[NB Consult]
+    M3[NB Teach]
+    M4[NB Assist]
+  end
+
+  subgraph Output[&quot;Presentation Layer&quot;]
+    O1[LINE 推播]
+    O2[投影片]
+    O3[Podcast]
+    O4[心智圖]
+    O5[Web UI]
+  end
+
+  A1 --&gt; B
+  A2 --&gt; B
+  A3 --&gt; B
+  B --&gt; C
+  B --&gt; D
+  B --&gt; E
+  C --&gt; F
+  D --&gt; G
+  E --&gt; H
+  F --&gt; M1
+  G --&gt; M2
+  H --&gt; M4
+  F --&gt; M3
+  G --&gt; M3
+  M1 --&gt; O1
+  M1 --&gt; O5
+  M2 --&gt; O5
+  M3 --&gt; O2
+  M3 --&gt; O3
+  M3 --&gt; O4
+  M4 --&gt; O5">flowchart TD
+  subgraph Input["資料來源"]
+    A1[PubMed API]
+    A2[KDIGO / 治療指引]
+    A3[Journal RSS]
+  end
+
+  subgraph Core["Knowledge Core"]
+    B[資料匯入 + 去重 + Metadata]
+    C[(Postgres + pgvector)]
+    D[Evidence Hierarchy]
+    E[Taiwan NHI Rules]
+  end
+
+  subgraph Reasoning["Reasoning Layer"]
+    F[PICO Structuring]
+    G[Evidence Synthesis]
+    H[Clinical Logic]
+  end
+
+  subgraph Modules["模組層"]
+    M1[NB Insight]
+    M2[NB Consult]
+    M3[NB Teach]
+    M4[NB Assist]
+  end
+
+  subgraph Output["Presentation Layer"]
+    O1[LINE 推播]
+    O2[投影片]
+    O3[Podcast]
+    O4[心智圖]
+    O5[Web UI]
+  end
+
+  A1 --> B
+  A2 --> B
+  A3 --> B
+  B --> C
+  B --> D
+  B --> E
+  C --> F
+  D --> G
+  E --> H
+  F --> M1
+  G --> M2
+  H --> M4
+  F --> M3
+  G --> M3
+  M1 --> O1
+  M1 --> O5
+  M2 --> O5
+  M3 --> O2
+  M3 --> O3
+  M3 --> O4
+  M4 --> O5</pre>
+        </div>
+      </section>
+
+      <!-- ===== Philosophy ===== -->
+      <section id="philosophy" class="section-card section-gap">
+        <h2>核心理念</h2>
+        <p class="section-lead">Intelligence, Not Information &mdash; 不只檢索論文，而是轉譯為臨床智慧。</p>
+
+        <div class="philosophy-grid">
+          <div class="philosophy-item">
+            <h4>結構化知識</h4>
+            <p>每一筆資料都以 PICO、證據等級、臨床適用性三維度結構化儲存。</p>
+          </div>
+          <div class="philosophy-item">
+            <h4>證據演進追蹤</h4>
+            <p>同一主題的研究演進（如 SGLT2 in CKD）以時間軸呈現。</p>
+          </div>
+          <div class="philosophy-item">
+            <h4>臨床脈絡保存</h4>
+            <p>不只存論文結論，也保存適用族群、排除條件、台灣在地考量。</p>
+          </div>
+          <div class="philosophy-item">
+            <h4>透明推理</h4>
+            <p>每一句結論都可回溯 PMID 與指引段落，支持臨床判斷。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Trust ===== -->
+      <section class="section-card section-gap">
         <h2>可信任與可解釋</h2>
-        <ul>
-          <li>PMID 引用透明可追溯</li>
-          <li>指引版本標註</li>
-          <li>Evidence level 分級顯示</li>
-          <li>AI 輔助、醫師主導決策</li>
+        <p class="section-lead">AI 輔助、醫師主導 &mdash; 每個輸出都有完整的證據鏈。</p>
+
+        <ul class="trust-list">
+          <li>
+            <span class="check">&#10003;</span>
+            <div>
+              <strong>PMID 引用透明</strong><br />
+              <span style="color:var(--muted);font-size:0.85rem;">每個回答與摘要皆附完整文獻引用，可直接追溯原始論文。</span>
+            </div>
+          </li>
+          <li>
+            <span class="check">&#10003;</span>
+            <div>
+              <strong>指引版本標註</strong><br />
+              <span style="color:var(--muted);font-size:0.85rem;">標示所引用指引的版本年份，避免過期資訊誤導。</span>
+            </div>
+          </li>
+          <li>
+            <span class="check">&#10003;</span>
+            <div>
+              <strong>Evidence Level 分級</strong><br />
+              <span style="color:var(--muted);font-size:0.85rem;">明確標示每條建議的證據等級（RCT / meta / observational / expert opinion）。</span>
+            </div>
+          </li>
+          <li>
+            <span class="check">&#10003;</span>
+            <div>
+              <strong>更新時間戳記</strong><br />
+              <span style="color:var(--muted);font-size:0.85rem;">所有知識條目皆標示最後更新日期，確保使用者知道資訊時效性。</span>
+            </div>
+          </li>
+          <li>
+            <span class="check">&#10003;</span>
+            <div>
+              <strong>不確定性聲明</strong><br />
+              <span style="color:var(--muted);font-size:0.85rem;">當證據不足或存在爭議時，系統會主動標示不確定性。</span>
+            </div>
+          </li>
+          <li>
+            <span class="check">&#10003;</span>
+            <div>
+              <strong>AI-Augmented, Clinician-Led</strong><br />
+              <span style="color:var(--muted);font-size:0.85rem;">系統增強臨床判斷，而非取代醫師決策。</span>
+            </div>
+          </li>
         </ul>
       </section>
-    </main>
+
+      <!-- ===== Vision / Roadmap ===== -->
+      <section id="vision" class="section-card section-gap">
+        <h2>發展藍圖</h2>
+        <p class="section-lead">從個人知識基礎建設，到專科 AI 系統的學術發表。</p>
+
+        <div class="roadmap">
+          <div class="roadmap-phase p1">
+            <div class="phase-label">Phase 1</div>
+            <h4>個人知識基礎建設</h4>
+            <p>
+              建立核心知識庫與自動化管線。每日 PubMed 匯入、PICO 結構化、
+              向量資料庫檢索、LINE 推播，形成穩定運作的個人專科知識系統。
+            </p>
+          </div>
+          <div class="roadmap-phase p2">
+            <div class="phase-label">Phase 2</div>
+            <h4>院內部署與教學應用</h4>
+            <p>
+              將系統導入科內，支援住院醫師教學、護理交班、
+              透析室知識庫。整合院內 server，符合醫療資料隱私規範。
+            </p>
+          </div>
+          <div class="roadmap-phase p3">
+            <div class="phase-label">Phase 3</div>
+            <h4>學術發表與公開展示</h4>
+            <p>
+              於腎臟醫學會 demo 系統、投稿 AI in Nephrology 相關論文。
+              成為台灣首個專科醫師自建 AI 知識中樞系統。
+            </p>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ===== Footer ===== -->
+    <footer class="footer">
+      <div class="footer-brand">Nephro Brain OS</div>
+      <p>The Intelligence Operating System for Nephrology</p>
+      <p style="margin-top:8px;font-size:0.78rem;color:var(--border);">AI-augmented &middot; Clinician-led &middot; Evidence-transparent</p>
+    </footer>
+
   </body>
 </html>
