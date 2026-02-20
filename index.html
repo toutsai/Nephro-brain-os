@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nephro Brain OS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+      mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+  </head>
+  <body>
+    <header class="hero">
+      <p class="eyebrow">From Literature to Intelligence.</p>
+      <h1>Nephro Brain OS</h1>
+      <p class="subtitle">The Intelligence Operating System for Nephrology</p>
+      <p class="description">
+        AI-augmented knowledge infrastructure that integrates literature, evidence,
+        and clinical reasoning into a unified nephrology intelligence hub.
+      </p>
+      <div class="cta-row">
+        <a href="#modules" class="btn primary">Explore NB Insight</a>
+        <a href="#architecture" class="btn">View System Architecture</a>
+      </div>
+    </header>
+
+    <main class="container">
+      <section>
+        <h2>The Problem</h2>
+        <p>
+          Nephrology knowledge is expanding rapidly, while clinical time remains
+          limited. Traditional tools summarize documents; they rarely synthesize
+          evidence into transparent, actionable reasoning.
+        </p>
+      </section>
+
+      <section id="modules">
+        <h2>Core Modules</h2>
+        <div class="grid">
+          <article class="card">
+            <h3>🔎 NB Insight</h3>
+            <p>Daily literature intelligence engine for ESRD / AKI / CKD.</p>
+          </article>
+          <article class="card">
+            <h3>💬 NB Consult</h3>
+            <p>Evidence-synthesis Q&A with citations and guideline cross-reference.</p>
+          </article>
+          <article class="card">
+            <h3>🎓 NB Teach</h3>
+            <p>Slide outlines, mindmap outputs, and multi-level teaching content.</p>
+          </article>
+          <article class="card">
+            <h3>🩺 NB Assist</h3>
+            <p>Decision-support logic for dialysis and CKD pathway workflows.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="architecture">
+        <h2>Architecture Overview</h2>
+        <pre class="mermaid">
+flowchart TD
+  A[PubMed / Guidelines / Feeds] --> B[Ingestion + Dedupe]
+  B --> C[Knowledge Core\nPostgres + Vector DB + Metadata]
+  C --> D[Reasoning Layer\nPICO + Evidence Synthesis + Citations]
+  D --> E1[NB Insight]
+  D --> E2[NB Consult]
+  D --> E3[NB Teach]
+  D --> E4[NB Assist]
+  E1 --> F[Export Layer\nLINE / Slides / Podcast / Mindmap]
+  E2 --> F
+  E3 --> F
+  E4 --> F
+        </pre>
+      </section>
+
+      <section>
+        <h2>Trust & Explainability</h2>
+        <ul>
+          <li>PMID citation transparency</li>
+          <li>Guideline version tagging</li>
+          <li>Evidence level labeling</li>
+          <li>AI-augmented, clinician-led decisions</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>
