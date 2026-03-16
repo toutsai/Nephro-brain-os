@@ -1,5 +1,22 @@
+# 環境 & 憑證
 .env
 serviceAccountKey.json
+
+# Node
 node_modules/
 dist/
-node_modules
+
+# Python
+__pycache__/
+*.pyc
+*.index
+*.pkl
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
