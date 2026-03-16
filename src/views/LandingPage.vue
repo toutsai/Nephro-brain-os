@@ -10,7 +10,7 @@
         以 AI 強化的知識基礎設施，整合文獻、證據與臨床推理。
       </p>
 
-      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+      <div class="flex flex-col sm:flex-row gap-3 justify-center flex-wrap">
         <router-link
           to="/insight"
           class="px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors"
@@ -22,6 +22,12 @@
           class="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors"
         >
           💬 NB Consult — 知識問答
+        </router-link>
+        <router-link
+          to="/notes"
+          class="px-6 py-3 bg-purple-700 hover:bg-purple-600 text-white rounded-lg font-medium transition-colors"
+        >
+          📝 NB Notes — 知識整理
         </router-link>
       </div>
     </div>

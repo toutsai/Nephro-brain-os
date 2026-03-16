@@ -16,6 +16,11 @@ const routes = [
     name: 'consult',
     component: () => import('./views/ConsultPage.vue'),
   },
+  {
+    path: '/notes',
+    name: 'notes',
+    component: () => import('./views/NotesPage.vue'),
+  },
 ]
 
 export default createRouter({
