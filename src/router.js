@@ -11,6 +11,11 @@ const routes = [
     name: 'insight',
     component: () => import('./views/InsightPage.vue'),
   },
+  {
+    path: '/consult',
+    name: 'consult',
+    component: () => import('./views/ConsultPage.vue'),
+  },
 ]
 
 export default createRouter({

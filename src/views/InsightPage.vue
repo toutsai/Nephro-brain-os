@@ -13,8 +13,16 @@
             <p class="text-[10px] text-slate-400">每日文獻智慧引擎</p>
           </div>
         </div>
-        <div class="text-xs text-slate-400">
-          {{ articleCount }} 篇文獻
+        <div class="flex items-center gap-3">
+          <div class="text-xs text-slate-400">
+            {{ articleCount }} 篇文獻
+          </div>
+          <router-link
+            to="/consult"
+            class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-lg transition-colors"
+          >
+            💬 Consult
+          </router-link>
         </div>
       </div>
 

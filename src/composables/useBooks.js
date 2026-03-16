@@ -11,10 +11,10 @@ export function useBooks() {
   const books = ref([])
   const loading = ref(true)
 
-  // å³æ™‚ç›£è½ books collection
+  // ?³æ???½ books collection
   const q = query(
     collection(db, 'books'),
-    orderBy('uploaded_at', 'desc')
+    orderBy('uploadedAt', 'desc')
   )
 
   const unsubscribe = onSnapshot(
@@ -29,7 +29,7 @@ export function useBooks() {
     }
   )
 
-  // åˆ†é¡çµ±è¨ˆ
+  // ?†é?çµ±è?
   const readyBooks = computed(() => books.value.filter((b) => b.status === 'ready'))
   const pendingBooks = computed(() =>
     books.value.filter((b) => b.status === 'pending' || b.status === 'processing')

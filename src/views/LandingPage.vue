@@ -17,12 +17,12 @@
         >
           🔍 NB Insight — 每日文獻
         </router-link>
-        <button
-          disabled
-          class="px-6 py-3 bg-slate-800 text-slate-500 rounded-lg font-medium cursor-not-allowed"
+        <router-link
+          to="/consult"
+          class="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors"
         >
-          💬 NB Consult — 即將推出
-        </button>
+          💬 NB Consult — 知識問答
+        </router-link>
       </div>
     </div>
   </div>
