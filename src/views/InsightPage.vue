@@ -1,7 +1,7 @@
 <template>
-  <div class="min-h-screen bg-slate-50">
+  <div class="h-screen flex flex-col bg-slate-50">
     <!-- Header -->
-    <header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-20 shrink-0">
       <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
         <div class="flex items-center gap-3">
           <router-link to="/" class="text-lg font-bold text-slate-800 hover:text-blue-600 transition-colors">
@@ -30,7 +30,7 @@
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
             "
-            @click="activeTab = tab.key"
+            @click="activeTab = tab.key; selectedArticle = null"
           >
             {{ tab.label }}
             <span
@@ -49,26 +49,27 @@
     </header>
 
     <!-- Loading -->
-    <div v-if="loading" class="flex items-center justify-center py-20">
+    <div v-if="loading" class="flex-1 flex items-center justify-center">
       <div class="text-center">
-        <div
-          class="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"
-        />
+        <div class="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
         <p class="text-sm text-slate-500">載入文獻中...</p>
       </div>
     </div>
 
     <!-- Main content -->
-    <main v-else class="max-w-7xl mx-auto px-4 py-4">
+    <main v-else class="flex-1 overflow-hidden max-w-7xl mx-auto w-full px-4 py-4">
+
       <!-- 收藏知識庫 tab -->
-      <div v-if="activeTab === 'collection'">
+      <template v-if="activeTab === 'collection'">
         <div v-if="!savedArticles.length" class="text-center py-16 text-slate-400">
           <div class="text-4xl mb-3">📚</div>
           <p class="text-sm">還沒有收藏的文獻</p>
           <p class="text-xs mt-1">點擊文章卡片上的「收藏」按鈕開始收集</p>
         </div>
-        <div v-else class="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-4">
-          <div class="space-y-3">
+
+        <!-- 桌面版：左右獨立捲軸 -->
+        <div v-else class="hidden lg:grid lg:grid-cols-[1fr_1fr] gap-4 h-full">
+          <div class="overflow-y-auto pr-2 space-y-3 pb-4">
             <ArticleCard
               v-for="article in savedArticles"
               :key="article.id"
@@ -79,7 +80,7 @@
               @toggle-save="toggleSave"
             />
           </div>
-          <div class="hidden lg:block sticky top-28 self-start">
+          <div class="overflow-y-auto pl-2 pb-4">
             <ArticleDetail
               :article="selectedArticle"
               :is-saved="selectedArticle ? isSaved(selectedArticle.id) : false"
@@ -87,19 +88,31 @@
             />
           </div>
         </div>
-      </div>
+
+        <!-- 手機版：單欄 -->
+        <div v-if="savedArticles.length" class="lg:hidden space-y-3 overflow-y-auto h-full pb-4">
+          <ArticleCard
+            v-for="article in savedArticles"
+            :key="article.id"
+            :article="article"
+            :selected="selectedArticle?.id === article.id"
+            :is-saved="true"
+            @select="selectedArticle = $event"
+            @toggle-save="toggleSave"
+          />
+        </div>
+      </template>
 
       <!-- 文獻分區 tabs (ESRD/HD, AKI, CKD) -->
-      <div v-else>
+      <template v-else>
         <div v-if="!currentArticles.length" class="text-center py-16 text-slate-400">
           <div class="text-4xl mb-3">📭</div>
           <p class="text-sm">此分區目前沒有文獻</p>
         </div>
 
-        <!-- 桌面版：左右分欄 -->
-        <div v-else class="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-4">
-          <!-- 左：文章列表 -->
-          <div class="space-y-3">
+        <!-- 桌面版：左右獨立捲軸 -->
+        <div v-else class="hidden lg:grid lg:grid-cols-[1fr_1fr] gap-4 h-full">
+          <div class="overflow-y-auto pr-2 space-y-3 pb-4">
             <ArticleCard
               v-for="article in currentArticles"
               :key="article.id"
@@ -111,15 +124,27 @@
               @toggle-save="toggleSave"
             />
           </div>
-
-          <!-- 右：詳細內容（桌面版固定） -->
-          <div class="hidden lg:block sticky top-28 self-start">
+          <div class="overflow-y-auto pl-2 pb-4">
             <ArticleDetail
               :article="selectedArticle"
               :is-saved="selectedArticle ? isSaved(selectedArticle.id) : false"
               @toggle-save="toggleSave"
             />
           </div>
+        </div>
+
+        <!-- 手機版：單欄 -->
+        <div v-if="currentArticles.length" class="lg:hidden space-y-3 overflow-y-auto h-full pb-4">
+          <ArticleCard
+            v-for="article in currentArticles"
+            :key="article.id"
+            :article="article"
+            :is-new="isToday(article.created_at)"
+            :selected="selectedArticle?.id === article.id"
+            :is-saved="isSaved(article.id)"
+            @select="selectedArticle = $event"
+            @toggle-save="toggleSave"
+          />
         </div>
 
         <!-- 手機版：點擊文章後彈出詳細 -->
@@ -150,7 +175,7 @@
             </div>
           </div>
         </Teleport>
-      </div>
+      </template>
     </main>
   </div>
 </template>
