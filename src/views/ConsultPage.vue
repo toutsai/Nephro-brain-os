@@ -181,6 +181,13 @@
               v-for="msg in messages"
               :key="msg.id"
               :msg="msg"
+              @save-to-notes="saveFullReplyToNotes"
+            />
+
+            <!-- Selection toolbar for text selection -->
+            <SelectionToolbar
+              source-type="consult"
+              :source-meta="{ chatId: currentChatId }"
             />
 
             <!-- Typing indicator -->
@@ -346,6 +353,7 @@ import { useConsultChat } from '../composables/useConsultChat.js'
 import { useBooks } from '../composables/useBooks.js'
 import ChatMessage from '../components/ChatMessage.vue'
 import BookCard from '../components/BookCard.vue'
+import SelectionToolbar from '../components/SelectionToolbar.vue'
 
 // === Chat ===
 const {
@@ -468,6 +476,36 @@ async function handleSend() {
   inputText.value = ''
   textareaHeight.value = '40px'
   await sendQuestion(text)
+}
+
+// === 整則回覆收進 Notes ===
+async function saveFullReplyToNotes(content) {
+  try {
+    const title = content.split('\n')[0].replace(/[#*_`>]/g, '').trim().slice(0, 30) || '問答摘錄'
+    await addDoc(collection(db, 'notes'), {
+      title: title + (title.length >= 30 ? '…' : ''),
+      content,
+      tags: [],
+      links: [],
+      sources: [{
+        type: 'consult',
+        chatId: currentChatId.value,
+        snippet: content.slice(0, 200),
+        saved_at: new Date().toISOString(),
+      }],
+      created_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+    })
+    // 簡易 toast
+    const el = document.createElement('div')
+    el.textContent = '已收進 Notes ✓'
+    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:50;background:#7c3aed;color:white;padding:8px 16px;border-radius:12px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.15)'
+    document.body.appendChild(el)
+    setTimeout(() => el.remove(), 2000)
+  } catch (e) {
+    console.error('Save to notes error:', e)
+    alert('儲存失敗')
+  }
 }
 
 function autoResize() {

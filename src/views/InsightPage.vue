@@ -23,6 +23,12 @@
           >
             💬 Consult
           </router-link>
+          <router-link
+            to="/notes"
+            class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-purple-50 text-slate-500 hover:text-purple-600 rounded-lg transition-colors"
+          >
+            📝 Notes
+          </router-link>
         </div>
       </div>
 
@@ -185,6 +191,12 @@
         </Teleport>
       </template>
     </main>
+
+    <!-- Selection toolbar -->
+    <SelectionToolbar
+      source-type="insight"
+      :source-meta="selectedArticle ? { title: selectedArticle.title, pmid: selectedArticle.pmid } : {}"
+    />
   </div>
 </template>
 
@@ -194,6 +206,7 @@ import { useArticles } from '../composables/useArticles.js'
 import { useCollection } from '../composables/useCollection.js'
 import ArticleCard from '../components/ArticleCard.vue'
 import ArticleDetail from '../components/ArticleDetail.vue'
+import SelectionToolbar from '../components/SelectionToolbar.vue'
 
 // Data
 const {

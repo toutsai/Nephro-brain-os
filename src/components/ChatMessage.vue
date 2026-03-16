@@ -38,9 +38,16 @@
         </template>
       </div>
 
-      <!-- Timestamp -->
-      <div class="text-[10px] text-slate-400 mt-1 px-1">
-        {{ formatTime(msg.created_at) }}
+      <!-- Timestamp + actions -->
+      <div class="flex items-center gap-2 text-[10px] text-slate-400 mt-1 px-1">
+        <span>{{ formatTime(msg.created_at) }}</span>
+        <button
+          v-if="msg.role === 'assistant' && !msg.is_error"
+          class="text-slate-300 hover:text-purple-500 transition-colors"
+          @click="$emit('saveToNotes', msg.content)"
+        >
+          📝 收進 Notes
+        </button>
       </div>
     </div>
   </div>
@@ -52,6 +59,8 @@ import { computed } from 'vue'
 const props = defineProps({
   msg: { type: Object, required: true },
 })
+
+defineEmits(['saveToNotes'])
 
 const bubbleClass = computed(() => {
   if (props.msg.role === 'user') {
