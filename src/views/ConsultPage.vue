@@ -243,7 +243,7 @@
               </button>
             </div>
             <p class="text-center text-[10px] text-slate-300 mt-1.5">
-              問答引擎結合教科書 FAISS 向量搜尋 + PubMed + Perplexity + Gemini
+              問答引擎結合教科書 FAISS 向量搜尋 + PubMed + Google Search + Gemini 2.5 Flash
             </p>
           </div>
         </div>
@@ -274,14 +274,40 @@
           </div>
         </div>
 
-        <!-- Upload hint -->
-        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-          <h3 class="text-sm font-bold text-blue-800 mb-1">📤 如何上傳教科書？</h3>
-          <p class="text-xs text-blue-600 leading-relaxed">
-            教科書上傳需要在本地執行
-            <code class="bg-blue-100 px-1 py-0.5 rounded text-[11px]">python local_pdf_processor.py</code>。
-            此工具會解析 PDF → 切片 → 向量化 → 上傳到 Firestore + Firebase Storage。
-            Cloud Run 重啟後會自動載入新知識。
+        <!-- Upload section -->
+        <div class="bg-white border border-slate-200 rounded-xl p-4 mb-6">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold text-slate-700">📤 上傳教科書 PDF</h3>
+            <label
+              class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors"
+              :class="uploading ? 'opacity-50 cursor-not-allowed' : ''"
+            >
+              {{ uploading ? '上傳中...' : '選擇 PDF' }}
+              <input
+                type="file"
+                accept=".pdf"
+                class="hidden"
+                :disabled="uploading"
+                @change="handleUpload"
+              />
+            </label>
+          </div>
+
+          <!-- Upload progress -->
+          <div v-if="uploading" class="mb-3">
+            <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                class="h-full bg-blue-500 rounded-full transition-all duration-300"
+                :style="{ width: uploadProgress + '%' }"
+              />
+            </div>
+            <p class="text-[10px] text-slate-400 mt-1">{{ Math.round(uploadProgress) }}% 已上傳</p>
+          </div>
+
+          <p class="text-xs text-slate-400 leading-relaxed">
+            PDF 上傳後狀態為「等待處理」。需在本地執行
+            <code class="bg-slate-100 px-1 py-0.5 rounded text-[11px]">python local_pdf_processor.py</code>
+            進行切片與向量化。處理完成後 Cloud Run 重啟會自動載入新知識。
           </p>
         </div>
 
@@ -313,6 +339,9 @@
 
 <script setup>
 import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
+import { db, storage } from '../firebase.js'
 import { useConsultChat } from '../composables/useConsultChat.js'
 import { useBooks } from '../composables/useBooks.js'
 import ChatMessage from '../components/ChatMessage.vue'
@@ -354,6 +383,8 @@ const inputText = ref('')
 const textareaHeight = ref('40px')
 const messagesContainer = ref(null)
 const inputEl = ref(null)
+const uploading = ref(false)
+const uploadProgress = ref(0)
 
 const mainTabs = [
   { key: 'chat', label: '問答', icon: '💬' },
@@ -378,6 +409,57 @@ function handleDeleteChat(chatId) {
   if (confirm('確定要刪除這個對話？')) {
     deleteChat(chatId)
   }
+}
+
+// === PDF 上傳 ===
+async function handleUpload(e) {
+  const file = e.target.files?.[0]
+  if (!file || !file.name.endsWith('.pdf')) {
+    alert('請選擇 PDF 檔案')
+    return
+  }
+
+  uploading.value = true
+  uploadProgress.value = 0
+
+  const path = `books/${Date.now()}_${file.name}`
+  const fileRef = storageRef(storage, path)
+  const uploadTask = uploadBytesResumable(fileRef, file)
+
+  uploadTask.on(
+    'state_changed',
+    (snapshot) => {
+      uploadProgress.value = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+    },
+    (err) => {
+      console.error('Upload error:', err)
+      alert('上傳失敗，請重試')
+      uploading.value = false
+      uploadProgress.value = 0
+    },
+    async () => {
+      try {
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+        const sizeMb = `${(file.size / (1024 * 1024)).toFixed(2)} MB`
+
+        await addDoc(collection(db, 'books'), {
+          title: file.name.replace(/\.pdf$/i, ''),
+          url: downloadURL,
+          storagePath: path,
+          size: sizeMb,
+          status: 'pending',
+          uploadedAt: serverTimestamp(),
+        })
+      } catch (err) {
+        console.error('Save error:', err)
+        alert('儲存書籍記錄失敗')
+      } finally {
+        uploading.value = false
+        uploadProgress.value = 0
+        e.target.value = '' // reset file input
+      }
+    }
+  )
 }
 
 async function handleSend() {

@@ -94,7 +94,6 @@ export function useConsultChat() {
     // 如果沒有 chat，先建一個
     let chatId = currentChatId.value
     if (!chatId) {
-      // 用問題的前 20 字當標題
       const title = question.length > 20 ? question.slice(0, 20) + '…' : question
       chatId = await createChat(title)
     }
@@ -132,11 +131,13 @@ export function useConsultChat() {
         content: answer,
         created_at: serverTimestamp(),
       })
+
+      // 問答成功 → API 確認在線
+      apiStatus.value = 'online'
     } catch (err) {
       console.error('Ask API error:', err)
       error.value = err.message
 
-      // 存錯誤訊息
       await addDoc(collection(db, 'chats', chatId, 'messages'), {
         role: 'assistant',
         content: `⚠️ 呼叫 API 失敗：${err.message}\n\n請確認 Cloud Run 服務是否正在運行。`,
@@ -148,26 +149,48 @@ export function useConsultChat() {
     }
   }
 
-  // === API 狀態檢查 ===
+  // === API 狀態檢查（更穩健：多種方式判定）===
   const apiStatus = ref(null) // 'online' | 'offline' | null
   async function checkApiHealth() {
+    // 先試 /health
     try {
-      const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(5000) })
-      const data = await res.json()
-      apiStatus.value = res.ok ? 'online' : 'offline'
-      return data
+      const res = await fetch(`${API_BASE}/health`, {
+        signal: AbortSignal.timeout(8000),
+        mode: 'cors',
+      })
+      if (res.ok) {
+        const data = await res.json()
+        apiStatus.value = 'online'
+        return data
+      }
     } catch {
-      apiStatus.value = 'offline'
-      return null
+      // /health 失敗，改試 /stats（GET 請求，舊版 API 也支援）
+      try {
+        const res = await fetch(`${API_BASE}/stats`, {
+          signal: AbortSignal.timeout(15000),
+        })
+        if (res.ok) {
+          apiStatus.value = 'online'
+          return await res.json()
+        }
+      } catch {
+        // 都失敗
+      }
     }
+    apiStatus.value = 'offline'
+    return null
   }
 
   // === 知識庫統計 ===
   const knowledgeStats = ref(null)
   async function fetchStats() {
     try {
-      const res = await fetch(`${API_BASE}/stats`)
-      if (res.ok) knowledgeStats.value = await res.json()
+      const res = await fetch(`${API_BASE}/stats`, {
+        signal: AbortSignal.timeout(15000),
+      })
+      if (res.ok) {
+        knowledgeStats.value = await res.json()
+      }
     } catch {
       // silent
     }
@@ -180,7 +203,6 @@ export function useConsultChat() {
   }
 
   return {
-    // state
     chats,
     currentChatId,
     messages,
@@ -190,7 +212,6 @@ export function useConsultChat() {
     chatsLoading,
     apiStatus,
     knowledgeStats,
-    // actions
     subscribeChats,
     selectChat,
     createChat,
