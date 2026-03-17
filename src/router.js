@@ -21,6 +21,11 @@ const routes = [
     name: 'notes',
     component: () => import('./views/NotesPage.vue'),
   },
+  {
+    path: '/teach',
+    name: 'teach',
+    component: () => import('./views/TeachPage.vue'),
+  },
 ]
 
 export default createRouter({

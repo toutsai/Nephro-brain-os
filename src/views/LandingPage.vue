@@ -29,6 +29,12 @@
         >
           📝 NB Notes — 知識整理
         </router-link>
+        <router-link
+          to="/teach"
+          class="px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-medium transition-colors"
+        >
+          🎓 NB Teach — 教學素材
+        </router-link>
       </div>
     </div>
   </div>

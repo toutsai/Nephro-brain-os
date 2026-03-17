@@ -450,6 +450,154 @@ def stats():
         "total_chunks": len(stored_chunks),
     })
 
+# === NB Teach 端點（加在 api_server.py 的 /stats 端點後面）===
+
+@app.route('/teach/generate', methods=['POST'])
+def teach_generate():
+    """NB Teach: 從素材生成摘要/Flashcards/大綱"""
+    data = request.get_json()
+    text = data.get('text', '')
+    mode = data.get('mode', 'all')  # 'summary' | 'flashcards' | 'outline' | 'all'
+
+    if not text:
+        return jsonify({"error": "請提供學習素材"}), 400
+
+    if not gemini_client:
+        return jsonify({"error": "Gemini API 未設定"}), 500
+
+    # 截斷過長文本（避免超出 token 限制）
+    text = text[:15000]
+
+    print(f"🎓 /teach/generate: mode={mode}, text_len={len(text)}")
+
+    result = {}
+
+    try:
+        if mode in ('summary', 'all'):
+            result['summary'] = _teach_summary(text)
+
+        if mode in ('flashcards', 'all'):
+            result['flashcards'] = _teach_flashcards(text)
+
+        if mode in ('outline', 'all'):
+            result['outline'] = _teach_outline(text)
+
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"❌ Teach generate error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+def _teach_summary(text):
+    """生成結構化摘要"""
+    prompt = f"""你是一位醫學教育專家。請為以下學習素材產生結構化摘要。
+
+【素材】
+{text}
+
+【輸出格式】（Markdown）：
+# 核心摘要
+
+## 關鍵概念
+（列出 3-5 個最重要的概念，每個用 2-3 句話解釋）
+
+## 重點整理
+（條列式重點，使用 **粗體** 標示關鍵詞）
+
+## 臨床應用
+（如果是醫學內容，說明臨床意義）
+
+## 一句話總結
+（用一句話概括全文最核心的訊息）
+
+全程使用繁體中文，醫學術語用「中文 (English)」格式。"""
+
+    response = gemini_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=prompt,
+    )
+    return response.text
+
+
+def _teach_flashcards(text):
+    """生成 Flashcards（JSON 格式）"""
+    prompt = f"""你是一位醫學教育專家。請根據以下素材產生 10-15 張 Flashcards。
+
+【素材】
+{text}
+
+【要求】：
+1. 每張卡片包含一個問題和答案
+2. 問題要有臨床思考價值，不要死背型問題
+3. 答案簡潔但完整（2-4 句話）
+4. 涵蓋素材的核心概念
+5. 全程繁體中文
+
+【輸出格式】：純 JSON，不要 markdown 標記
+[
+  {{"question": "問題1", "answer": "答案1"}},
+  {{"question": "問題2", "answer": "答案2"}}
+]"""
+
+    response = gemini_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=prompt,
+    )
+
+    # 清理回傳
+    result = response.text.strip()
+    if result.startswith("```"):
+        result = result.split("\n", 1)[1] if "\n" in result else result
+    if result.endswith("```"):
+        result = result[:-3].strip()
+
+    # 驗證是有效 JSON
+    try:
+        parsed = json.loads(result)
+        return json.dumps(parsed, ensure_ascii=False)
+    except:
+        return result  # 回傳原始文字，前端會嘗試解析
+
+
+def _teach_outline(text):
+    """生成學習大綱 / 心智圖結構"""
+    prompt = f"""你是一位醫學教育專家。請為以下素材產生一份學習大綱。
+
+【素材】
+{text}
+
+【輸出格式】（Markdown 縮排大綱）：
+
+# 主題名稱
+
+## 1. 第一大類
+### 1.1 子項目
+- 重點 a
+- 重點 b
+  - 細節
+
+### 1.2 子項目
+- 重點 c
+
+## 2. 第二大類
+### 2.1 子項目
+- 重點 d
+
+## 📝 學習建議
+（根據內容給出 2-3 條學習建議）
+
+## 🔗 延伸閱讀
+（建議相關主題或搜尋方向）
+
+全程使用繁體中文，醫學術語保留英文。大綱要有層次感，適合作為心智圖的基礎。"""
+
+    response = gemini_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=prompt,
+    )
+    return response.text
+
 
 @app.route('/process-book', methods=['POST'])
 def process_book_endpoint():
