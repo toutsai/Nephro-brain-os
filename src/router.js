@@ -26,6 +26,11 @@ const routes = [
     name: 'teach',
     component: () => import('./views/TeachPage.vue'),
   },
+  {
+    path: '/assist',
+    name: 'assist',
+    component: () => import('./views/AssistPage.vue'),
+  },
 ]
 
 export default createRouter({

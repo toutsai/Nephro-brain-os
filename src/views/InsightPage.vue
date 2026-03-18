@@ -1,34 +1,14 @@
 <template>
   <div class="h-screen flex flex-col bg-slate-50">
     <!-- Header -->
-    <header class="bg-white border-b border-slate-200 sticky top-0 z-20 shrink-0">
-      <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <router-link to="/" class="text-lg font-bold text-slate-800 hover:text-blue-600 transition-colors">
-            NB — OS
-          </router-link>
-          <span class="text-slate-300">|</span>
-          <div>
-            <h1 class="text-sm font-bold text-slate-800">NB Insight</h1>
-            <p class="text-[10px] text-slate-400">每日文獻智慧引擎</p>
-          </div>
+    <header class="bg-white border-b border-slate-200 shrink-0">
+      <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <h1 class="text-sm font-bold text-slate-800">NB Insight</h1>
+          <span class="text-[10px] text-slate-400">每日文獻智慧引擎</span>
         </div>
-        <div class="flex items-center gap-3">
-          <div class="text-xs text-slate-400">
-            {{ articleCount }} 篇文獻
-          </div>
-          <router-link
-            to="/consult"
-            class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-lg transition-colors"
-          >
-            💬 Consult
-          </router-link>
-          <router-link
-            to="/notes"
-            class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-purple-50 text-slate-500 hover:text-purple-600 rounded-lg transition-colors"
-          >
-            📝 Notes
-          </router-link>
+        <div class="text-xs text-slate-400">
+          {{ articleCount }} 篇文獻
         </div>
       </div>
 
@@ -210,11 +190,9 @@ import SelectionToolbar from '../components/SelectionToolbar.vue'
 
 // Data
 const {
-  articles,
   esrdArticles,
   akiArticles,
   ckdArticles,
-  journalArticles,
   loading,
   isToday,
   unsubscribe: unsubArticles,
@@ -251,7 +229,6 @@ const tabs = computed(() => [
   { key: 'ESRD/HD', label: 'ESRD / HD', count: esrdArticles.value.length },
   { key: 'AKI', label: 'AKI', count: akiArticles.value.length },
   { key: 'CKD', label: 'CKD', count: ckdArticles.value.length },
-  { key: 'journal', label: '📰 期刊', count: journalArticles.value.length },
   { key: 'collection', label: '✅ 收藏庫', count: savedArticles.value.length },
 ])
 
@@ -259,9 +236,10 @@ const currentArticles = computed(() => {
   if (activeTab.value === 'ESRD/HD') return esrdArticles.value
   if (activeTab.value === 'AKI') return akiArticles.value
   if (activeTab.value === 'CKD') return ckdArticles.value
-  if (activeTab.value === 'journal') return journalArticles.value
   return []
 })
 
-const articleCount = computed(() => articles.value.length)
+const articleCount = computed(() =>
+  esrdArticles.value.length + akiArticles.value.length + ckdArticles.value.length
+)
 </script>

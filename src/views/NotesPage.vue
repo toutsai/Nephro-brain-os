@@ -1,35 +1,14 @@
 <template>
   <div class="h-screen flex flex-col bg-slate-50">
     <!-- Header -->
-    <header class="bg-white border-b border-slate-200 sticky top-0 z-20 shrink-0">
-      <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <router-link to="/" class="text-lg font-bold text-slate-800 hover:text-blue-600 transition-colors">
-            NB — OS
-          </router-link>
-          <span class="text-slate-300">|</span>
-          <div>
-            <h1 class="text-sm font-bold text-slate-800">NB Notes</h1>
-            <p class="text-[10px] text-slate-400">個人知識整理區</p>
-          </div>
+    <header class="bg-white border-b border-slate-200 shrink-0">
+      <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <h1 class="text-sm font-bold text-slate-800">NB Notes</h1>
+          <span class="text-[10px] text-slate-400">個人知識整理區</span>
         </div>
-
-        <div class="flex items-center gap-3">
-          <div class="text-xs text-slate-400">
-            {{ notes.length }} 則筆記 · {{ allTags.length }} 個標籤
-          </div>
-          <router-link
-            to="/insight"
-            class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-lg transition-colors"
-          >
-            🔍 Insight
-          </router-link>
-          <router-link
-            to="/consult"
-            class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-teal-50 text-slate-500 hover:text-teal-600 rounded-lg transition-colors"
-          >
-            💬 Consult
-          </router-link>
+        <div class="text-xs text-slate-400">
+          {{ notes.length }} 則筆記 · {{ allTags.length }} 個標籤
         </div>
       </div>
     </header>

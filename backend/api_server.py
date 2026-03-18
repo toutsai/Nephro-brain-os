@@ -593,6 +593,344 @@ TEACH_PROMPT_OUTLINE = """你是一位醫學教育專家。請為上面的素材
 全程使用繁體中文，醫學術語保留英文。大綱要有層次感，適合作為心智圖的基礎。"""
 
 
+# === NB Assist 端點（加在 api_server.py 的 teach 端點後面）===
+
+ASSIST_DISCLAIMER = "\n\n---\n> ⚠️ **免責聲明**：以上建議由 AI 根據實證醫學資料生成，僅供臨床參考。實際治療決策應由主治醫師根據完整病歷資訊做出判斷。所有藥物劑量請以最新藥典和院內處方集為準。"
+
+@app.route('/assist/query', methods=['POST'])
+def assist_query():
+    """NB Assist: 臨床決策輔助（支援文字 + 圖片）"""
+    data = request.get_json()
+    mode = data.get('mode', '')
+    images = data.get('images', [])  # [{ data: base64, mime_type: "image/jpeg" }, ...]
+
+    if not mode:
+        return jsonify({"error": "缺少 mode 參數"}), 400
+
+    if not gemini_client:
+        return jsonify({"error": "Gemini API 未設定"}), 500
+
+    img_count = len(images) if images else 0
+    print(f"🏥 /assist/query: mode={mode}, images={img_count}")
+
+    try:
+        if mode == 'clinical':
+            result = _assist_clinical(data.get('scenario', ''), images)
+        elif mode == 'dose':
+            result = _assist_dose(data, images)
+        elif mode == 'lab':
+            result = _assist_lab(data.get('lab_data', ''), images)
+        elif mode == 'nhi':
+            result = _assist_nhi(data.get('query', ''), images)
+        elif mode == 'interaction':
+            result = _assist_interaction(data.get('drugs', ''), images)
+        else:
+            return jsonify({"error": f"不支援的模式: {mode}"}), 400
+
+        return jsonify({"result": result})
+
+    except Exception as e:
+        print(f"❌ Assist error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+def _build_image_parts(images):
+    """將前端傳來的 base64 圖片轉成 Gemini 可讀的格式"""
+    parts = []
+    if not images:
+        return parts
+    for img in images:
+        parts.append({
+            "inline_data": {
+                "mime_type": img.get("mime_type", "image/jpeg"),
+                "data": img["data"]
+            }
+        })
+    return parts
+
+
+def _assist_clinical(scenario, images=None):
+    """臨床情境 → 實證指引建議"""
+    if not scenario and not images:
+        return "❌ 請提供臨床情境描述或上傳圖片。"
+
+    prompt = """你是一位資深腎臟科主治醫師，崇尚實證醫學 (EBM)。
+請根據以下臨床情境（包含文字描述和/或圖片）提供結構化的臨床建議。
+如果有圖片，請先仔細判讀圖片內容（可能是病歷、lab 報告、影像等），然後結合文字描述一起分析。
+
+【請依照以下格式回答】（Markdown）：
+
+## 🔍 臨床問題分析
+（簡要整理關鍵問題，如果有圖片先描述圖片內容）
+
+## 📋 鑑別診斷
+（若適用，列出可能的診斷及其可能性）
+
+## 📚 實證建議
+（根據最新指引和實證，提供具體建議）
+- 引用 KDIGO、KDOQI 或其他相關指引
+- 附上實證等級（如果可以）
+
+## 💊 藥物建議
+（若涉及用藥，提供具體建議含劑量）
+
+## ⚠️ 注意事項
+（需要監測的指標、可能的風險）
+
+## 🔄 後續追蹤
+（建議的追蹤計劃）
+
+全程使用繁體中文，醫學術語用「中文 (English)」格式。
+請用 Google Search 搜尋補充最新的指引和實證。"""
+
+    contents = []
+    contents.extend(_build_image_parts(images))
+    if scenario:
+        contents.append(f"【臨床情境】\n{scenario}")
+    contents.append(prompt)
+
+    response = gemini_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=contents,
+        config=types.GenerateContentConfig(
+            tools=[types.Tool(google_search=types.GoogleSearch())],
+        )
+    )
+    return response.text + ASSIST_DISCLAIMER
+
+
+def _assist_dose(data, images=None):
+    """藥物劑量調整"""
+    drug = data.get('drug', '')
+    egfr = data.get('egfr', '')
+    ckd_stage = data.get('ckd_stage', '')
+    weight = data.get('weight', '')
+    extra = data.get('extra', '')
+
+    if not drug and not images:
+        return "❌ 請提供藥物名稱或上傳處方圖片。"
+
+    prompt = f"""你是一位臨床藥學專家，專精腎臟病藥物劑量調整。
+請提供藥物在腎功能不全時的劑量調整建議。
+如果有圖片，請先判讀圖片內容（可能是處方單、藥物資訊等），提取藥物名稱和相關資訊。
+
+【藥物】{drug if drug else '（請從圖片判讀）'}
+【eGFR】{egfr if egfr else '未提供'} mL/min/1.73m²
+【CKD Stage】{ckd_stage if ckd_stage else '未提供（請根據 eGFR 判斷）'}
+【體重】{weight if weight else '未提供'} kg
+【其他備註】{extra if extra else '無'}
+
+【請依照以下格式回答】（Markdown）：
+
+## 💊 藥物腎功能劑量調整
+
+### 藥物基本資訊
+| 項目 | 內容 |
+|------|------|
+| 學名 | |
+| 藥理分類 | |
+| 主要排除途徑 | |
+| 蛋白結合率 | |
+| 是否可透析清除 | |
+
+### 劑量建議
+| CKD Stage | eGFR 範圍 | 建議劑量 | 頻次 |
+|-----------|-----------|----------|------|
+| 1-2 | ≥60 | | |
+| 3a-3b | 30-59 | | |
+| 4 | 15-29 | | |
+| 5 | <15 | | |
+| 5D (HD) | 透析中 | | |
+| 5D (PD) | 腹膜透析 | | |
+| CRRT | | | |
+
+### 📍 針對此病人的建議
+### ⚠️ 監測項目
+### 📚 參考來源
+
+全程使用繁體中文，藥物名稱保留英文。
+請用 Google Search 搜尋最新的藥物劑量調整資訊。"""
+
+    contents = []
+    contents.extend(_build_image_parts(images))
+    contents.append(prompt)
+
+    response = gemini_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=contents,
+        config=types.GenerateContentConfig(
+            tools=[types.Tool(google_search=types.GoogleSearch())],
+        )
+    )
+    return response.text + ASSIST_DISCLAIMER
+
+
+def _assist_lab(lab_data, images=None):
+    """Lab 鑑別診斷"""
+    if not lab_data and not images:
+        return "❌ 請提供檢驗數據或上傳 lab 報告圖片。"
+
+    prompt = """你是一位資深腎臟科主治醫師。
+請根據以下檢驗數據進行鑑別診斷分析。
+如果有圖片，請先仔細判讀圖片中的所有檢驗數值，列出完整的數據，然後進行分析。
+
+【請依照以下格式回答】（Markdown）：
+
+## 📊 圖片判讀結果（如有圖片）
+（列出從圖片中讀取到的所有檢驗數值）
+
+## 🔬 檢驗異常摘要
+（哪些數值異常？正常範圍對照）
+
+## 📋 鑑別診斷（依可能性排序）
+
+### 1. 最可能：[診斷名稱]
+- **支持證據**：哪些 lab data 支持
+- **機轉**：簡要說明病理機轉
+- **需進一步檢查**：建議追加的檢驗或檢查
+
+### 2. 次可能：[診斷名稱]
+- **支持證據**：
+- **機轉**：
+- **需進一步檢查**：
+
+### 3. 需排除：[診斷名稱]
+
+## 🔍 建議追加檢查
+## 💡 臨床珍珠
+
+全程使用繁體中文，醫學術語用「中文 (English)」格式。
+請用 Google Search 搜尋最新的診斷指引。"""
+
+    contents = []
+    contents.extend(_build_image_parts(images))
+    if lab_data:
+        contents.append(f"【檢驗數據 / 臨床資訊】\n{lab_data}")
+    contents.append(prompt)
+
+    response = gemini_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=contents,
+        config=types.GenerateContentConfig(
+            tools=[types.Tool(google_search=types.GoogleSearch())],
+        )
+    )
+    return response.text + ASSIST_DISCLAIMER
+
+
+def _assist_nhi(query_text, images=None):
+    """台灣健保給付規則查詢"""
+    if not query_text and not images:
+        return "❌ 請提供要查詢的藥物或治療項目。"
+
+    prompt = """你是一位熟悉台灣全民健康保險制度的腎臟科專家。
+請根據以下查詢，提供台灣健保給付的相關規定。
+如果有圖片，請先判讀圖片內容。
+
+【重要】：請用 Google Search 搜尋「台灣健保 藥品給付規定」、「衛生福利部中央健康保險署」等關鍵字，取得最新的給付規範。
+
+【請依照以下格式回答】（Markdown）：
+
+## 🏛️ 健保給付查詢結果
+
+### 藥品/項目基本資訊
+| 項目 | 內容 |
+|------|------|
+| 健保代碼 | （如能查到）|
+| 給付分類 | |
+| 適應症 | |
+
+### 📋 給付條件
+（詳列健保給付的適應症、條件、限制）
+
+### ⚠️ 事前審查 / 特殊規定
+（是否需要事前審查？需要哪些文件？排除條件？）
+
+### 💰 給付限制
+（用量限制、療程限制、共同負擔等）
+
+### 📝 申請流程
+（如需事前審查，說明申請步驟）
+
+### 📚 參考依據
+（引用健保署公告文號或相關法規）
+
+全程使用繁體中文。
+如果查不到確切的健保規定，請明確說明並建議查詢管道（如健保署網站、院內藥事委員會等）。"""
+
+    contents = []
+    contents.extend(_build_image_parts(images))
+    if query_text:
+        contents.append(f"【查詢內容】\n{query_text}")
+    contents.append(prompt)
+
+    response = gemini_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=contents,
+        config=types.GenerateContentConfig(
+            tools=[types.Tool(google_search=types.GoogleSearch())],
+        )
+    )
+    return response.text + ASSIST_DISCLAIMER
+
+
+def _assist_interaction(drugs_text, images=None):
+    """藥物交互作用檢查"""
+    if not drugs_text and not images:
+        return "❌ 請提供藥物列表或上傳處方圖片。"
+
+    prompt = """你是一位臨床藥學專家，專精腎臟病患者的用藥安全。
+請檢查以下藥物之間的交互作用。
+如果有圖片，請先從圖片中判讀所有藥物名稱和劑量。
+
+【請依照以下格式回答】（Markdown）：
+
+## ⚡ 藥物交互作用檢查報告
+
+### 📋 藥物清單
+（列出所有要檢查的藥物及劑量）
+
+### 🔴 嚴重交互作用（需立即處理）
+（如有，列出每一對有嚴重交互作用的藥物）
+- **藥物 A + 藥物 B**
+  - 交互作用機轉
+  - 臨床後果
+  - 建議處置
+
+### 🟡 中度交互作用（需注意監測）
+- **藥物 C + 藥物 D**
+  - 交互作用機轉
+  - 監測建議
+
+### 🟢 輕度交互作用（知道就好）
+
+### 🔬 腎功能相關注意事項
+（針對腎臟病患者的特殊考量：腎排除藥物、腎毒性疊加等）
+
+### 💡 用藥建議
+（整體用藥安全建議、時間間隔建議等）
+
+### 📚 參考來源
+
+全程使用繁體中文，藥物名稱保留英文。
+請用 Google Search 搜尋最新的藥物交互作用資訊。"""
+
+    contents = []
+    contents.extend(_build_image_parts(images))
+    if drugs_text:
+        contents.append(f"【藥物列表】\n{drugs_text}")
+    contents.append(prompt)
+
+    response = gemini_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=contents,
+        config=types.GenerateContentConfig(
+            tools=[types.Tool(google_search=types.GoogleSearch())],
+        )
+    )
+    return response.text + ASSIST_DISCLAIMER
+
+
 # ============================================================
 # 6. 舊端點（向下相容 nephro-brain-web）
 # ============================================================

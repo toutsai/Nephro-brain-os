@@ -35,6 +35,12 @@
         >
           🎓 NB Teach — 教學素材
         </router-link>
+        <router-link
+          to="/assist"
+          class="px-6 py-3 bg-rose-700 hover:bg-rose-600 text-white rounded-lg font-medium transition-colors"
+        >
+          🏥 NB Assist — 臨床決策
+        </router-link>
       </div>
     </div>
   </div>
