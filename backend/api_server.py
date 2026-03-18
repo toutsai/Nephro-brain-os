@@ -453,7 +453,7 @@ def stats():
 
 @app.route('/teach/generate', methods=['POST'])
 def teach_generate():
-    """NB Teach: 從文字或 PDF 生成摘要/Flashcards/大綱"""
+    """NB Teach: 從文字或 PDF 生成摘要/Flashcards/大綱/心智圖"""
     data = request.get_json()
     text = data.get('text', '')
     file_url = data.get('file_url', '')
@@ -475,7 +475,6 @@ def teach_generate():
             pdf_bytes = pdf_resp.content
             print(f"  📄 PDF 大小：{len(pdf_bytes) / 1024:.0f} KB")
 
-            # 用 inline_data dict 格式（相容所有 google-genai 版本）
             contents.append({
                 "inline_data": {
                     "mime_type": "application/pdf",
@@ -499,7 +498,6 @@ def teach_generate():
 
         if mode in ('flashcards', 'all'):
             raw = _teach_call(contents, TEACH_PROMPT_FLASHCARDS)
-            # 清理 JSON
             cleaned = raw.strip()
             if cleaned.startswith("```"):
                 cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
@@ -513,6 +511,19 @@ def teach_generate():
 
         if mode in ('outline', 'all'):
             result['outline'] = _teach_call(contents, TEACH_PROMPT_OUTLINE)
+
+        if mode in ('mindmap', 'all'):
+            raw = _teach_call(contents, TEACH_PROMPT_MINDMAP)
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3].strip()
+            try:
+                parsed = json.loads(cleaned)
+                result['mindmap'] = json.dumps(parsed, ensure_ascii=False)
+            except:
+                result['mindmap'] = cleaned
 
         return jsonify(result)
 
@@ -591,6 +602,44 @@ TEACH_PROMPT_OUTLINE = """你是一位醫學教育專家。請為上面的素材
 （建議相關主題或搜尋方向）
 
 全程使用繁體中文，醫學術語保留英文。大綱要有層次感，適合作為心智圖的基礎。"""
+
+TEACH_PROMPT_MINDMAP = """你是一位醫學教育專家。請根據上面的素材產生一份心智圖結構。
+
+【要求】：
+1. 以 JSON 格式輸出，結構為樹狀節點
+2. 根節點是主題名稱
+3. 每個節點有 label（文字）和可選的 children（子節點陣列）
+4. 最多 3 層深度
+5. 每個大類 3-5 個子項目
+6. 標籤簡潔（10 字以內）
+7. 全程繁體中文，醫學術語保留英文
+
+【輸出格式】：純 JSON，不要 markdown 標記
+{
+  "label": "主題名稱",
+  "children": [
+    {
+      "label": "大類 1",
+      "children": [
+        {
+          "label": "子項目 A",
+          "children": [
+            { "label": "細節 1" },
+            { "label": "細節 2" }
+          ]
+        },
+        { "label": "子項目 B" }
+      ]
+    },
+    {
+      "label": "大類 2",
+      "children": [
+        { "label": "子項目 C" },
+        { "label": "子項目 D" }
+      ]
+    }
+  ]
+}"""
 
 
 # === NB Assist 端點（加在 api_server.py 的 teach 端點後面）===

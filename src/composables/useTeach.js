@@ -50,6 +50,7 @@ export function useTeach() {
       summary: null,
       flashcards: null,
       outline: null,
+      mindmap: null,
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
     })
@@ -87,6 +88,7 @@ export function useTeach() {
         updates.summary = data.summary || null
         updates.flashcards = data.flashcards || null
         updates.outline = data.outline || null
+        updates.mindmap = data.mindmap || null
       } else {
         updates[mode] = data[mode] || data.result || null
       }

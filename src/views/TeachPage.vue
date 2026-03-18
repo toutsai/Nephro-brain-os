@@ -1,11 +1,21 @@
 <template>
   <div class="h-screen flex flex-col bg-slate-50">
     <!-- Header -->
-    <header class="bg-white border-b border-slate-200 shrink-0">
-      <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-20 shrink-0">
+      <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <router-link to="/" class="text-lg font-bold text-slate-800 hover:text-blue-600 transition-colors">
+            NB — OS
+          </router-link>
+          <span class="text-slate-300">|</span>
+          <div>
+            <h1 class="text-sm font-bold text-slate-800">NB Teach</h1>
+            <p class="text-[10px] text-slate-400">教學素材產生器</p>
+          </div>
+        </div>
         <div class="flex items-center gap-2">
-          <h1 class="text-sm font-bold text-slate-800">NB Teach</h1>
-          <span class="text-[10px] text-slate-400">教學素材產生器</span>
+          <router-link to="/notes" class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-purple-50 text-slate-500 hover:text-purple-600 rounded-lg transition-colors">📝 Notes</router-link>
+          <router-link to="/consult" class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-teal-50 text-slate-500 hover:text-teal-600 rounded-lg transition-colors">💬 Consult</router-link>
         </div>
       </div>
     </header>
@@ -183,6 +193,13 @@
               >
                 🗺️ 只要大綱
               </button>
+              <button
+                :disabled="!canGenerate || generating"
+                class="px-4 py-2.5 border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-40"
+                @click="generateOne('mindmap')"
+              >
+                🧠 只要心智圖
+              </button>
             </div>
           </div>
 
@@ -190,7 +207,7 @@
           <div v-if="generating" class="flex items-center gap-3 mb-6 px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl">
             <div class="w-5 h-5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
             <span class="text-sm text-orange-700">
-              正在生成{{ generatingMode === 'all' ? '摘要 + Flashcards + 大綱' : generatingMode === 'summary' ? '摘要' : generatingMode === 'flashcards' ? 'Flashcards' : '大綱' }}...
+              正在生成{{ generatingMode === 'all' ? '摘要 + Flashcards + 大綱 + 心智圖' : generatingMode === 'summary' ? '摘要' : generatingMode === 'flashcards' ? 'Flashcards' : generatingMode === 'mindmap' ? '心智圖' : '大綱' }}...
             </span>
           </div>
 
@@ -296,6 +313,26 @@
                 <div class="prose-teach text-sm text-slate-700 leading-relaxed" v-html="renderMd(currentSession.outline)" />
               </div>
             </div>
+
+            <!-- Mind Map -->
+            <div v-if="activeTab === 'mindmap'">
+              <div v-if="!parsedMindmap" class="text-center py-12 text-slate-400">
+                <p class="text-sm">尚未生成心智圖</p>
+                <button class="mt-2 text-xs text-orange-500 hover:underline" @click="regenOne('mindmap')">生成心智圖</button>
+              </div>
+              <div v-else class="bg-white rounded-xl border border-slate-200 p-6">
+                <div class="flex items-center justify-between mb-4">
+                  <h3 class="text-sm font-bold text-slate-700">🧠 {{ parsedMindmap.label }}</h3>
+                  <button
+                    class="text-[10px] text-slate-400 hover:text-orange-500"
+                    @click="expandAll = !expandAll"
+                  >
+                    {{ expandAll ? '收合全部' : '展開全部' }}
+                  </button>
+                </div>
+                <MindMap :tree="parsedMindmap" />
+              </div>
+            </div>
           </div>
         </div>
       </main>
@@ -309,6 +346,7 @@ import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebas
 import { storage } from '../firebase.js'
 import { useTeach } from '../composables/useTeach.js'
 import FlashCard from '../components/FlashCard.vue'
+import MindMap from '../components/MindMap.vue'
 
 const {
   sessions,
@@ -329,6 +367,7 @@ const activeTab = ref('summary')
 const cardIndex = ref(0)
 const isNewSession = ref(false)
 const inputMode = ref('text') // 'text' | 'file'
+const expandAll = ref(false)
 
 // File upload state
 const uploadedFile = ref(null)
@@ -351,6 +390,7 @@ const contentTabs = computed(() => [
   { key: 'summary', label: '摘要', icon: '📋', ready: !!currentSession.value?.summary },
   { key: 'flashcards', label: 'Flashcards', icon: '🃏', ready: !!currentSession.value?.flashcards },
   { key: 'outline', label: '大綱', icon: '🗺️', ready: !!currentSession.value?.outline },
+  { key: 'mindmap', label: '心智圖', icon: '🧠', ready: !!currentSession.value?.mindmap },
 ])
 
 // 解析 flashcards JSON
@@ -382,6 +422,49 @@ function parseCardsFromText(text) {
     }
   }
   return cards
+}
+
+// 解析 mindmap JSON
+const parsedMindmap = computed(() => {
+  const raw = currentSession.value?.mindmap
+  if (!raw) return null
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw)
+    } catch {
+      // 嘗試從 markdown 大綱解析成樹
+      return parseOutlineToTree(raw)
+    }
+  }
+  if (typeof raw === 'object') return raw
+  return null
+})
+
+function parseOutlineToTree(text) {
+  const root = { label: '主題', children: [] }
+  let currentL1 = null
+  let currentL2 = null
+
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+
+    if (trimmed.startsWith('# ')) {
+      root.label = trimmed.replace(/^#\s+/, '')
+    } else if (trimmed.startsWith('## ')) {
+      currentL1 = { label: trimmed.replace(/^##\s+/, '').replace(/^\d+\.\s*/, ''), children: [] }
+      root.children.push(currentL1)
+      currentL2 = null
+    } else if (trimmed.startsWith('### ')) {
+      currentL2 = { label: trimmed.replace(/^###\s+/, '').replace(/^\d+\.\d+\s*/, ''), children: [] }
+      if (currentL1) currentL1.children.push(currentL2)
+    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      const leaf = { label: trimmed.replace(/^[-*]\s+/, '') }
+      if (currentL2) currentL2.children.push(leaf)
+      else if (currentL1) currentL1.children.push(leaf)
+    }
+  }
+  return root.children.length ? root : null
 }
 
 // === Actions ===
