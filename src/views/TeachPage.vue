@@ -45,6 +45,7 @@
           >
             <div class="text-sm font-medium text-slate-700 truncate">{{ s.title || '未命名' }}</div>
             <div class="flex items-center gap-2 mt-1 text-[10px] text-slate-400">
+              <span v-if="s.file_url" class="text-orange-400">📄 PDF</span>
               <span v-if="s.summary" class="text-emerald-500">✓ 摘要</span>
               <span v-if="s.flashcards" class="text-blue-500">✓ 卡片</span>
               <span v-if="s.outline" class="text-purple-500">✓ 大綱</span>
@@ -87,38 +88,106 @@
               class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-orange-400"
               placeholder="標題（例如：KDIGO AKI Guideline 2024）"
             />
-            <textarea
-              v-model="sourceText"
-              rows="12"
-              class="w-full text-sm border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-400 font-mono leading-relaxed resize-none"
-              placeholder="在此貼上教科書章節、論文摘要、筆記、或任何學習素材...
+
+            <!-- Input mode toggle -->
+            <div class="flex gap-1 mb-3 bg-slate-100 rounded-lg p-1 w-fit">
+              <button
+                class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors"
+                :class="inputMode === 'text' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'"
+                @click="inputMode = 'text'"
+              >
+                📝 貼上文字
+              </button>
+              <button
+                class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors"
+                :class="inputMode === 'file' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'"
+                @click="inputMode = 'file'"
+              >
+                📄 上傳檔案
+              </button>
+            </div>
+
+            <!-- Text input -->
+            <div v-if="inputMode === 'text'">
+              <textarea
+                v-model="sourceText"
+                rows="12"
+                class="w-full text-sm border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-400 font-mono leading-relaxed resize-none"
+                placeholder="在此貼上教科書章節、論文摘要、筆記、或任何學習素材...
 
 支援中英文混合。內容越完整，產出品質越好。"
-            />
-            <div class="flex items-center gap-3 mt-3">
+              />
+            </div>
+
+            <!-- File upload -->
+            <div v-if="inputMode === 'file'">
+              <div
+                class="border-2 border-dashed rounded-xl p-8 text-center transition-colors"
+                :class="uploadedFile ? 'border-orange-300 bg-orange-50' : 'border-slate-200 hover:border-orange-300'"
+              >
+                <div v-if="!uploadedFile && !uploading">
+                  <div class="text-4xl mb-3">📄</div>
+                  <p class="text-sm text-slate-600 mb-2">拖曳檔案到此，或點擊選擇</p>
+                  <p class="text-[10px] text-slate-400 mb-4">支援 PDF（Gemini 原生讀取，含圖表）</p>
+                  <label class="inline-block px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white text-sm font-medium rounded-lg cursor-pointer transition-colors">
+                    選擇檔案
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      class="hidden"
+                      @change="handleFileSelect"
+                    />
+                  </label>
+                </div>
+
+                <!-- Uploading -->
+                <div v-if="uploading" class="py-4">
+                  <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden mb-2">
+                    <div class="h-full bg-orange-500 rounded-full transition-all" :style="{ width: uploadProgress + '%' }" />
+                  </div>
+                  <p class="text-xs text-slate-500">上傳中... {{ Math.round(uploadProgress) }}%</p>
+                </div>
+
+                <!-- Uploaded -->
+                <div v-if="uploadedFile && !uploading">
+                  <div class="text-3xl mb-2">✅</div>
+                  <p class="text-sm font-medium text-slate-700">{{ uploadedFile.name }}</p>
+                  <p class="text-[10px] text-slate-400 mt-1">{{ uploadedFile.size }} · 已上傳至 Firebase Storage</p>
+                  <button
+                    class="mt-3 text-xs text-slate-400 hover:text-red-500 transition-colors"
+                    @click="uploadedFile = null; fileUrl = null"
+                  >
+                    移除，重新選擇
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Generate buttons -->
+            <div class="flex items-center gap-3 mt-3 flex-wrap">
               <button
-                :disabled="!sourceText.trim() || generating"
+                :disabled="!canGenerate || generating"
                 class="px-5 py-2.5 bg-orange-500 hover:bg-orange-400 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 @click="generateAll"
               >
                 {{ generating ? '生成中...' : '🚀 一鍵生成全部' }}
               </button>
               <button
-                :disabled="!sourceText.trim() || generating"
+                :disabled="!canGenerate || generating"
                 class="px-4 py-2.5 border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-40"
                 @click="generateOne('summary')"
               >
                 📋 只要摘要
               </button>
               <button
-                :disabled="!sourceText.trim() || generating"
+                :disabled="!canGenerate || generating"
                 class="px-4 py-2.5 border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-40"
                 @click="generateOne('flashcards')"
               >
                 🃏 只要卡片
               </button>
               <button
-                :disabled="!sourceText.trim() || generating"
+                :disabled="!canGenerate || generating"
                 class="px-4 py-2.5 border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-40"
                 @click="generateOne('outline')"
               >
@@ -147,7 +216,7 @@
               <h2 class="text-lg font-bold text-slate-800">{{ currentSession.title }}</h2>
               <button
                 class="text-xs text-slate-400 hover:text-orange-500 transition-colors"
-                @click="isNewSession = true; sourceText = currentSession.source_text || ''"
+                @click="isNewSession = true; sourceText = currentSession.source_text || ''; fileUrl = currentSession.file_url || null; uploadedFile = currentSession.file_name ? { name: currentSession.file_name, size: '' } : null; inputMode = currentSession.file_url ? 'file' : 'text'"
               >
                 重新生成
               </button>
@@ -246,6 +315,8 @@
 
 <script setup>
 import { ref, computed, onUnmounted, watch } from 'vue'
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
+import { storage } from '../firebase.js'
 import { useTeach } from '../composables/useTeach.js'
 import FlashCard from '../components/FlashCard.vue'
 
@@ -267,6 +338,19 @@ const sessionTitle = ref('')
 const activeTab = ref('summary')
 const cardIndex = ref(0)
 const isNewSession = ref(false)
+const inputMode = ref('text') // 'text' | 'file'
+
+// File upload state
+const uploadedFile = ref(null)
+const fileUrl = ref(null)
+const uploading = ref(false)
+const uploadProgress = ref(0)
+
+// 判斷能否生成
+const canGenerate = computed(() => {
+  if (inputMode.value === 'text') return !!sourceText.value.trim()
+  return !!fileUrl.value
+})
 
 const currentSession = computed(() => {
   if (!selectedId.value) return null
@@ -323,42 +407,105 @@ function startNewSession() {
   sourceText.value = ''
   sessionTitle.value = ''
   isNewSession.value = true
+  inputMode.value = 'text'
+  uploadedFile.value = null
+  fileUrl.value = null
+}
+
+// === File upload ===
+async function handleFileSelect(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  if (!file.name.endsWith('.pdf')) {
+    alert('目前僅支援 PDF 檔案')
+    return
+  }
+
+  uploading.value = true
+  uploadProgress.value = 0
+
+  const path = `teach/${Date.now()}_${file.name}`
+  const fileRef = storageRef(storage, path)
+  const uploadTask = uploadBytesResumable(fileRef, file)
+
+  uploadTask.on(
+    'state_changed',
+    (snap) => { uploadProgress.value = (snap.bytesTransferred / snap.totalBytes) * 100 },
+    (err) => {
+      console.error('Upload error:', err)
+      alert('上傳失敗')
+      uploading.value = false
+    },
+    async () => {
+      const url = await getDownloadURL(uploadTask.snapshot.ref)
+      fileUrl.value = url
+      uploadedFile.value = {
+        name: file.name,
+        size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+      }
+      uploading.value = false
+      // 自動用檔名當標題
+      if (!sessionTitle.value) {
+        sessionTitle.value = file.name.replace(/\.pdf$/i, '')
+      }
+      e.target.value = ''
+    }
+  )
 }
 
 async function generateAll() {
-  if (!sourceText.value.trim()) return
-  const title = sessionTitle.value.trim() || sourceText.value.slice(0, 30) + '…'
+  if (!canGenerate.value) return
+  const title = sessionTitle.value.trim() || (uploadedFile.value?.name || sourceText.value.slice(0, 30)) + '…'
 
   let sid = selectedId.value
   if (sid === 'new') {
-    sid = await createSession(title, sourceText.value)
+    sid = await createSession({
+      title,
+      source_text: sourceText.value || '',
+      file_url: fileUrl.value || null,
+      file_name: uploadedFile.value?.name || null,
+    })
     selectedId.value = sid
   }
 
-  await generate(sid, sourceText.value, 'all')
+  await generate(sid, {
+    text: sourceText.value || null,
+    fileUrl: fileUrl.value || null,
+    mode: 'all',
+  })
   isNewSession.value = false
   activeTab.value = 'summary'
 }
 
 async function generateOne(mode) {
-  if (!sourceText.value.trim()) return
-  const title = sessionTitle.value.trim() || sourceText.value.slice(0, 30) + '…'
+  if (!canGenerate.value) return
+  const title = sessionTitle.value.trim() || (uploadedFile.value?.name || sourceText.value.slice(0, 30)) + '…'
 
   let sid = selectedId.value
   if (sid === 'new') {
-    sid = await createSession(title, sourceText.value)
+    sid = await createSession({
+      title,
+      source_text: sourceText.value || '',
+      file_url: fileUrl.value || null,
+      file_name: uploadedFile.value?.name || null,
+    })
     selectedId.value = sid
   }
 
-  await generate(sid, sourceText.value, mode)
+  await generate(sid, {
+    text: sourceText.value || null,
+    fileUrl: fileUrl.value || null,
+    mode,
+  })
   isNewSession.value = false
   activeTab.value = mode
 }
 
 async function regenOne(mode) {
-  if (!currentSession.value?.source_text) return
-  sourceText.value = currentSession.value.source_text
-  await generate(selectedId.value, sourceText.value, mode)
+  if (!currentSession.value) return
+  const text = currentSession.value.source_text || null
+  const url = currentSession.value.file_url || null
+  await generate(selectedId.value, { text, fileUrl: url, mode })
   activeTab.value = mode
 }
 

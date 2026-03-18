@@ -14,12 +14,12 @@ export function useArticles() {
   const loading = ref(true)
   const error = ref(null)
 
-  // 即時監聽 articles_v2（最近 100 篇）
+  // 即時監聯 articles_v2（最近 150 篇，增加以涵蓋期刊）
   const q = query(
     collection(db, 'articles_v2'),
     where('process_status', '==', 'completed'),
     orderBy('created_at', 'desc'),
-    limit(100)
+    limit(150)
   )
 
   const unsubscribe = onSnapshot(
@@ -49,6 +49,14 @@ export function useArticles() {
     articles.value.filter((a) => a.topics?.includes('CKD'))
   )
 
+  // 期刊文章（有 journals 欄位，或 sources 包含 "journal"）
+  const journalArticles = computed(() =>
+    articles.value.filter((a) =>
+      (a.journals && a.journals.length > 0) ||
+      (a.sources && a.sources.includes('journal'))
+    )
+  )
+
   // 今日文章判斷
   const isToday = (timestamp) => {
     if (!timestamp) return false
@@ -61,6 +69,7 @@ export function useArticles() {
     esrdArticles,
     akiArticles,
     ckdArticles,
+    journalArticles,
     loading,
     error,
     isToday,

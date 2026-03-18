@@ -19,10 +19,9 @@ export function useTeach() {
   const sessions = ref([])
   const loading = ref(true)
   const generating = ref(false)
-  const generatingMode = ref(null) // 'summary' | 'flashcards' | 'outline' | 'all'
+  const generatingMode = ref(null)
   const error = ref(null)
 
-  // 監聽 teach_sessions
   const q = query(
     collection(db, 'teach_sessions'),
     orderBy('created_at', 'desc'),
@@ -41,11 +40,13 @@ export function useTeach() {
     }
   )
 
-  // === 建立新 Session ===
-  async function createSession(title, sourceText) {
+  // === 建立 Session ===
+  async function createSession(data = {}) {
     const docRef = await addDoc(collection(db, 'teach_sessions'), {
-      title,
-      source_text: sourceText,
+      title: data.title || '新素材',
+      source_text: data.source_text || '',
+      file_url: data.file_url || null,
+      file_name: data.file_name || null,
       summary: null,
       flashcards: null,
       outline: null,
@@ -55,26 +56,32 @@ export function useTeach() {
     return docRef.id
   }
 
-  // === 呼叫 API 生成內容 ===
-  async function generate(sessionId, sourceText, mode) {
+  // === 呼叫 API 生成（支援文字或 PDF URL）===
+  async function generate(sessionId, { text, fileUrl, mode }) {
     generating.value = true
     generatingMode.value = mode
     error.value = null
 
     try {
+      const body = { mode }
+      if (fileUrl) {
+        body.file_url = fileUrl
+      } else {
+        body.text = text
+      }
+
       const res = await fetch(`${API_BASE}/teach/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: sourceText,
-          mode, // 'summary' | 'flashcards' | 'outline' | 'all'
-        }),
+        body: JSON.stringify(body),
       })
 
-      if (!res.ok) throw new Error(`API 回應 ${res.status}`)
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || `API 回應 ${res.status}`)
+      }
       const data = await res.json()
 
-      // 根據模式更新 Firestore
       const updates = { updated_at: serverTimestamp() }
       if (mode === 'all') {
         updates.summary = data.summary || null
@@ -96,7 +103,6 @@ export function useTeach() {
     }
   }
 
-  // === 刪除 Session ===
   async function deleteSession(sessionId) {
     await deleteDoc(doc(db, 'teach_sessions', sessionId))
   }

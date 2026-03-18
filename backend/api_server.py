@@ -21,6 +21,8 @@ import time
 import pickle
 import threading
 import json
+import base64
+import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 import gc
@@ -48,7 +50,7 @@ def handle_preflight():
 @app.after_request
 def after_request(response):
     if request.method == 'OPTIONS':
-        return response  # 已在 handle_preflight 處理，避免重複 header
+        return response
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
     response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
@@ -59,46 +61,58 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
     print("⚠️ GOOGLE_API_KEY 未設定，核心功能無法使用")
 
-# Gemini 2.5 Flash — 唯一的 AI 依賴
 GEMINI_MODEL = "gemini-2.5-flash"
 gemini_client = None
 if GOOGLE_API_KEY:
     gemini_client = genai.Client(api_key=GOOGLE_API_KEY)
     print(f"✅ Gemini API 已啟用 ({GEMINI_MODEL})")
 
-# OpenAI（僅用於舊端點 /generate-article-summary，可選）
+# OpenAI（僅用於舊端點，可選）
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai_client = None
 if OPENAI_API_KEY:
-    from openai import OpenAI
-    openai_client = OpenAI(api_key=OPENAI_API_KEY)
-    print("✅ OpenAI API 已啟用（僅舊端點用）")
+    try:
+        from openai import OpenAI
+        openai_client = OpenAI(api_key=OPENAI_API_KEY)
+        print("✅ OpenAI API 已啟用（僅舊端點用）")
+    except ImportError:
+        print("⚠️ openai 套件未安裝，跳過")
 
-# Firebase
-if not firebase_admin._apps:
-    firebase_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
-    if firebase_json and firebase_json.strip().startswith("{"):
-        cred = credentials.Certificate(json.loads(firebase_json))
-    else:
-        cred_path = firebase_json or "serviceAccountKey.json"
-        if not os.path.exists(cred_path):
-            print(f"⚠️ 找不到 {cred_path}，嘗試預設憑證...")
-            cred = credentials.ApplicationDefault()
-        else:
-            cred = credentials.Certificate(cred_path)
-
-    storage_bucket = os.getenv("FIREBASE_STORAGE_BUCKET")
-    if storage_bucket:
-        firebase_admin.initialize_app(cred, {'storageBucket': storage_bucket})
-    else:
-        firebase_admin.initialize_app(cred)
-
-db = firestore.client()
+# Firebase（穩健初始化，確保 Cloud Run 也能啟動）
+db = None
 storage_bucket_obj = None
+
 try:
-    storage_bucket_obj = storage.bucket()
-except:
-    pass
+    if not firebase_admin._apps:
+        firebase_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
+        if firebase_json and firebase_json.strip().startswith("{"):
+            cred = credentials.Certificate(json.loads(firebase_json))
+        else:
+            cred_path = firebase_json or "serviceAccountKey.json"
+            if os.path.exists(cred_path):
+                cred = credentials.Certificate(cred_path)
+            else:
+                print(f"⚠️ 找不到 {cred_path}，嘗試預設憑證...")
+                cred = credentials.ApplicationDefault()
+
+        storage_bucket = os.getenv("FIREBASE_STORAGE_BUCKET")
+        if storage_bucket:
+            firebase_admin.initialize_app(cred, {'storageBucket': storage_bucket})
+        else:
+            firebase_admin.initialize_app(cred)
+
+    db = firestore.client()
+    print("✅ Firebase Firestore 已連線")
+
+    try:
+        storage_bucket_obj = storage.bucket()
+        print("✅ Firebase Storage 已連線")
+    except Exception as e:
+        print(f"⚠️ Storage bucket 未連線: {e}")
+
+except Exception as e:
+    print(f"❌ Firebase 初始化失敗: {e}")
+    print("  API 會啟動但資料庫功能不可用")
 
 # 全域變數（FAISS 向量索引）
 index = None
@@ -112,7 +126,6 @@ BASE_PUBMED_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
 INDEX_FILE = "nephro_brain.index"
 DATA_FILE = "nephro_data.pkl"
 
-# 期刊設定
 TARGET_JOURNALS = {
     "JASN": '"J Am Soc Nephrol"[Journal]',
     "CJASN": '"Clin J Am Soc Nephrol"[Journal]',
@@ -128,10 +141,7 @@ TARGET_JOURNALS = {
 # 2. 工具函式
 # ============================================================
 
-import xml.etree.ElementTree as ET
-
 def get_abstract_and_mesh(uid):
-    """從 PubMed 取得摘要和 MeSH 標籤"""
     try:
         fetch_url = f"{BASE_PUBMED_URL}efetch.fcgi?db=pubmed&id={uid}&rettype=xml"
         resp = requests.get(fetch_url, timeout=10)
@@ -155,7 +165,6 @@ def get_abstract_and_mesh(uid):
 
 
 def get_embedding(text):
-    """Gemini text-embedding-004（原生支援中文，不需翻譯）"""
     if not gemini_client:
         return None
     try:
@@ -172,11 +181,10 @@ def get_embedding(text):
 
 
 def download_memory():
-    """從 Firebase Storage 下載 FAISS 索引"""
     global index, stored_chunks, processed_books, deep_processed_books, last_memory_load
 
     if not storage_bucket_obj:
-        print("⚠️ Storage bucket not connected")
+        print("⚠️ Storage bucket not connected, skip memory download")
         return False
 
     try:
@@ -193,7 +201,6 @@ def download_memory():
         with memory_lock:
             if os.path.exists(INDEX_FILE):
                 index = faiss.read_index(INDEX_FILE)
-
             if os.path.exists(DATA_FILE):
                 with open(DATA_FILE, "rb") as f:
                     data = pickle.load(f)
@@ -210,20 +217,20 @@ def download_memory():
 
 
 def ensure_memory_loaded():
-    """每 5 分鐘重整一次記憶"""
     global last_memory_load
     if index is None or time.time() - last_memory_load > 300:
         download_memory()
 
 
 def fetch_content_from_firestore(doc_ids):
-    """從 Firestore 抓取知識片段文字"""
+    if not db:
+        return []
     contents = []
     for doc_id in doc_ids:
         try:
-            doc = db.collection("knowledge_chunks").document(doc_id).get()
-            if doc.exists:
-                data = doc.to_dict()
+            doc_ref = db.collection("knowledge_chunks").document(doc_id).get()
+            if doc_ref.exists:
+                data = doc_ref.to_dict()
                 text = data.get('text', '')
                 source = data.get('source', 'Unknown')
                 if text:
@@ -238,7 +245,6 @@ def fetch_content_from_firestore(doc_ids):
 # ============================================================
 
 def search_pubmed(query):
-    """PubMed 文獻搜尋（免費）"""
     try:
         search_url = f"{BASE_PUBMED_URL}esearch.fcgi?db=pubmed&term={query}&retmode=json&retmax=5&sort=date"
         resp = requests.get(search_url, timeout=10).json()
@@ -262,7 +268,6 @@ def search_pubmed(query):
 
 
 def search_textbook(question):
-    """FAISS 向量搜尋教科書（直接用中文，不需翻譯）"""
     ensure_memory_loaded()
 
     found_ids = []
@@ -284,38 +289,27 @@ def search_textbook(question):
 
 
 # ============================================================
-# 4. 核心問答引擎（重構版）
+# 4. 核心問答引擎
 # ============================================================
 
 def generate_answer(question):
-    """
-    重構版問答流程（2 次 Gemini API）：
-    1. Embedding 搜尋教科書 + PubMed（平行）
-    2. Gemini 2.5 Flash + Google Search grounding 生成回答
-
-    舊版需要 4-5 次 API：翻譯 + embedding×2 + Perplexity + 生成
-    """
     if not gemini_client:
         return "❌ Gemini API 未設定，無法回答。"
 
-    # Step 1: 平行搜尋（教科書 + PubMed）
     with ThreadPoolExecutor(max_workers=2) as executor:
         textbook_future = executor.submit(search_textbook, question)
         pubmed_future = executor.submit(search_pubmed, question)
 
         try:
             textbook_ctx = textbook_future.result(timeout=20)
-        except Exception as e:
-            print(f"⚠️ 教科書搜尋逾時: {e}")
+        except:
             textbook_ctx = "無教科書資料（搜尋逾時）。"
 
         try:
             pubmed_ctx = pubmed_future.result(timeout=15) or "無 PubMed 結果。"
-        except Exception as e:
-            print(f"⚠️ PubMed 搜尋逾時: {e}")
+        except:
             pubmed_ctx = "無 PubMed 結果（搜尋逾時）。"
 
-    # Step 2: Gemini 2.5 Flash + Google Search（一次搞定生成+網路搜尋）
     prompt = f"""你是一位崇尚「實證醫學 (EBM)」的腎臟科專家。
 
 【教科書知識庫】
@@ -349,7 +343,6 @@ def generate_answer(question):
 
 
 def generate_cheat_sheet(topic):
-    """懶人包生成（同樣用 Google Search grounding）"""
     if not gemini_client:
         return "❌ Gemini API 未設定。"
 
@@ -390,6 +383,8 @@ def health():
         "version": "v2",
         "model": GEMINI_MODEL,
         "chunks_count": len(stored_chunks),
+        "db_connected": db is not None,
+        "storage_connected": storage_bucket_obj is not None,
     })
 
 
@@ -424,20 +419,21 @@ def stats():
     pending_books = 0
     error_books = 0
 
-    try:
-        books = db.collection("books").stream()
-        for doc in books:
-            data = doc.to_dict()
-            total_books += 1
-            status = data.get("status", "pending")
-            if status == "ready":
-                ready_books += 1
-            elif status in ("pending", "processing"):
-                pending_books += 1
-            elif status == "error":
-                error_books += 1
-    except Exception as e:
-        print(f"⚠️ Stats error: {e}")
+    if db:
+        try:
+            books_stream = db.collection("books").stream()
+            for book_doc in books_stream:
+                data = book_doc.to_dict()
+                total_books += 1
+                status = data.get("status", "pending")
+                if status == "ready":
+                    ready_books += 1
+                elif status in ("pending", "processing"):
+                    pending_books += 1
+                elif status == "error":
+                    error_books += 1
+        except Exception as e:
+            print(f"⚠️ Stats error: {e}")
 
     return jsonify({
         "memory_chunks_ids": len(stored_chunks),
@@ -450,37 +446,73 @@ def stats():
         "total_chunks": len(stored_chunks),
     })
 
-# === NB Teach 端點（加在 api_server.py 的 /stats 端點後面）===
+
+# ============================================================
+# 5b. NB Teach 端點
+# ============================================================
 
 @app.route('/teach/generate', methods=['POST'])
 def teach_generate():
-    """NB Teach: 從素材生成摘要/Flashcards/大綱"""
+    """NB Teach: 從文字或 PDF 生成摘要/Flashcards/大綱"""
     data = request.get_json()
     text = data.get('text', '')
-    mode = data.get('mode', 'all')  # 'summary' | 'flashcards' | 'outline' | 'all'
+    file_url = data.get('file_url', '')
+    mode = data.get('mode', 'all')
 
-    if not text:
-        return jsonify({"error": "請提供學習素材"}), 400
+    if not text and not file_url:
+        return jsonify({"error": "請提供學習素材（文字或檔案）"}), 400
 
     if not gemini_client:
         return jsonify({"error": "Gemini API 未設定"}), 500
 
-    # 截斷過長文本（避免超出 token 限制）
-    text = text[:15000]
+    # 準備 Gemini 內容
+    contents = []
+    if file_url:
+        try:
+            print(f"🎓 下載 PDF: {file_url[:80]}...")
+            pdf_resp = requests.get(file_url, timeout=60)
+            pdf_resp.raise_for_status()
+            pdf_bytes = pdf_resp.content
+            print(f"  📄 PDF 大小：{len(pdf_bytes) / 1024:.0f} KB")
 
-    print(f"🎓 /teach/generate: mode={mode}, text_len={len(text)}")
+            # 用 inline_data dict 格式（相容所有 google-genai 版本）
+            contents.append({
+                "inline_data": {
+                    "mime_type": "application/pdf",
+                    "data": base64.b64encode(pdf_bytes).decode("utf-8")
+                }
+            })
+        except Exception as e:
+            print(f"❌ PDF 下載失敗: {e}")
+            return jsonify({"error": f"PDF 下載失敗: {e}"}), 500
+    else:
+        text = text[:15000]
+        contents.append(text)
+
+    print(f"🎓 /teach/generate: mode={mode}, source={'PDF' if file_url else 'text'}")
 
     result = {}
 
     try:
         if mode in ('summary', 'all'):
-            result['summary'] = _teach_summary(text)
+            result['summary'] = _teach_call(contents, TEACH_PROMPT_SUMMARY)
 
         if mode in ('flashcards', 'all'):
-            result['flashcards'] = _teach_flashcards(text)
+            raw = _teach_call(contents, TEACH_PROMPT_FLASHCARDS)
+            # 清理 JSON
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3].strip()
+            try:
+                parsed = json.loads(cleaned)
+                result['flashcards'] = json.dumps(parsed, ensure_ascii=False)
+            except:
+                result['flashcards'] = cleaned
 
         if mode in ('outline', 'all'):
-            result['outline'] = _teach_outline(text)
+            result['outline'] = _teach_call(contents, TEACH_PROMPT_OUTLINE)
 
         return jsonify(result)
 
@@ -489,12 +521,17 @@ def teach_generate():
         return jsonify({"error": str(e)}), 500
 
 
-def _teach_summary(text):
-    """生成結構化摘要"""
-    prompt = f"""你是一位醫學教育專家。請為以下學習素材產生結構化摘要。
+def _teach_call(contents, prompt_text):
+    """呼叫 Gemini，contents 可以是文字或 PDF inline_data"""
+    all_contents = contents + [prompt_text]
+    response = gemini_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=all_contents,
+    )
+    return response.text
 
-【素材】
-{text}
+
+TEACH_PROMPT_SUMMARY = """你是一位醫學教育專家。請閱讀上面的學習素材，產生結構化摘要。
 
 【輸出格式】（Markdown）：
 # 核心摘要
@@ -513,19 +550,7 @@ def _teach_summary(text):
 
 全程使用繁體中文，醫學術語用「中文 (English)」格式。"""
 
-    response = gemini_client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=prompt,
-    )
-    return response.text
-
-
-def _teach_flashcards(text):
-    """生成 Flashcards（JSON 格式）"""
-    prompt = f"""你是一位醫學教育專家。請根據以下素材產生 10-15 張 Flashcards。
-
-【素材】
-{text}
+TEACH_PROMPT_FLASHCARDS = """你是一位醫學教育專家。請根據上面的素材產生 10-15 張 Flashcards。
 
 【要求】：
 1. 每張卡片包含一個問題和答案
@@ -536,36 +561,11 @@ def _teach_flashcards(text):
 
 【輸出格式】：純 JSON，不要 markdown 標記
 [
-  {{"question": "問題1", "answer": "答案1"}},
-  {{"question": "問題2", "answer": "答案2"}}
+  {"question": "問題1", "answer": "答案1"},
+  {"question": "問題2", "answer": "答案2"}
 ]"""
 
-    response = gemini_client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=prompt,
-    )
-
-    # 清理回傳
-    result = response.text.strip()
-    if result.startswith("```"):
-        result = result.split("\n", 1)[1] if "\n" in result else result
-    if result.endswith("```"):
-        result = result[:-3].strip()
-
-    # 驗證是有效 JSON
-    try:
-        parsed = json.loads(result)
-        return json.dumps(parsed, ensure_ascii=False)
-    except:
-        return result  # 回傳原始文字，前端會嘗試解析
-
-
-def _teach_outline(text):
-    """生成學習大綱 / 心智圖結構"""
-    prompt = f"""你是一位醫學教育專家。請為以下素材產生一份學習大綱。
-
-【素材】
-{text}
+TEACH_PROMPT_OUTLINE = """你是一位醫學教育專家。請為上面的素材產生一份學習大綱。
 
 【輸出格式】（Markdown 縮排大綱）：
 
@@ -592,12 +592,10 @@ def _teach_outline(text):
 
 全程使用繁體中文，醫學術語保留英文。大綱要有層次感，適合作為心智圖的基礎。"""
 
-    response = gemini_client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=prompt,
-    )
-    return response.text
 
+# ============================================================
+# 6. 舊端點（向下相容 nephro-brain-web）
+# ============================================================
 
 @app.route('/process-book', methods=['POST'])
 def process_book_endpoint():
@@ -615,12 +613,7 @@ def process_all_pending():
     }), 403
 
 
-# ============================================================
-# 6. 舊端點（向下相容 nephro-brain-web）
-# ============================================================
-
 def serialize_value(value):
-    """序列化 Firestore 值"""
     try:
         from google.cloud.firestore_v1._helpers import DatetimeWithNanoseconds
         if isinstance(value, DatetimeWithNanoseconds):
@@ -642,7 +635,9 @@ def serialize_doc(doc_id, data):
 
 @app.route('/public-feed', methods=['GET'])
 def public_feed():
-    """舊前端公開資料（nephro-brain-web 用）"""
+    if not db:
+        return jsonify({"articles": [], "error": "DB not connected"})
+
     articles = []
     topic_articles = []
     journal_articles = []
@@ -651,12 +646,11 @@ def public_feed():
     last_update = None
 
     try:
-        # 統一集合
         unified_ref = db.collection("articles_unified")
         unified_docs = unified_ref.order_by("crawled_at", direction=firestore.Query.DESCENDING).limit(200).stream()
-        for doc in unified_docs:
-            data = doc.to_dict()
-            item = serialize_doc(doc.id, data)
+        for unified_doc in unified_docs:
+            data = unified_doc.to_dict()
+            item = serialize_doc(unified_doc.id, data)
             source = data.get("source", "")
             if source in ("daily_crawler", "general"):
                 articles.append(item)
@@ -667,11 +661,10 @@ def public_feed():
             elif source == "hd_selected":
                 hd_selected.append(item)
 
-        # 爬蟲狀態
         runs = db.collection("crawler_runs").order_by("timestamp", direction=firestore.Query.DESCENDING).limit(1).stream()
-        for doc in runs:
-            data = doc.to_dict()
-            crawler_status = serialize_doc(doc.id, data)
+        for run_doc in runs:
+            data = run_doc.to_dict()
+            crawler_status = serialize_doc(run_doc.id, data)
             ts = data.get("timestamp")
             if ts:
                 last_update = ts.isoformat() if hasattr(ts, 'isoformat') else str(ts)
@@ -698,6 +691,8 @@ def debug():
         "has_index": index is not None,
         "has_gemini": gemini_client is not None,
         "has_openai": openai_client is not None,
+        "has_db": db is not None,
+        "has_storage": storage_bucket_obj is not None,
     })
 
 
@@ -707,7 +702,6 @@ def get_journals():
 
 
 def ask_gemini_journal_summary(title, abstract_text, max_retries=3):
-    """期刊文章摘要（舊端點用）"""
     if not gemini_client:
         return None
 
@@ -735,7 +729,6 @@ def ask_gemini_journal_summary(title, abstract_text, max_retries=3):
 
 
 def extract_search_keywords(title):
-    """從標題提取搜尋關鍵字"""
     if not gemini_client:
         return title[:100]
     try:
@@ -748,10 +741,9 @@ def extract_search_keywords(title):
         return title[:100]
 
 
-def search_pubmed_articles(query, years=5, max_results=5):
-    """PubMed 搜尋文章（舊端點用）"""
+def search_pubmed_articles(query_text, years=5, max_results=5):
     try:
-        search_url = f"{BASE_PUBMED_URL}esearch.fcgi?db=pubmed&term={query}&retmode=json&retmax={max_results}&sort=relevance"
+        search_url = f"{BASE_PUBMED_URL}esearch.fcgi?db=pubmed&term={query_text}&retmode=json&retmax={max_results}&sort=relevance"
         resp = requests.get(search_url, timeout=10).json()
         id_list = resp.get('esearchresult', {}).get('idlist', [])
         if not id_list:
@@ -828,15 +820,16 @@ def search_related():
 
 @app.route('/clean-bad-cache', methods=['POST'])
 def clean_bad_cache():
-    """清除格式錯誤的快取"""
+    if not db:
+        return jsonify({"error": "DB not connected"}), 500
     cleaned = 0
     try:
-        docs = db.collection("abstract_cache").stream()
-        for doc in docs:
-            data = doc.to_dict()
+        cache_docs = db.collection("abstract_cache").stream()
+        for cache_doc in cache_docs:
+            data = cache_doc.to_dict()
             content = data.get("content", "")
             if not content or len(content) < 20 or "```json" in content:
-                doc.reference.delete()
+                cache_doc.reference.delete()
                 cleaned += 1
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -846,16 +839,17 @@ def clean_bad_cache():
 
 @app.route('/clean-bad-articles', methods=['POST'])
 def clean_bad_articles():
-    """清除格式錯誤的文章"""
+    if not db:
+        return jsonify({"error": "DB not connected"}), 500
     cleaned = 0
     try:
         for coll_name in ["articles_unified"]:
-            docs = db.collection(coll_name).stream()
-            for doc in docs:
-                data = doc.to_dict()
+            article_docs = db.collection(coll_name).stream()
+            for article_doc in article_docs:
+                data = article_doc.to_dict()
                 title_zh = data.get("title_zh", "")
                 if not title_zh or "```" in title_zh or len(title_zh) < 5:
-                    doc.reference.delete()
+                    article_doc.reference.delete()
                     cleaned += 1
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -865,7 +859,6 @@ def clean_bad_articles():
 
 @app.route('/generate-article-summary', methods=['POST'])
 def generate_article_summary():
-    """文章詳細摘要（舊端點，優先用 Gemini，fallback OpenAI）"""
     data = request.get_json()
     pmid = data.get('pmid', '')
     title = data.get('title', '')
@@ -873,8 +866,10 @@ def generate_article_summary():
     if not pmid and not title:
         return jsonify({"error": "缺少 pmid 或 title"}), 400
 
+    if not gemini_client:
+        return jsonify({"error": "Gemini API 未設定"}), 500
+
     try:
-        # 取得摘要
         abstract_text = ""
         if pmid:
             abstract_text, mesh_terms = get_abstract_and_mesh(pmid)
@@ -901,14 +896,12 @@ PMID：{pmid}
   "tags": ["標籤1", "標籤2"]
 }}"""
 
-        # 優先用 Gemini
         response = gemini_client.models.generate_content(
             model=GEMINI_MODEL,
             contents=prompt
         )
         result_text = response.text.strip()
 
-        # 清理 markdown 標記
         if result_text.startswith("```"):
             result_text = result_text.split("\n", 1)[1] if "\n" in result_text else result_text
         if result_text.endswith("```"):
@@ -927,11 +920,11 @@ PMID：{pmid}
 # 7. 啟動
 # ============================================================
 
-if __name__ == "__main__":
-    print("🚀 啟動 Nephro Brain API Server v2...")
-    print(f"🤖 模型：{GEMINI_MODEL}")
-    print(f"🔧 Google Search grounding 已啟用")
-    download_memory()
+# Gunicorn 啟動時也載入記憶（不只 __main__）
+print("🚀 Nephro Brain API Server v2 初始化中...")
+print(f"🤖 模型：{GEMINI_MODEL}")
+download_memory()
 
+if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port, debug=False)

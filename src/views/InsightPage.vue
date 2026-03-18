@@ -210,9 +210,11 @@ import SelectionToolbar from '../components/SelectionToolbar.vue'
 
 // Data
 const {
+  articles,
   esrdArticles,
   akiArticles,
   ckdArticles,
+  journalArticles,
   loading,
   isToday,
   unsubscribe: unsubArticles,
@@ -249,6 +251,7 @@ const tabs = computed(() => [
   { key: 'ESRD/HD', label: 'ESRD / HD', count: esrdArticles.value.length },
   { key: 'AKI', label: 'AKI', count: akiArticles.value.length },
   { key: 'CKD', label: 'CKD', count: ckdArticles.value.length },
+  { key: 'journal', label: '📰 期刊', count: journalArticles.value.length },
   { key: 'collection', label: '✅ 收藏庫', count: savedArticles.value.length },
 ])
 
@@ -256,10 +259,9 @@ const currentArticles = computed(() => {
   if (activeTab.value === 'ESRD/HD') return esrdArticles.value
   if (activeTab.value === 'AKI') return akiArticles.value
   if (activeTab.value === 'CKD') return ckdArticles.value
+  if (activeTab.value === 'journal') return journalArticles.value
   return []
 })
 
-const articleCount = computed(() =>
-  esrdArticles.value.length + akiArticles.value.length + ckdArticles.value.length
-)
+const articleCount = computed(() => articles.value.length)
 </script>
