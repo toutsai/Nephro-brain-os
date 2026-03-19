@@ -69,7 +69,7 @@ deep_processed_books = set()
 def get_embedding(text):
     try:
         result = gemini_client.models.embed_content(
-            model="embedding-001",
+            model="text-embedding-004",
             contents=text
         )
         # 新版 SDK 返回 EmbedContentResponse 對象
@@ -86,7 +86,7 @@ def get_embeddings_batch(texts, batch_size=20):
         batch = texts[i:i + batch_size]
         try:
             result = gemini_client.models.embed_content(
-                model="embedding-001",
+                model="text-embedding-004",
                 contents=batch
             )
             # 新版 SDK 返回 EmbedContentResponse 對象
