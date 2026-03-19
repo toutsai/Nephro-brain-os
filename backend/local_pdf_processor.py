@@ -170,8 +170,8 @@ def download_memory():
         print(f"⚠️ 下載記憶失敗: {e}")
     return False
 
-def upload_memory():
-    """上傳記憶檔案到 Firebase Storage"""
+def upload_memory(local_only=False):
+    """上傳記憶檔案到 Firebase Storage（含重試機制）"""
     global index, stored_chunks, processed_books, deep_processed_books, deleted_chunks
 
     try:
@@ -185,14 +185,28 @@ def upload_memory():
                     "deleted_chunks": deleted_chunks
                 }, f)
 
-            blob_index = storage_bucket_obj.blob(f"brain_memory/{INDEX_FILE}")
-            blob_index.upload_from_filename(INDEX_FILE)
+            if local_only:
+                return True
 
-            blob_data = storage_bucket_obj.blob(f"brain_memory/{DATA_FILE}")
-            blob_data.upload_from_filename(DATA_FILE)
+            # 上傳至 Firebase Storage，含重試機制
+            MAX_RETRIES = 3
+            for attempt in range(MAX_RETRIES):
+                try:
+                    blob_index = storage_bucket_obj.blob(f"brain_memory/{INDEX_FILE}")
+                    blob_index.upload_from_filename(INDEX_FILE, timeout=300)
 
-            print(f"☁️ 記憶已上傳至 Firebase Storage (優化版)")
-            return True
+                    blob_data = storage_bucket_obj.blob(f"brain_memory/{DATA_FILE}")
+                    blob_data.upload_from_filename(DATA_FILE, timeout=300)
+
+                    print(f"☁️ 記憶已上傳至 Firebase Storage (優化版)")
+                    return True
+                except Exception as e:
+                    if attempt < MAX_RETRIES - 1:
+                        wait = 2 ** (attempt + 1)
+                        print(f"⚠️ 上傳記憶失敗 (第 {attempt+1} 次)，{wait}s 後重試: {e}")
+                        time.sleep(wait)
+                    else:
+                        print(f"❌ 上傳記憶失敗 (已重試 {MAX_RETRIES} 次): {e}")
     except Exception as e:
         print(f"❌ 上傳記憶失敗: {e}")
     return False
@@ -354,11 +368,11 @@ def process_quick_read(doc_id, title, temp_path):
 
             del chunks, texts
 
-        # 每批完成後上傳記憶
-        upload_memory()
+        # 每批先存本地，避免頻繁上傳大檔案超時
+        upload_memory(local_only=True)
         gc.collect()
 
-    # 完成
+    # 完成後才上傳雲端
     del reader
     processed_books.add(doc_id)
     upload_memory()
@@ -435,10 +449,12 @@ def split_by_chapters(temp_path, toc_entries):
     reader = pypdf.PdfReader(temp_path, strict=False)
     total_pages = len(reader.pages)
 
-    # 只取 level 1-2 的章節做切割點
+    # 只取 level 1-2 的章節做切割點；若太少則逐步放寬
     main_entries = [(lvl, title, page) for lvl, title, page in toc_entries if lvl <= 2]
-    if not main_entries:
-        main_entries = toc_entries[:] # 如果沒有 level 1-2，用全部
+    if len(main_entries) < 3:
+        main_entries = [(lvl, title, page) for lvl, title, page in toc_entries if lvl <= 3]
+    if len(main_entries) < 3:
+        main_entries = toc_entries[:]  # 全部使用
 
     main_entries.sort(key=lambda x: x[2])
 
@@ -547,11 +563,13 @@ def process_guideline(doc_id, title, temp_path):
 
             del chunks, texts
 
-        upload_memory()
+        # 每章只存本地，避免大檔案頻繁上傳 Storage 超時
+        upload_memory(local_only=True)
         gc.collect()
 
     reader = pypdf.PdfReader(temp_path, strict=False)
     processed_books.add(doc_id)
+    # 整本處理完畢才上傳雲端
     upload_memory()
 
     db.collection("books").document(doc_id).update({
@@ -700,7 +718,7 @@ def process_deep_read(doc_id, title, temp_path):
 
             del chunks, texts
 
-        upload_memory()
+        upload_memory(local_only=True)
         gc.collect()
 
     pdf_doc.close()
