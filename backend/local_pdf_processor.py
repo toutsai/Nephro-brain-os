@@ -463,7 +463,7 @@ def main():
             
             # 如果是 reset 模式，我們要重新處理所有 'ready' 的書，因為舊的索引被我們丟掉了
             # 或者您可以手動指定要處理哪些狀態
-            target_statuses = ["pending", "needs_upgrade", "error", "partial"]
+            target_statuses = ["pending", "processing", "needs_upgrade", "error", "partial"]
             if args.reset: 
                 target_statuses.append("ready") # 重置時，連已完成的都要重做索引
 
