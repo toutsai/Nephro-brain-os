@@ -119,6 +119,7 @@ index = None
 stored_chunks = []
 processed_books = set()
 deep_processed_books = set()
+deleted_chunks_set = set()
 memory_lock = threading.Lock()
 last_memory_load = 0
 
@@ -182,7 +183,7 @@ def get_embedding(text):
 
 
 def download_memory():
-    global index, stored_chunks, processed_books, deep_processed_books, last_memory_load
+    global index, stored_chunks, processed_books, deep_processed_books, deleted_chunks_set, last_memory_load
 
     if not storage_bucket_obj:
         print("⚠️ Storage bucket not connected, skip memory download")
@@ -208,6 +209,7 @@ def download_memory():
                     stored_chunks = data.get("chunks", [])
                     processed_books = data.get("books", set())
                     deep_processed_books = data.get("deep_books", set())
+                    deleted_chunks_set = data.get("deleted_chunks", set())
 
         last_memory_load = time.time()
         print(f"✅ 記憶載入: {len(stored_chunks)} chunks")
@@ -279,7 +281,9 @@ def search_textbook(question):
                 D, I = index.search(np.array([q_vec]).astype('float32'), k=10)
                 for idx in I[0]:
                     if idx != -1 and idx < len(stored_chunks):
-                        found_ids.append(stored_chunks[idx])
+                        chunk_id = stored_chunks[idx]
+                        if chunk_id not in deleted_chunks_set:
+                            found_ids.append(chunk_id)
 
     if found_ids:
         chunks_text = fetch_content_from_firestore(found_ids)
