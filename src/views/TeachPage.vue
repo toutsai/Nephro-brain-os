@@ -1,28 +1,49 @@
 <template>
-  <div class="h-screen flex flex-col bg-slate-50">
+  <div class="h-screen flex flex-col bg-slate-50 pb-14 sm:pb-0">
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 sticky top-0 z-20 shrink-0">
       <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <router-link to="/" class="text-lg font-bold text-slate-800 hover:text-blue-600 transition-colors">
+          <router-link to="/" class="hidden sm:block text-lg font-bold text-slate-800 hover:text-blue-600 transition-colors">
             NB — OS
           </router-link>
-          <span class="text-slate-300">|</span>
+          <span class="hidden sm:block text-slate-300">|</span>
           <div>
             <h1 class="text-sm font-bold text-slate-800">NB Teach</h1>
             <p class="text-[10px] text-slate-400">教學素材產生器</p>
           </div>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="hidden sm:flex items-center gap-2">
           <router-link to="/notes" class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-purple-50 text-slate-500 hover:text-purple-600 rounded-lg transition-colors">📝 Notes</router-link>
           <router-link to="/consult" class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-teal-50 text-slate-500 hover:text-teal-600 rounded-lg transition-colors">💬 Consult</router-link>
         </div>
       </div>
     </header>
 
-    <div class="flex-1 overflow-hidden flex">
-      <!-- Left: Sessions + Input -->
-      <aside class="w-80 border-r border-slate-200 bg-white flex flex-col shrink-0">
+    <div class="flex-1 overflow-hidden flex flex-col lg:flex-row">
+
+      <!-- Mobile top bar -->
+      <div class="lg:hidden flex items-center gap-2 px-4 py-2 bg-white border-b border-slate-100 shrink-0">
+        <button
+          class="shrink-0 text-xs px-2.5 py-1.5 bg-orange-500 text-white rounded-md font-medium"
+          @click="startNewSession"
+        >
+          + 新素材
+        </button>
+        <select
+          class="flex-1 min-w-0 text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white"
+          :value="selectedId || ''"
+          @change="selectSession($event.target.value)"
+        >
+          <option value="" disabled>選擇素材...</option>
+          <option v-for="s in sessions" :key="s.id" :value="s.id">
+            {{ s.title || '未命名' }}
+          </option>
+        </select>
+      </div>
+
+      <!-- Left: Sessions + Input (desktop only) -->
+      <aside class="hidden lg:flex w-80 border-r border-slate-200 bg-white flex-col shrink-0">
         <!-- New session -->
         <div class="p-3 border-b border-slate-100">
           <button

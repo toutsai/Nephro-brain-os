@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen flex flex-col bg-slate-50">
+  <div class="h-screen flex flex-col bg-slate-50 pb-14 sm:pb-0">
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 shrink-0">
       <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
@@ -13,9 +13,75 @@
       </div>
     </header>
 
-    <div class="flex-1 overflow-hidden flex">
-      <!-- Left: mode selector + history -->
-      <aside class="w-72 border-r border-slate-200 bg-white flex flex-col shrink-0">
+    <div class="flex-1 overflow-hidden flex flex-col lg:flex-row">
+
+      <!-- Mobile mode selector + history toggle -->
+      <div class="lg:hidden bg-white border-b border-slate-100 shrink-0">
+        <div class="px-4 py-2 overflow-x-auto">
+          <div class="flex gap-2 whitespace-nowrap">
+            <button
+              v-for="m in modes"
+              :key="m.key"
+              class="shrink-0 px-3 py-1.5 text-xs font-medium rounded-full transition-colors"
+              :class="activeMode === m.key
+                ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                : 'bg-slate-100 text-slate-600'"
+              @click="activeMode = m.key; selectedHistoryId = null; currentResult = null"
+            >
+              {{ m.icon }} {{ m.label }}
+            </button>
+            <button
+              class="shrink-0 px-3 py-1.5 text-xs font-medium rounded-full bg-slate-100 text-slate-500"
+              @click="showMobileHistory = true"
+            >
+              📜 歷史
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile history bottom sheet -->
+      <Teleport to="body">
+        <div
+          v-if="showMobileHistory && isMobile"
+          class="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          @click="showMobileHistory = false"
+        >
+          <div
+            class="absolute inset-x-0 bottom-0 max-h-[70vh] overflow-hidden bg-white rounded-t-2xl flex flex-col"
+            @click.stop
+          >
+            <div class="sticky top-0 bg-white p-3 border-b border-slate-100 flex justify-between items-center shrink-0">
+              <span class="text-sm font-medium text-slate-600">歷史紀錄</span>
+              <button class="text-slate-400 hover:text-slate-600 text-lg" @click="showMobileHistory = false">✕</button>
+            </div>
+            <div class="flex-1 overflow-y-auto">
+              <div v-if="!history.length" class="px-3 py-8 text-xs text-slate-400 text-center">尚無紀錄</div>
+              <div
+                v-for="h in history"
+                :key="h.id"
+                class="px-4 py-3 border-b border-slate-50 cursor-pointer active:bg-slate-50 transition-colors"
+                @click="viewHistory(h); showMobileHistory = false"
+              >
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xs">{{ modeIcon(h.mode) }}</span>
+                  <span class="text-sm font-medium text-slate-700 truncate">{{ historyTitle(h) }}</span>
+                </div>
+                <div class="flex items-center justify-between mt-1">
+                  <span class="text-[10px] text-slate-400">{{ formatDate(h.created_at) }}</span>
+                  <button
+                    class="text-xs text-slate-300 hover:text-red-400"
+                    @click.stop="handleDelete(h.id)"
+                  >刪除</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+
+      <!-- Left: mode selector + history (desktop only) -->
+      <aside class="hidden lg:flex w-72 border-r border-slate-200 bg-white flex-col shrink-0">
         <div class="p-3 space-y-2 border-b border-slate-100">
           <button
             v-for="m in modes"
@@ -65,7 +131,7 @@
 
       <!-- Right: input form + result -->
       <main class="flex-1 overflow-y-auto">
-        <div class="max-w-3xl mx-auto px-6 py-6">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6 py-6">
 
           <!-- ============ Clinical Scenario ============ -->
           <div v-if="activeMode === 'clinical'">
@@ -282,7 +348,7 @@ Dapagliflozin 10mg
 </template>
 
 <script setup>
-import { ref, onUnmounted, defineComponent } from 'vue'
+import { ref, onMounted, onUnmounted, defineComponent } from 'vue'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { useAssist } from '../composables/useAssist.js'
@@ -357,6 +423,12 @@ const ImageUploader = defineComponent({
     </div>
   `,
 })
+
+// Mobile
+const isMobile = ref(false)
+const showMobileHistory = ref(false)
+function checkMobile() { isMobile.value = window.innerWidth < 1024 }
+onMounted(() => { checkMobile(); window.addEventListener('resize', checkMobile) })
 
 // Mode
 const activeMode = ref('clinical')
@@ -507,7 +579,7 @@ async function saveToNotes() {
   } catch (e) { console.error('Save to notes error:', e) }
 }
 
-onUnmounted(() => unsubscribe())
+onUnmounted(() => { window.removeEventListener('resize', checkMobile); unsubscribe() })
 
 function renderMd(text) {
   if (!text) return ''

@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen flex flex-col bg-slate-50">
+  <div class="h-screen flex flex-col bg-slate-50 pb-14 sm:pb-0">
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 shrink-0">
       <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
@@ -22,10 +22,31 @@
     </div>
 
     <!-- Main layout -->
-    <div v-else class="flex-1 overflow-hidden flex">
+    <div v-else class="flex-1 overflow-hidden flex flex-col lg:flex-row">
 
-      <!-- Left panel: Tags + Note list -->
-      <aside class="w-80 border-r border-slate-200 bg-white flex flex-col shrink-0">
+      <!-- Mobile top bar -->
+      <div class="lg:hidden flex items-center gap-2 px-4 py-2 bg-white border-b border-slate-100 shrink-0">
+        <button
+          class="shrink-0 text-xs px-2.5 py-1.5 bg-purple-600 text-white rounded-md font-medium"
+          @click="handleNewNote"
+        >
+          + 新筆記
+        </button>
+        <input
+          v-model="searchQuery"
+          class="flex-1 min-w-0 text-xs border border-slate-200 rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-400"
+          placeholder="搜尋筆記..."
+        />
+        <button
+          class="shrink-0 text-xs px-2.5 py-1.5 border border-slate-200 rounded-md text-slate-600"
+          @click="showMobileList = true"
+        >
+          📋 {{ filteredNotes.length }}
+        </button>
+      </div>
+
+      <!-- Left panel: Tags + Note list (desktop only) -->
+      <aside class="hidden lg:flex w-80 border-r border-slate-200 bg-white flex-col shrink-0">
 
         <!-- New note + search -->
         <div class="p-3 border-b border-slate-100 space-y-2">
@@ -105,9 +126,56 @@
         >
           <div class="text-center p-8">
             <div class="text-4xl mb-3">📝</div>
-            <p class="text-sm">從左側選擇筆記</p>
+            <p class="text-sm">點右上角列表選擇筆記</p>
           </div>
         </div>
+
+        <!-- Mobile note list bottom sheet -->
+        <Teleport to="body">
+          <div
+            v-if="showMobileList && isMobile"
+            class="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            @click="showMobileList = false"
+          >
+            <div
+              class="absolute inset-x-0 bottom-0 max-h-[70vh] overflow-hidden bg-white rounded-t-2xl flex flex-col"
+              @click.stop
+            >
+              <div class="sticky top-0 bg-white p-3 border-b border-slate-100 flex justify-between items-center shrink-0">
+                <span class="text-sm font-medium text-slate-600">筆記列表 ({{ filteredNotes.length }})</span>
+                <button class="text-slate-400 hover:text-slate-600 text-lg" @click="showMobileList = false">✕</button>
+              </div>
+              <!-- Tags -->
+              <div v-if="allTags.length" class="px-3 py-2 border-b border-slate-100 shrink-0">
+                <div class="flex flex-wrap gap-1">
+                  <button
+                    class="text-[10px] px-2 py-0.5 rounded-full transition-colors"
+                    :class="!activeTag ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500'"
+                    @click="activeTag = null"
+                  >全部</button>
+                  <button
+                    v-for="{ tag, count } in allTags"
+                    :key="tag"
+                    class="text-[10px] px-2 py-0.5 rounded-full transition-colors"
+                    :class="activeTag === tag ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-600'"
+                    @click="activeTag = activeTag === tag ? null : tag"
+                  >
+                    #{{ tag }} <span class="opacity-60">{{ count }}</span>
+                  </button>
+                </div>
+              </div>
+              <div class="flex-1 overflow-y-auto p-3 space-y-2">
+                <NoteCard
+                  v-for="n in filteredNotes"
+                  :key="n.id"
+                  :note="n"
+                  :selected="selectedId === n.id"
+                  @select="selectedId = $event.id; showMobileList = false"
+                />
+              </div>
+            </div>
+          </div>
+        </Teleport>
 
         <!-- Mobile editor overlay -->
         <Teleport to="body">
@@ -168,6 +236,7 @@ const {
 
 // 用 ID 追蹤，computed 自動同步 Firestore 最新資料
 const selectedId = ref(null)
+const showMobileList = ref(false)
 
 const selectedNote = computed(() => {
   if (!selectedId.value) return null
@@ -189,6 +258,7 @@ onUnmounted(() => { window.removeEventListener('resize', checkMobile); unsubscri
 async function handleNewNote() {
   const id = await createNote({ title: '新筆記' })
   selectedId.value = id
+  showMobileList.value = false
 }
 
 function handleUpdate(noteId, updates) {
