@@ -17,12 +17,12 @@
 
     <!-- Bubble -->
     <div
-      class="max-w-[80%] min-w-0"
-      :class="msg.role === 'user' ? 'text-right' : ''"
+      class="min-w-0"
+      :class="msg.role === 'user' ? 'max-w-[80%] text-right' : 'max-w-[90%]'"
     >
       <div
-        class="inline-block text-left rounded-2xl px-4 py-3 text-sm leading-relaxed"
-        :class="bubbleClass"
+        class="inline-block text-left rounded-2xl text-sm leading-relaxed"
+        :class="[bubbleClass, msg.role === 'user' ? 'px-4 py-3' : 'px-5 py-4']"
       >
         <!-- User message: plain text -->
         <template v-if="msg.role === 'user'">
@@ -32,8 +32,9 @@
         <!-- Assistant message: rendered markdown -->
         <template v-else>
           <div
+            ref="proseEl"
             class="prose-chat"
-            v-html="renderMarkdown(msg.content)"
+            v-html="renderMd(msg.content)"
           />
         </template>
       </div>
@@ -54,13 +55,20 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted, nextTick, watch } from 'vue'
+import { renderMd } from '../utils/renderMarkdown.js'
+import { renderMermaidIn } from '../composables/useMermaid.js'
 
 const props = defineProps({
   msg: { type: Object, required: true },
 })
 
 defineEmits(['saveToNotes'])
+
+const proseEl = ref(null)
+
+onMounted(() => nextTick(() => renderMermaidIn(proseEl.value)))
+watch(() => props.msg.content, () => nextTick(() => renderMermaidIn(proseEl.value)))
 
 const bubbleClass = computed(() => {
   if (props.msg.role === 'user') {
@@ -83,129 +91,140 @@ function formatTime(timestamp) {
   })
 }
 
-// === 簡易 Markdown → HTML 轉換 ===
-function renderMarkdown(text) {
-  if (!text) return ''
-
-  let html = escapeHtml(text)
-
-  // Code blocks (```...```)
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    return `<pre class="code-block"><code>${code.trim()}</code></pre>`
-  })
-
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
-
-  // Headers
-  html = html.replace(/^#### (.+)$/gm, '<h4 class="md-h4">$1</h4>')
-  html = html.replace(/^### (.+)$/gm, '<h3 class="md-h3">$1</h3>')
-  html = html.replace(/^## (.+)$/gm, '<h2 class="md-h2">$1</h2>')
-  html = html.replace(/^# (.+)$/gm, '<h1 class="md-h1">$1</h1>')
-
-  // Bold + italic
-  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
-
-  // Links
-  html = html.replace(
-    /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noreferrer" class="md-link">$1 ↗</a>'
-  )
-
-  // Standalone URLs
-  html = html.replace(
-    /(?<!["\(href=])(https?:\/\/[^\s<]+)/g,
-    '<a href="$1" target="_blank" rel="noreferrer" class="md-link">$1</a>'
-  )
-
-  // Unordered list items
-  html = html.replace(/^[\-\*] (.+)$/gm, '<li class="md-li">$1</li>')
-  // Wrap consecutive <li> in <ul>
-  html = html.replace(
-    /(<li class="md-li">[\s\S]*?<\/li>)(\n(?!<li)|\s*$)/g,
-    '<ul class="md-ul">$1</ul>'
-  )
-
-  // Numbered list items
-  html = html.replace(/^\d+\. (.+)$/gm, '<li class="md-oli">$1</li>')
-  html = html.replace(
-    /(<li class="md-oli">[\s\S]*?<\/li>)(\n(?!<li)|\s*$)/g,
-    '<ol class="md-ol">$1</ol>'
-  )
-
-  // Blockquote
-  html = html.replace(/^&gt; (.+)$/gm, '<blockquote class="md-quote">$1</blockquote>')
-
-  // Horizontal rule
-  html = html.replace(/^---$/gm, '<hr class="md-hr" />')
-
-  // Paragraphs (double newline)
-  html = html.replace(/\n\n/g, '</p><p class="md-p">')
-  // Single newlines within paragraphs
-  html = html.replace(/\n/g, '<br>')
-
-  // Wrap in paragraph
-  html = `<p class="md-p">${html}</p>`
-  // Clean up empty paragraphs
-  html = html.replace(/<p class="md-p">\s*<\/p>/g, '')
-
-  return html
-}
-
-function escapeHtml(text) {
-  const div = { '&': '&amp;', '<': '&lt;', '>': '&gt;' }
-  return text.replace(/[&<>]/g, (c) => div[c])
-}
 </script>
 
 <style scoped>
-/* Chat-specific markdown styles */
-.prose-chat :deep(.md-h1) {
-  @apply text-base font-bold text-slate-900 mt-3 mb-1;
+/* ── Chat markdown typography ── */
+
+/* Base: comfortable line height & color */
+.prose-chat {
+  @apply text-[13.5px] leading-[1.75] text-slate-700;
 }
-.prose-chat :deep(.md-h2) {
-  @apply text-sm font-bold text-slate-800 mt-3 mb-1;
+
+/* ── Headings ── */
+.prose-chat :deep(h1) {
+  @apply text-base font-bold text-slate-900 mt-5 mb-2 pb-1.5 border-b border-slate-200;
 }
-.prose-chat :deep(.md-h3) {
-  @apply text-sm font-semibold text-slate-700 mt-2 mb-1;
+.prose-chat :deep(h2) {
+  @apply text-[15px] font-bold text-slate-800 mt-5 mb-2 pb-1 border-b border-slate-100;
 }
-.prose-chat :deep(.md-h4) {
-  @apply text-xs font-semibold text-slate-600 mt-2 mb-1;
+.prose-chat :deep(h3) {
+  @apply text-sm font-semibold text-slate-800 mt-4 mb-1.5;
 }
-.prose-chat :deep(.md-p) {
-  @apply mb-2 last:mb-0;
+.prose-chat :deep(h4) {
+  @apply text-[13px] font-semibold text-slate-600 mt-3 mb-1;
 }
-.prose-chat :deep(.md-link) {
-  @apply text-blue-600 underline underline-offset-2 hover:text-blue-800;
+/* Remove top margin for the very first heading */
+.prose-chat :deep(:first-child) {
+  margin-top: 0;
 }
-.prose-chat :deep(.md-ul),
-.prose-chat :deep(.md-ol) {
-  @apply pl-4 my-1.5 space-y-0.5;
+
+/* ── Paragraphs ── */
+.prose-chat :deep(p) {
+  @apply mb-3 last:mb-0;
 }
-.prose-chat :deep(.md-li) {
-  @apply list-disc;
+
+/* ── Links ── */
+.prose-chat :deep(a) {
+  @apply text-blue-600 underline underline-offset-2 decoration-blue-300 hover:text-blue-800 hover:decoration-blue-500;
 }
-.prose-chat :deep(.md-oli) {
+
+/* ── Lists ── */
+.prose-chat :deep(ul),
+.prose-chat :deep(ol) {
+  @apply pl-5 my-2.5 space-y-1.5;
+}
+.prose-chat :deep(li) {
+  @apply list-disc pl-1;
+}
+.prose-chat :deep(li.ol) {
   @apply list-decimal;
 }
-.prose-chat :deep(.md-quote) {
-  @apply border-l-2 border-teal-400 pl-3 text-slate-600 italic my-2;
+/* Nested list */
+.prose-chat :deep(li > ul),
+.prose-chat :deep(li > ol) {
+  @apply mt-1 mb-0;
 }
-.prose-chat :deep(.md-hr) {
-  @apply border-slate-200 my-3;
+
+/* ── Blockquote ── */
+.prose-chat :deep(blockquote) {
+  @apply border-l-[3px] border-teal-400 pl-4 py-1 text-slate-600 italic my-3 bg-teal-50/40 rounded-r-lg;
 }
+
+/* ── Horizontal rule ── */
+.prose-chat :deep(hr) {
+  @apply border-slate-200 my-4;
+}
+
+/* ── Code ── */
 .prose-chat :deep(.code-block) {
-  @apply bg-slate-900 text-emerald-300 text-xs rounded-lg p-3 my-2 overflow-x-auto;
+  @apply bg-slate-900 text-emerald-300 text-xs rounded-lg p-4 my-3 overflow-x-auto leading-relaxed;
 }
 .prose-chat :deep(.inline-code) {
   @apply bg-slate-100 text-red-600 text-xs px-1.5 py-0.5 rounded font-mono;
 }
+
+/* ── Inline formatting ── */
 .prose-chat :deep(strong) {
   @apply font-bold text-slate-900;
 }
 .prose-chat :deep(em) {
-  @apply italic;
+  @apply italic text-slate-600;
+}
+
+/* ── Tables ── */
+.prose-chat :deep(.table-wrap) { overflow-x: auto; margin: 12px 0; border-radius: 8px; }
+.prose-chat :deep(table) { width: 100%; border-collapse: collapse; font-size: 12.5px; line-height: 1.5; }
+.prose-chat :deep(th) { background: #f1f5f9; font-weight: 600; color: #1e293b; padding: 8px 12px; border: 1px solid #e2e8f0; white-space: nowrap; }
+.prose-chat :deep(td) { padding: 8px 12px; border: 1px solid #e2e8f0; color: #334155; }
+.prose-chat :deep(tr:nth-child(even) td) { background: #f8fafc; }
+
+/* ── Summary card ── */
+.prose-chat :deep(.summary-card) {
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0f9ff 100%);
+  border: 1px solid #a7f3d0;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+.prose-chat :deep(.summary-card .summary-title) {
+  font-weight: 700;
+  font-size: 13px;
+  color: #065f46;
+  margin-bottom: 8px;
+}
+.prose-chat :deep(.summary-card ul) {
+  padding-left: 18px;
+  margin: 0;
+  space-y: 0;
+}
+.prose-chat :deep(.summary-card li) {
+  list-style: disc;
+  font-size: 13px;
+  color: #1e293b;
+  line-height: 1.6;
+  margin-bottom: 4px;
+  padding-left: 2px;
+}
+.prose-chat :deep(.summary-card li:last-child) {
+  margin-bottom: 0;
+}
+.prose-chat :deep(.summary-card strong) {
+  color: #065f46;
+}
+
+/* ── Mermaid flowchart ── */
+.prose-chat :deep(.mermaid-block) {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px 0;
+  overflow-x: auto;
+  text-align: center;
+}
+.prose-chat :deep(.mermaid-block svg) {
+  max-width: 100%;
+  height: auto;
 }
 </style>

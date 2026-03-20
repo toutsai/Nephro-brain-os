@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen flex flex-col bg-slate-50">
+  <div class="h-screen flex flex-col bg-slate-50 pb-14 sm:pb-0">
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 shrink-0">
       <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
@@ -21,13 +21,10 @@
       </div>
     </div>
 
-    <!-- Main layout -->
-    <div v-else class="flex-1 overflow-hidden flex">
-
+    <!-- ==================== Desktop: side-by-side layout ==================== -->
+    <div v-else class="flex-1 overflow-hidden hidden lg:flex">
       <!-- Left panel: Tags + Note list -->
       <aside class="w-80 border-r border-slate-200 bg-white flex flex-col shrink-0">
-
-        <!-- New note + search -->
         <div class="p-3 border-b border-slate-100 space-y-2">
           <button
             class="w-full px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5"
@@ -83,64 +80,119 @@
       </aside>
 
       <!-- Right panel: Editor -->
-      <main class="flex-1 min-w-0">
-        <!-- Desktop -->
-        <div class="hidden lg:flex flex-col h-full">
+      <main class="flex-1 min-w-0 flex flex-col h-full">
+        <NoteEditor
+          :note="selectedNote"
+          :all-notes="notes"
+          :linked-notes="currentLinkedNotes"
+          @update="handleUpdate"
+          @delete="handleDelete"
+          @select="selectedId = $event.id"
+          @add-link="addLink"
+          @remove-link="removeLink"
+        />
+      </main>
+    </div>
+
+    <!-- ==================== Mobile: list / editor toggle ==================== -->
+    <template v-if="!loading">
+
+      <!-- Mobile: full-page editor (when a note is selected) -->
+      <div v-if="isMobile && selectedId" class="flex-1 flex flex-col overflow-hidden lg:hidden">
+        <!-- Editor top bar -->
+        <div class="flex items-center gap-2 px-4 py-2 bg-white border-b border-slate-100 shrink-0">
+          <button
+            class="shrink-0 flex items-center gap-1 text-xs text-purple-600 font-medium"
+            @click="selectedId = null"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+            筆記列表
+          </button>
+          <span class="flex-1 text-xs text-slate-400 truncate text-right">
+            {{ selectedNote?.title || '' }}
+          </span>
+        </div>
+        <!-- Full-page editor -->
+        <div class="flex-1 overflow-y-auto">
           <NoteEditor
             :note="selectedNote"
             :all-notes="notes"
             :linked-notes="currentLinkedNotes"
             @update="handleUpdate"
-            @delete="handleDelete"
+            @delete="handleDeleteMobile"
             @select="selectedId = $event.id"
             @add-link="addLink"
             @remove-link="removeLink"
           />
         </div>
+      </div>
 
-        <!-- Mobile placeholder -->
-        <div
-          v-if="!selectedNote"
-          class="lg:hidden flex items-center justify-center h-full text-slate-400"
-        >
-          <div class="text-center p-8">
-            <div class="text-4xl mb-3">📝</div>
-            <p class="text-sm">從左側選擇筆記</p>
+      <!-- Mobile: note list (default view when no note selected) -->
+      <div v-if="isMobile && !selectedId" class="flex-1 flex flex-col overflow-hidden lg:hidden">
+        <!-- Search + new note bar -->
+        <div class="flex items-center gap-2 px-4 py-2 bg-white border-b border-slate-100 shrink-0">
+          <button
+            class="shrink-0 text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg font-medium"
+            @click="handleNewNote"
+          >
+            + 新筆記
+          </button>
+          <input
+            v-model="searchQuery"
+            class="flex-1 min-w-0 text-xs border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-400"
+            placeholder="搜尋筆記..."
+          />
+        </div>
+
+        <!-- Tags -->
+        <div v-if="allTags.length" class="px-4 py-2 bg-white border-b border-slate-100 shrink-0">
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              class="text-xs px-2.5 py-1 rounded-full transition-colors"
+              :class="!activeTag ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500'"
+              @click="activeTag = null"
+            >
+              全部
+            </button>
+            <button
+              v-for="{ tag, count } in allTags"
+              :key="tag"
+              class="text-xs px-2.5 py-1 rounded-full transition-colors"
+              :class="activeTag === tag ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-600'"
+              @click="activeTag = activeTag === tag ? null : tag"
+            >
+              #{{ tag }} <span class="opacity-60">{{ count }}</span>
+            </button>
           </div>
         </div>
 
-        <!-- Mobile editor overlay -->
-        <Teleport to="body">
-          <div
-            v-if="selectedNote && isMobile"
-            class="fixed inset-0 bg-black/50 z-30 lg:hidden"
-            @click="selectedId = null"
-          >
-            <div
-              class="absolute inset-x-0 bottom-0 max-h-[90vh] overflow-hidden bg-white rounded-t-2xl flex flex-col"
-              @click.stop
+        <!-- Note cards -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-3">
+          <div v-if="!filteredNotes.length" class="text-center py-16 text-slate-400">
+            <div class="text-4xl mb-3">📝</div>
+            <p class="text-sm">
+              {{ searchQuery || activeTag ? '找不到符合的筆記' : '還沒有筆記' }}
+            </p>
+            <button
+              v-if="!searchQuery && !activeTag"
+              class="mt-3 text-xs text-purple-600 font-medium"
+              @click="handleNewNote"
             >
-              <div class="sticky top-0 bg-white p-3 border-b border-slate-100 flex justify-between items-center shrink-0">
-                <span class="text-sm font-medium text-slate-600">編輯筆記</span>
-                <button class="text-slate-400 hover:text-slate-600 text-lg" @click="selectedId = null">✕</button>
-              </div>
-              <div class="flex-1 overflow-y-auto">
-                <NoteEditor
-                  :note="selectedNote"
-                  :all-notes="notes"
-                  :linked-notes="currentLinkedNotes"
-                  @update="handleUpdate"
-                  @delete="handleDelete"
-                  @select="selectedId = $event.id"
-                  @add-link="addLink"
-                  @remove-link="removeLink"
-                />
-              </div>
-            </div>
+              建立第一則筆記
+            </button>
           </div>
-        </Teleport>
-      </main>
-    </div>
+          <NoteCard
+            v-for="n in filteredNotes"
+            :key="n.id"
+            :note="n"
+            :selected="false"
+            @select="selectedId = $event.id"
+          />
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -196,6 +248,12 @@ function handleUpdate(noteId, updates) {
 }
 
 function handleDelete(noteId) {
+  if (!confirm('確定要刪除這則筆記？')) return
+  deleteNote(noteId)
+  if (selectedId.value === noteId) selectedId.value = null
+}
+
+function handleDeleteMobile(noteId) {
   if (!confirm('確定要刪除這則筆記？')) return
   deleteNote(noteId)
   if (selectedId.value === noteId) selectedId.value = null
