@@ -33,7 +33,7 @@
         <template v-else>
           <div
             class="prose-chat"
-            v-html="renderMarkdown(msg.content)"
+            v-html="renderMd(msg.content)"
           />
         </template>
       </div>
@@ -55,6 +55,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { renderMd } from '../utils/renderMarkdown.js'
 
 const props = defineProps({
   msg: { type: Object, required: true },
@@ -83,117 +84,42 @@ function formatTime(timestamp) {
   })
 }
 
-// === 簡易 Markdown → HTML 轉換 ===
-function renderMarkdown(text) {
-  if (!text) return ''
-
-  let html = escapeHtml(text)
-
-  // Code blocks (```...```)
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    return `<pre class="code-block"><code>${code.trim()}</code></pre>`
-  })
-
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
-
-  // Headers
-  html = html.replace(/^#### (.+)$/gm, '<h4 class="md-h4">$1</h4>')
-  html = html.replace(/^### (.+)$/gm, '<h3 class="md-h3">$1</h3>')
-  html = html.replace(/^## (.+)$/gm, '<h2 class="md-h2">$1</h2>')
-  html = html.replace(/^# (.+)$/gm, '<h1 class="md-h1">$1</h1>')
-
-  // Bold + italic
-  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
-
-  // Links
-  html = html.replace(
-    /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noreferrer" class="md-link">$1 ↗</a>'
-  )
-
-  // Standalone URLs
-  html = html.replace(
-    /(?<!["\(href=])(https?:\/\/[^\s<]+)/g,
-    '<a href="$1" target="_blank" rel="noreferrer" class="md-link">$1</a>'
-  )
-
-  // Unordered list items
-  html = html.replace(/^[\-\*] (.+)$/gm, '<li class="md-li">$1</li>')
-  // Wrap consecutive <li> in <ul>
-  html = html.replace(
-    /(<li class="md-li">[\s\S]*?<\/li>)(\n(?!<li)|\s*$)/g,
-    '<ul class="md-ul">$1</ul>'
-  )
-
-  // Numbered list items
-  html = html.replace(/^\d+\. (.+)$/gm, '<li class="md-oli">$1</li>')
-  html = html.replace(
-    /(<li class="md-oli">[\s\S]*?<\/li>)(\n(?!<li)|\s*$)/g,
-    '<ol class="md-ol">$1</ol>'
-  )
-
-  // Blockquote
-  html = html.replace(/^&gt; (.+)$/gm, '<blockquote class="md-quote">$1</blockquote>')
-
-  // Horizontal rule
-  html = html.replace(/^---$/gm, '<hr class="md-hr" />')
-
-  // Paragraphs (double newline)
-  html = html.replace(/\n\n/g, '</p><p class="md-p">')
-  // Single newlines within paragraphs
-  html = html.replace(/\n/g, '<br>')
-
-  // Wrap in paragraph
-  html = `<p class="md-p">${html}</p>`
-  // Clean up empty paragraphs
-  html = html.replace(/<p class="md-p">\s*<\/p>/g, '')
-
-  return html
-}
-
-function escapeHtml(text) {
-  const div = { '&': '&amp;', '<': '&lt;', '>': '&gt;' }
-  return text.replace(/[&<>]/g, (c) => div[c])
-}
 </script>
 
 <style scoped>
 /* Chat-specific markdown styles */
-.prose-chat :deep(.md-h1) {
+.prose-chat :deep(h1) {
   @apply text-base font-bold text-slate-900 mt-3 mb-1;
 }
-.prose-chat :deep(.md-h2) {
+.prose-chat :deep(h2) {
   @apply text-sm font-bold text-slate-800 mt-3 mb-1;
 }
-.prose-chat :deep(.md-h3) {
+.prose-chat :deep(h3) {
   @apply text-sm font-semibold text-slate-700 mt-2 mb-1;
 }
-.prose-chat :deep(.md-h4) {
+.prose-chat :deep(h4) {
   @apply text-xs font-semibold text-slate-600 mt-2 mb-1;
 }
-.prose-chat :deep(.md-p) {
+.prose-chat :deep(p) {
   @apply mb-2 last:mb-0;
 }
-.prose-chat :deep(.md-link) {
+.prose-chat :deep(a) {
   @apply text-blue-600 underline underline-offset-2 hover:text-blue-800;
 }
-.prose-chat :deep(.md-ul),
-.prose-chat :deep(.md-ol) {
+.prose-chat :deep(ul),
+.prose-chat :deep(ol) {
   @apply pl-4 my-1.5 space-y-0.5;
 }
-.prose-chat :deep(.md-li) {
+.prose-chat :deep(li) {
   @apply list-disc;
 }
-.prose-chat :deep(.md-oli) {
+.prose-chat :deep(li.ol) {
   @apply list-decimal;
 }
-.prose-chat :deep(.md-quote) {
+.prose-chat :deep(blockquote) {
   @apply border-l-2 border-teal-400 pl-3 text-slate-600 italic my-2;
 }
-.prose-chat :deep(.md-hr) {
+.prose-chat :deep(hr) {
   @apply border-slate-200 my-3;
 }
 .prose-chat :deep(.code-block) {
@@ -208,4 +134,8 @@ function escapeHtml(text) {
 .prose-chat :deep(em) {
   @apply italic;
 }
+.prose-chat :deep(.table-wrap) { overflow-x: auto; margin: 8px 0; }
+.prose-chat :deep(table) { width: 100%; border-collapse: collapse; font-size: 12px; }
+.prose-chat :deep(th) { background: #f1f5f9; font-weight: 600; color: #1e293b; padding: 6px 10px; border: 1px solid #e2e8f0; white-space: nowrap; }
+.prose-chat :deep(td) { padding: 6px 10px; border: 1px solid #e2e8f0; color: #334155; }
 </style>

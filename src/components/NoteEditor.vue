@@ -111,7 +111,7 @@
       <div
         v-else-if="editMode === 'preview'"
         class="prose-note text-sm text-slate-700 leading-relaxed"
-        v-html="renderMarkdown(note.content || '')"
+        v-html="renderedContent"
       />
 
       <!-- Links mode -->
@@ -174,6 +174,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { renderMd } from '../utils/renderMarkdown.js'
 
 const props = defineProps({
   note: { type: Object, default: null },
@@ -254,41 +255,12 @@ function sourceLabel(src) {
   }
 }
 
-// === Markdown 渲染 ===
-function renderMarkdown(text) {
+// === Markdown 渲染（使用共用 renderMd） ===
+const renderedContent = computed(() => {
+  const text = props.note?.content
   if (!text) return '<p class="text-slate-400">空白筆記</p>'
-
-  let html = escapeHtml(text)
-
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
-    `<pre class="code-block"><code>${code.trim()}</code></pre>`
-  )
-  html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
-  html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>')
-  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>')
-  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>')
-  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>')
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
-  html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>')
-  html = html.replace(/(<li>[\s\S]*?<\/li>)(\n(?!<li)|\s*$)/g, '<ul>$1</ul>')
-  html = html.replace(/^\d+\. (.+)$/gm, '<li class="ol">$1</li>')
-  html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>')
-  html = html.replace(/^---$/gm, '<hr />')
-  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noreferrer">$1 ↗</a>'
-  )
-  html = html.replace(/\n\n/g, '</p><p>')
-  html = html.replace(/\n/g, '<br>')
-  html = `<p>${html}</p>`
-  html = html.replace(/<p>\s*<\/p>/g, '')
-
-  return html
-}
-
-function escapeHtml(text) {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
+  return renderMd(text)
+})
 </script>
 
 <style scoped>
@@ -305,4 +277,8 @@ function escapeHtml(text) {
 .prose-note :deep(a) { color: #7c3aed; text-decoration: underline; }
 .prose-note :deep(.code-block) { background: #1e293b; color: #6ee7b7; font-size: 12px; padding: 12px; border-radius: 8px; margin: 8px 0; overflow-x: auto; }
 .prose-note :deep(.inline-code) { background: #f1f5f9; color: #dc2626; font-size: 12px; padding: 1px 6px; border-radius: 4px; font-family: monospace; }
+.prose-note :deep(.table-wrap) { overflow-x: auto; margin: 8px 0; }
+.prose-note :deep(table) { width: 100%; border-collapse: collapse; font-size: 12px; }
+.prose-note :deep(th) { background: #f1f5f9; font-weight: 600; color: #1e293b; padding: 6px 10px; border: 1px solid #e2e8f0; white-space: nowrap; }
+.prose-note :deep(td) { padding: 6px 10px; border: 1px solid #e2e8f0; color: #334155; }
 </style>
