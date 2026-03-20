@@ -42,6 +42,7 @@ function renderSummaryBlocks(text) {
  */
 function extractMermaidBlocks(text) {
   let counter = 0
+  const validStarts = ['graph ', 'flowchart ', 'sequenceDiagram', 'classDiagram', 'stateDiagram', 'erDiagram', 'gantt', 'pie', 'gitGraph', 'mindmap', 'timeline']
   return text.replace(
     /```mermaid\s*\n([\s\S]*?)```/g,
     (_, code) => {
@@ -51,6 +52,12 @@ function extractMermaidBlocks(text) {
         .replace(/&amp;/g, '&')
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
+      // Validate: must have content and start with a valid mermaid declaration
+      const firstNonEmpty = raw.split('\n').find(l => l.trim())
+      if (!raw || !firstNonEmpty || !validStarts.some(s => firstNonEmpty.trim().startsWith(s))) {
+        // Not valid mermaid — render as plain code block
+        return `<pre class="code-block"><code>${code.trim()}</code></pre>`
+      }
       return `<div class="mermaid-block" data-mermaid-id="mmd-${counter}">${raw}</div>`
     }
   )
