@@ -1,13 +1,13 @@
-import { nextTick } from 'vue'
-
 let mermaidInstance = null
 let initPromise = null
+
+const CDN_URL = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'
 
 async function getMermaid() {
   if (mermaidInstance) return mermaidInstance
   if (initPromise) return initPromise
 
-  initPromise = import('mermaid').then(m => {
+  initPromise = import(/* @vite-ignore */ CDN_URL).then(m => {
     mermaidInstance = m.default
     mermaidInstance.initialize({
       startOnLoad: false,
@@ -16,6 +16,9 @@ async function getMermaid() {
       flowchart: { htmlLabels: true, curve: 'basis' },
     })
     return mermaidInstance
+  }).catch(() => {
+    initPromise = null
+    return null
   })
   return initPromise
 }
@@ -31,6 +34,7 @@ export async function renderMermaidIn(container) {
 
   try {
     const mermaid = await getMermaid()
+    if (!mermaid) return
     for (const block of blocks) {
       const code = block.textContent
       const id = block.dataset.mermaidId || `mmd-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
