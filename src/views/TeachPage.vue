@@ -273,7 +273,7 @@
                 <button class="mt-2 text-xs text-orange-500 hover:underline" @click="regenOne('summary')">生成摘要</button>
               </div>
               <div v-else class="bg-white rounded-xl border border-slate-200 p-6">
-                <div class="prose-teach text-sm text-slate-700 leading-relaxed" v-html="renderMd(currentSession.summary)" />
+                <div ref="summaryEl" class="prose-teach text-sm text-slate-700 leading-relaxed" v-html="renderMd(currentSession.summary)" />
               </div>
             </div>
 
@@ -331,7 +331,7 @@
                 <button class="mt-2 text-xs text-orange-500 hover:underline" @click="regenOne('outline')">生成大綱</button>
               </div>
               <div v-else class="bg-white rounded-xl border border-slate-200 p-6">
-                <div class="prose-teach text-sm text-slate-700 leading-relaxed" v-html="renderMd(currentSession.outline)" />
+                <div ref="outlineEl" class="prose-teach text-sm text-slate-700 leading-relaxed" v-html="renderMd(currentSession.outline)" />
               </div>
             </div>
 
@@ -362,11 +362,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onUnmounted, watch } from 'vue'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { storage } from '../firebase.js'
 import { useTeach } from '../composables/useTeach.js'
 import { renderMd } from '../utils/renderMarkdown.js'
+import { renderMermaidIn } from '../composables/useMermaid.js'
 import FlashCard from '../components/FlashCard.vue'
 import MindMap from '../components/MindMap.vue'
 
@@ -386,6 +387,8 @@ const selectedId = ref(null)
 const sourceText = ref('')
 const sessionTitle = ref('')
 const activeTab = ref('summary')
+const summaryEl = ref(null)
+const outlineEl = ref(null)
 const cardIndex = ref(0)
 const isNewSession = ref(false)
 const inputMode = ref('text') // 'text' | 'file'
@@ -613,6 +616,10 @@ function handleDelete(sid) {
 // 換卡片時重設 index
 watch(() => currentSession.value?.flashcards, () => { cardIndex.value = 0 })
 
+// Render mermaid in summary/outline
+watch(() => currentSession.value?.summary, () => nextTick(() => renderMermaidIn(summaryEl.value)))
+watch(() => currentSession.value?.outline, () => nextTick(() => renderMermaidIn(outlineEl.value)))
+
 onUnmounted(() => unsubscribe())
 
 </script>
@@ -635,4 +642,16 @@ onUnmounted(() => unsubscribe())
 .prose-teach :deep(th) { background: #f8fafc; font-weight: 600; color: #1e293b; padding: 8px 12px; border: 1px solid #e2e8f0; white-space: nowrap; }
 .prose-teach :deep(td) { padding: 8px 12px; border: 1px solid #e2e8f0; color: #334155; }
 .prose-teach :deep(tbody tr:hover) { background: #f8fafc; }
+.prose-teach :deep(tr:nth-child(even) td) { background: #f8fafc; }
+
+/* Summary card */
+.prose-teach :deep(.summary-card) { background: linear-gradient(135deg, #fff7ed 0%, #fffbeb 100%); border: 1px solid #fed7aa; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; }
+.prose-teach :deep(.summary-card .summary-title) { font-weight: 700; font-size: 13px; color: #9a3412; margin-bottom: 8px; }
+.prose-teach :deep(.summary-card ul) { padding-left: 18px; margin: 0; }
+.prose-teach :deep(.summary-card li) { list-style: disc; font-size: 13px; color: #1e293b; line-height: 1.6; margin-bottom: 4px; }
+.prose-teach :deep(.summary-card strong) { color: #9a3412; }
+
+/* Mermaid */
+.prose-teach :deep(.mermaid-block) { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin: 16px 0; overflow-x: auto; text-align: center; }
+.prose-teach :deep(.mermaid-block svg) { max-width: 100%; height: auto; }
 </style>

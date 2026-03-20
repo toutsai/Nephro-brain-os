@@ -331,7 +331,24 @@ def generate_answer(question):
 3. 使用 Markdown 格式
 4. 醫學術語用「中文 (English)」格式
 5. 引用文獻時附上連結
-6. 全程使用繁體中文"""
+6. 全程使用繁體中文
+
+【視覺化格式要求（重要）】：
+- **摘要區塊**：回答最開頭用以下格式寫 3-5 點關鍵結論：
+  :::summary
+  - 結論一
+  - 結論二
+  - 結論三
+  :::
+- **比較表格**：凡涉及藥物比較、方案比較、優缺點對比，一律用 Markdown 表格呈現（| 欄位 | 欄位 |）
+- **流程圖**：涉及診斷流程、治療決策樹、分級處理步驟時，用 mermaid 語法畫流程圖：
+  ```mermaid
+  graph TD
+    A[起點] --> B{{決策}}
+    B -->|是| C[處理A]
+    B -->|否| D[處理B]
+  ```
+- 優先用視覺化方式呈現，減少純文字堆砌"""
 
     try:
         response = gemini_client.models.generate_content(
@@ -362,7 +379,18 @@ def generate_cheat_sheet(topic):
 1. 使用 Markdown，大量使用 **粗體** 和表格
 2. 包含：🩺 適應症與機制、💊 劑量調整、⚠️ 禁忌症與副作用、📚 最新實證、💡 臨床珍珠
 3. 繁體中文，術語用「中文 (English)」格式
-4. 請用 Google Search 搜尋補充最新的臨床指引和實證"""
+4. 請用 Google Search 搜尋補充最新的臨床指引和實證
+5. 開頭用摘要區塊列出 3-5 個最重要的臨床要點：
+   :::summary
+   - 要點一
+   - 要點二
+   :::
+6. 藥物比較、劑量調整等用 Markdown 表格
+7. 如有決策流程，用 mermaid 流程圖：
+   ```mermaid
+   graph TD
+     A[起點] --> B{{決策}}
+   ```"""
 
     try:
         response = gemini_client.models.generate_content(

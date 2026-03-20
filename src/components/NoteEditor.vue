@@ -110,6 +110,7 @@
       <!-- Preview mode -->
       <div
         v-else-if="editMode === 'preview'"
+        ref="previewEl"
         class="prose-note text-sm text-slate-700 leading-relaxed"
         v-html="renderedContent"
       />
@@ -173,8 +174,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { renderMd } from '../utils/renderMarkdown.js'
+import { renderMermaidIn } from '../composables/useMermaid.js'
 
 const props = defineProps({
   note: { type: Object, default: null },
@@ -185,6 +187,7 @@ const props = defineProps({
 const emit = defineEmits(['update', 'delete', 'select', 'addLink', 'removeLink'])
 
 const editMode = ref('write') // 'write' | 'preview' | 'links'
+const previewEl = ref(null)
 const newTag = ref('')
 const linkSearch = ref('')
 const saving = ref(false)
@@ -261,6 +264,11 @@ const renderedContent = computed(() => {
   if (!text) return '<p class="text-slate-400">空白筆記</p>'
   return renderMd(text)
 })
+
+// Render mermaid when switching to preview
+watch(editMode, (mode) => {
+  if (mode === 'preview') nextTick(() => renderMermaidIn(previewEl.value))
+})
 </script>
 
 <style scoped>
@@ -281,4 +289,16 @@ const renderedContent = computed(() => {
 .prose-note :deep(table) { width: 100%; border-collapse: collapse; font-size: 12px; }
 .prose-note :deep(th) { background: #f1f5f9; font-weight: 600; color: #1e293b; padding: 6px 10px; border: 1px solid #e2e8f0; white-space: nowrap; }
 .prose-note :deep(td) { padding: 6px 10px; border: 1px solid #e2e8f0; color: #334155; }
+.prose-note :deep(tr:nth-child(even) td) { background: #f8fafc; }
+
+/* Summary card */
+.prose-note :deep(.summary-card) { background: linear-gradient(135deg, #f5f3ff 0%, #faf5ff 100%); border: 1px solid #ddd6fe; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; }
+.prose-note :deep(.summary-card .summary-title) { font-weight: 700; font-size: 13px; color: #5b21b6; margin-bottom: 8px; }
+.prose-note :deep(.summary-card ul) { padding-left: 18px; margin: 0; }
+.prose-note :deep(.summary-card li) { list-style: disc; font-size: 13px; color: #1e293b; line-height: 1.6; margin-bottom: 4px; }
+.prose-note :deep(.summary-card strong) { color: #5b21b6; }
+
+/* Mermaid */
+.prose-note :deep(.mermaid-block) { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin: 16px 0; overflow-x: auto; text-align: center; }
+.prose-note :deep(.mermaid-block svg) { max-width: 100%; height: auto; }
 </style>

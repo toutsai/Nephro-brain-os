@@ -329,7 +329,7 @@ Dapagliflozin 10mg
             </div>
 
             <div class="bg-white rounded-xl border border-slate-200 p-6">
-              <div class="prose-assist text-sm text-slate-700 leading-relaxed" v-html="renderMd(currentResult)" />
+              <div ref="assistResultEl" class="prose-assist text-sm text-slate-700 leading-relaxed" v-html="renderMd(currentResult)" />
             </div>
 
             <div class="flex items-center gap-2 mt-3">
@@ -348,12 +348,13 @@ Dapagliflozin 10mg
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { useAssist } from '../composables/useAssist.js'
 import ImageUploader from '../components/ImageUploader.vue'
 import { renderMd } from '../utils/renderMarkdown.js'
+import { renderMermaidIn } from '../composables/useMermaid.js'
 
 const {
   history,
@@ -376,6 +377,9 @@ onMounted(() => { checkMobile(); window.addEventListener('resize', checkMobile) 
 const activeMode = ref('clinical')
 const selectedHistoryId = ref(null)
 const currentResult = ref(null)
+const assistResultEl = ref(null)
+
+watch(currentResult, () => nextTick(() => renderMermaidIn(assistResultEl.value)))
 
 const modes = [
   { key: 'clinical', icon: '🏥', label: '臨床情境', desc: '實證指引建議' },
@@ -544,4 +548,16 @@ onUnmounted(() => { window.removeEventListener('resize', checkMobile); unsubscri
 .prose-assist :deep(th) { background: #f8fafc; font-weight: 600; color: #1e293b; padding: 8px 12px; border: 1px solid #e2e8f0; white-space: nowrap; }
 .prose-assist :deep(td) { padding: 8px 12px; border: 1px solid #e2e8f0; color: #334155; }
 .prose-assist :deep(tbody tr:hover) { background: #f8fafc; }
+.prose-assist :deep(tr:nth-child(even) td) { background: #f8fafc; }
+
+/* Summary card */
+.prose-assist :deep(.summary-card) { background: linear-gradient(135deg, #fff1f2 0%, #fef2f2 100%); border: 1px solid #fecaca; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; }
+.prose-assist :deep(.summary-card .summary-title) { font-weight: 700; font-size: 13px; color: #9f1239; margin-bottom: 8px; }
+.prose-assist :deep(.summary-card ul) { padding-left: 18px; margin: 0; }
+.prose-assist :deep(.summary-card li) { list-style: disc; font-size: 13px; color: #1e293b; line-height: 1.6; margin-bottom: 4px; }
+.prose-assist :deep(.summary-card strong) { color: #9f1239; }
+
+/* Mermaid */
+.prose-assist :deep(.mermaid-block) { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin: 16px 0; overflow-x: auto; text-align: center; }
+.prose-assist :deep(.mermaid-block svg) { max-width: 100%; height: auto; }
 </style>
