@@ -21,7 +21,7 @@
       :class="msg.role === 'user' ? 'max-w-[80%] text-right' : 'max-w-[90%]'"
     >
       <div
-        class="inline-block text-left rounded-2xl text-sm leading-relaxed"
+        class="inline-block text-left rounded-2xl text-sm leading-relaxed max-w-full overflow-hidden"
         :class="[bubbleClass, msg.role === 'user' ? 'px-4 py-3' : 'px-5 py-4']"
       >
         <!-- User message: plain text -->
@@ -99,6 +99,9 @@ function formatTime(timestamp) {
 /* Base: comfortable line height & color */
 .prose-chat {
   @apply text-[13.5px] leading-[1.75] text-slate-700;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
 }
 
 /* ── Headings ── */
