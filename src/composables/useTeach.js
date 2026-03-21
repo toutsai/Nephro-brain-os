@@ -49,7 +49,7 @@ export function useTeach() {
       file_name: data.file_name || null,
       summary: null,
       flashcards: null,
-      outline: null,
+      relation: null,
       mindmap: null,
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
@@ -87,7 +87,7 @@ export function useTeach() {
       if (mode === 'all') {
         updates.summary = data.summary || null
         updates.flashcards = data.flashcards || null
-        updates.outline = data.outline || null
+        updates.relation = data.relation || null
         updates.mindmap = data.mindmap || null
       } else {
         updates[mode] = data[mode] || data.result || null
