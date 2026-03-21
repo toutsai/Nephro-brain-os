@@ -344,6 +344,12 @@ Dapagliflozin 10mg
         </div>
       </main>
     </div>
+
+    <!-- Selection → Note / Teach toolbar -->
+    <SelectionToolbar
+      source-type="assist"
+      :source-meta="{ mode: activeMode }"
+    />
   </div>
 </template>
 
@@ -353,6 +359,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { useAssist } from '../composables/useAssist.js'
 import ImageUploader from '../components/ImageUploader.vue'
+import SelectionToolbar from '../components/SelectionToolbar.vue'
 import { renderMd } from '../utils/renderMarkdown.js'
 import { renderMermaidIn } from '../composables/useMermaid.js'
 
