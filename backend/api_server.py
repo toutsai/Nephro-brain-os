@@ -513,7 +513,7 @@ def stats():
 
 @app.route('/teach/generate', methods=['POST'])
 def teach_generate():
-    """NB Teach: 從文字或 PDF 生成摘要/Flashcards/大綱/心智圖"""
+    """NB Teach: 從文字或 PDF 生成摘要/Flashcards/關聯分析/心智圖"""
     data = request.get_json()
     text = data.get('text', '')
     file_url = data.get('file_url', '')
@@ -569,8 +569,8 @@ def teach_generate():
             except:
                 result['flashcards'] = cleaned
 
-        if mode in ('outline', 'all'):
-            result['outline'] = _teach_call(contents, TEACH_PROMPT_OUTLINE)
+        if mode in ('relation', 'all'):
+            result['relation'] = _teach_call(contents, TEACH_PROMPT_RELATION)
 
         if mode in ('mindmap', 'all'):
             raw = _teach_call(contents, TEACH_PROMPT_MINDMAP)
@@ -636,32 +636,41 @@ TEACH_PROMPT_FLASHCARDS = """你是一位醫學教育專家。請根據上面的
   {"question": "問題2", "answer": "答案2"}
 ]"""
 
-TEACH_PROMPT_OUTLINE = """你是一位醫學教育專家。請為上面的素材產生一份學習大綱。
+TEACH_PROMPT_RELATION = """你是一位醫學教育專家，擅長分析知識之間的關聯性。
+請閱讀上面的學習素材，進行深度關聯分析。
 
-【輸出格式】（Markdown 縮排大綱）：
+【輸出格式】（Markdown）：
 
-# 主題名稱
+## 🔗 核心知識定位
+（這份素材屬於哪個知識領域？在腎臟醫學知識體系中的位置）
 
-## 1. 第一大類
-### 1.1 子項目
-- 重點 a
-- 重點 b
-  - 細節
+## 🧩 先備知識（Prerequisites）
+（要理解這份素材，需要先具備哪些知識？列出 3-5 個）
+- **知識點 A**：為什麼需要、簡述關係
+- **知識點 B**：為什麼需要、簡述關係
 
-### 1.2 子項目
-- 重點 c
+## 🔀 橫向關聯（Cross-links）
+（這份素材和哪些其他主題有密切關聯？）
+- **相關主題 1** → 關聯方式（例如：共同機轉、鑑別診斷、合併治療）
+- **相關主題 2** → 關聯方式
+- **相關主題 3** → 關聯方式
 
-## 2. 第二大類
-### 2.1 子項目
-- 重點 d
+## ⬆️ 進階延伸（Next Steps）
+（學完這份素材後，建議接下來學什麼？）
+1. **延伸主題 A** — 為什麼值得學
+2. **延伸主題 B** — 為什麼值得學
 
-## 📝 學習建議
-（根據內容給出 2-3 條學習建議）
+## 🏥 臨床情境連結
+（這份素材的知識會在哪些臨床情境用到？）
+- 情境 1：簡述如何應用
+- 情境 2：簡述如何應用
+- 情境 3：簡述如何應用
 
-## 🔗 延伸閱讀
-（建議相關主題或搜尋方向）
+## 💡 學習策略建議
+（根據這份素材的特性，建議用什麼方式學習最有效？）
 
-全程使用繁體中文，醫學術語保留英文。大綱要有層次感，適合作為心智圖的基礎。"""
+全程使用繁體中文，醫學術語用「中文 (English)」格式。
+請用 Google Search 搜尋補充最新的相關知識和指引。"""
 
 TEACH_PROMPT_MINDMAP = """你是一位醫學教育專家。請根據上面的素材產生一份心智圖結構。
 
