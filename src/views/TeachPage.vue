@@ -358,6 +358,12 @@
         </div>
       </main>
     </div>
+
+    <!-- Selection → Note toolbar -->
+    <SelectionToolbar
+      source-type="teach"
+      :source-meta="currentSession ? { sessionId: selectedId, title: currentSession.title } : {}"
+    />
   </div>
 </template>
 
@@ -370,6 +376,7 @@ import { renderMd } from '../utils/renderMarkdown.js'
 import { renderMermaidIn } from '../composables/useMermaid.js'
 import FlashCard from '../components/FlashCard.vue'
 import MindMap from '../components/MindMap.vue'
+import SelectionToolbar from '../components/SelectionToolbar.vue'
 
 const {
   sessions,
