@@ -161,36 +161,37 @@
           />
         </div>
 
-        <!-- 手機版：點擊文章後彈出詳細 -->
-        <Teleport to="body">
-          <div
-            v-if="selectedArticle && isMobile"
-            class="fixed inset-0 bg-black/50 z-30 lg:hidden"
-            @click="selectedArticle = null"
-          >
-            <div
-              class="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto bg-white rounded-t-2xl"
-              @click.stop
-            >
-              <div class="sticky top-0 bg-white p-3 border-b border-slate-100 flex justify-between items-center">
-                <span class="text-sm font-medium text-slate-600">文獻詳情</span>
-                <button
-                  class="text-slate-400 hover:text-slate-600 text-lg"
-                  @click="selectedArticle = null"
-                >
-                  ✕
-                </button>
-              </div>
-              <ArticleDetail
-                :article="selectedArticle"
-                :is-saved="isSaved(selectedArticle.id)"
-                @toggle-save="toggleSave"
-              />
-            </div>
-          </div>
-        </Teleport>
       </template>
     </main>
+
+    <!-- 手機版：點擊文章後彈出詳細（所有 tab 共用） -->
+    <Teleport to="body">
+      <div
+        v-if="selectedArticle && isMobile"
+        class="fixed inset-0 bg-black/50 z-30 lg:hidden"
+        @click="selectedArticle = null"
+      >
+        <div
+          class="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto bg-white rounded-t-2xl"
+          @click.stop
+        >
+          <div class="sticky top-0 bg-white p-3 border-b border-slate-100 flex justify-between items-center">
+            <span class="text-sm font-medium text-slate-600">文獻詳情</span>
+            <button
+              class="text-slate-400 hover:text-slate-600 text-lg"
+              @click="selectedArticle = null"
+            >
+              ✕
+            </button>
+          </div>
+          <ArticleDetail
+            :article="selectedArticle"
+            :is-saved="isSaved(selectedArticle.id)"
+            @toggle-save="toggleSave"
+          />
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Selection toolbar -->
     <SelectionToolbar
