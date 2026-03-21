@@ -211,7 +211,8 @@
 
           <!-- Input bar -->
           <div class="px-4 py-3 bg-white border-t border-slate-200 shrink-0">
-            <div class="max-w-3xl mx-auto flex items-end gap-2">
+            <GuestLock />
+            <div v-if="role === 'pro'" class="max-w-3xl mx-auto flex items-end gap-2">
               <div class="flex-1 relative">
                 <textarea
                   ref="inputEl"
@@ -240,7 +241,7 @@
                 </svg>
               </button>
             </div>
-            <p class="text-center text-[10px] text-slate-300 mt-1.5">
+            <p v-if="role === 'pro'" class="text-center text-[10px] text-slate-300 mt-1.5">
               問答引擎結合教科書 FAISS 向量搜尋 + PubMed + Google Search + Gemini 2.5 Flash
             </p>
           </div>
@@ -345,6 +346,10 @@ import { useBooks } from '../composables/useBooks.js'
 import ChatMessage from '../components/ChatMessage.vue'
 import BookCard from '../components/BookCard.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
+import GuestLock from '../components/GuestLock.vue'
+import { useUserRole } from '../composables/useUserRole.js'
+
+const { role } = useUserRole()
 
 // === Chat ===
 const {
