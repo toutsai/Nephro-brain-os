@@ -18,6 +18,12 @@
       >
         📎 加到現有筆記
       </button>
+      <button
+        class="flex items-center gap-1.5 text-xs font-medium text-orange-600 hover:bg-orange-50 px-2.5 py-1.5 rounded-lg transition-colors"
+        @mousedown.prevent="sendToTeach"
+      >
+        🎓 加到 Teach 產生
+      </button>
 
       <!-- Note list dropdown -->
       <div
@@ -50,6 +56,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { db } from '../firebase.js'
 import {
   collection,
@@ -63,8 +70,10 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 
+const router = useRouter()
+
 const props = defineProps({
-  // 來源類型：'insight' | 'consult'
+  // 來源類型：'insight' | 'consult' | 'teach'
   sourceType: { type: String, required: true },
   // 來源附加資訊（論文標題、chat ID 等）
   sourceMeta: { type: Object, default: () => ({}) },
@@ -189,7 +198,8 @@ async function appendToNote(noteId) {
   try {
     const separator = '\n\n---\n\n'
     const timestamp = new Date().toLocaleString('zh-TW')
-    const appendedContent = `${note.content || ''}${separator}> 📎 ${props.sourceType === 'insight' ? '論文摘錄' : '問答摘錄'} (${timestamp})\n\n${selectedText.value}`
+    const sourceLabel = { insight: '論文摘錄', consult: '問答摘錄', teach: '教材摘錄' }[props.sourceType] || '摘錄'
+    const appendedContent = `${note.content || ''}${separator}> 📎 ${sourceLabel} (${timestamp})\n\n${selectedText.value}`
 
     await updateDoc(doc(db, 'notes', noteId), {
       content: appendedContent,
@@ -205,6 +215,14 @@ async function appendToNote(noteId) {
     console.error('Append to note error:', e)
     showToast('儲存失敗')
   }
+}
+
+// === 加到 Teach 產生 ===
+function sendToTeach() {
+  if (!selectedText.value) return
+  visible.value = false
+  window.getSelection()?.removeAllRanges()
+  router.push({ path: '/teach', query: { text: selectedText.value } })
 }
 
 // === 輔助：從選取文字生成標題 ===

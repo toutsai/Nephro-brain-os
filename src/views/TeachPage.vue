@@ -368,7 +368,8 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { storage } from '../firebase.js'
 import { useTeach } from '../composables/useTeach.js'
@@ -389,6 +390,9 @@ const {
   deleteSession,
   unsubscribe,
 } = useTeach()
+
+const route = useRoute()
+const router = useRouter()
 
 const selectedId = ref(null)
 const sourceText = ref('')
@@ -610,6 +614,11 @@ async function regenOne(mode) {
   activeTab.value = mode
 }
 
+function generateTitle(text) {
+  const firstLine = text.split('\n')[0].replace(/[#*_`>]/g, '').trim()
+  return firstLine.length <= 30 ? firstLine : firstLine.slice(0, 30) + '…'
+}
+
 function handleDelete(sid) {
   if (!confirm('確定要刪除？')) return
   deleteSession(sid)
@@ -622,6 +631,18 @@ watch(() => currentSession.value?.flashcards, () => { cardIndex.value = 0 })
 // Render mermaid in summary/relation
 watch(() => currentSession.value?.summary, () => nextTick(() => renderMermaidIn(summaryEl.value)))
 watch(() => currentSession.value?.relation, () => nextTick(() => renderMermaidIn(relationEl.value)))
+
+// 從其他頁面帶文字過來 → 自動開新 session 填入
+onMounted(() => {
+  const incoming = route.query.text
+  if (incoming) {
+    startNewSession()
+    sourceText.value = incoming
+    sessionTitle.value = generateTitle(incoming)
+    // 清掉 query，避免重新整理重複填入
+    router.replace({ path: '/teach', query: {} })
+  }
+})
 
 onUnmounted(() => unsubscribe())
 </script>
