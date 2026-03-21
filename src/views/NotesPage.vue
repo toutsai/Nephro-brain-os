@@ -24,7 +24,7 @@
     <!-- ==================== Desktop: side-by-side layout ==================== -->
     <div v-else class="flex-1 overflow-hidden hidden lg:flex">
       <!-- Left panel: Tags + Note list -->
-      <aside class="w-80 border-r border-slate-200 bg-white flex flex-col shrink-0">
+      <aside class="w-72 border-r border-slate-200 bg-white flex flex-col shrink-0">
         <div class="p-3 border-b border-slate-100 space-y-2">
           <button
             class="w-full px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5"

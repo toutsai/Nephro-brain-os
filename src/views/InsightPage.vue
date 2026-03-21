@@ -2,7 +2,7 @@
   <div class="h-screen flex flex-col bg-slate-50 pb-14 sm:pb-0">
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 sticky top-0 z-20 shrink-0">
-      <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
         <div class="flex items-center gap-3">
           <router-link to="/" class="hidden sm:block text-lg font-bold text-slate-800 hover:text-blue-600 transition-colors">
             NB — OS
