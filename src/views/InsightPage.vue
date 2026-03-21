@@ -99,6 +99,8 @@
               :article="selectedArticle"
               :is-saved="selectedArticle ? isSaved(selectedArticle.id) : false"
               @toggle-save="toggleSave"
+              @deep-consult="handleDeepConsult"
+              @save-to-notes="handleSaveToNotes"
             />
           </div>
         </div>
@@ -143,6 +145,8 @@
               :article="selectedArticle"
               :is-saved="selectedArticle ? isSaved(selectedArticle.id) : false"
               @toggle-save="toggleSave"
+              @deep-consult="handleDeepConsult"
+              @save-to-notes="handleSaveToNotes"
             />
           </div>
         </div>
@@ -203,11 +207,16 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useArticles } from '../composables/useArticles.js'
 import { useCollection } from '../composables/useCollection.js'
+import { useNotes } from '../composables/useNotes.js'
 import ArticleCard from '../components/ArticleCard.vue'
 import ArticleDetail from '../components/ArticleDetail.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
+
+const router = useRouter()
+const { saveFromModule } = useNotes()
 
 // Data
 const {
@@ -215,6 +224,10 @@ const {
   esrdArticles,
   akiArticles,
   ckdArticles,
+  gnArticles,
+  transplantArticles,
+  electrolyteArticles,
+  pdArticles,
   journalArticles,
   loading,
   isToday,
@@ -252,6 +265,10 @@ const tabs = computed(() => [
   { key: 'ESRD/HD', label: 'ESRD / HD', count: esrdArticles.value.length },
   { key: 'AKI', label: 'AKI', count: akiArticles.value.length },
   { key: 'CKD', label: 'CKD', count: ckdArticles.value.length },
+  { key: 'GN', label: 'GN', count: gnArticles.value.length },
+  { key: 'Transplant', label: 'Transplant', count: transplantArticles.value.length },
+  { key: 'Electrolyte', label: 'Electrolyte', count: electrolyteArticles.value.length },
+  { key: 'PD', label: 'PD', count: pdArticles.value.length },
   { key: 'journal', label: '📰 期刊', count: journalArticles.value.length },
   { key: 'collection', label: '✅ 收藏庫', count: savedArticles.value.length },
 ])
@@ -260,9 +277,51 @@ const currentArticles = computed(() => {
   if (activeTab.value === 'ESRD/HD') return esrdArticles.value
   if (activeTab.value === 'AKI') return akiArticles.value
   if (activeTab.value === 'CKD') return ckdArticles.value
+  if (activeTab.value === 'GN') return gnArticles.value
+  if (activeTab.value === 'Transplant') return transplantArticles.value
+  if (activeTab.value === 'Electrolyte') return electrolyteArticles.value
+  if (activeTab.value === 'PD') return pdArticles.value
   if (activeTab.value === 'journal') return journalArticles.value
   return []
 })
 
 const articleCount = computed(() => articles.value.length)
+
+// === 跨模組功能 ===
+function showToast(msg) {
+  const el = document.createElement('div')
+  el.textContent = msg
+  el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:50;background:#7c3aed;color:white;padding:8px 16px;border-radius:12px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.15)'
+  document.body.appendChild(el)
+  setTimeout(() => el.remove(), 2000)
+}
+
+function handleDeepConsult(article) {
+  const question = article.title_zh || article.title || ''
+  router.push({ path: '/consult', query: { q: question } })
+}
+
+async function handleSaveToNotes(article) {
+  try {
+    const content = [
+      `# ${article.title_zh || article.title}`,
+      '',
+      article.title_zh && article.title ? `**原文標題**: ${article.title}` : '',
+      `**期刊**: ${article.journal || ''} · ${article.pubdate || ''}`,
+      article.link ? `**連結**: ${article.link}` : '',
+      '',
+      '## 摘要重點',
+      ...(article.summary_points || []).map(p => `- ${p}`),
+      '',
+      '## 臨床重點',
+      ...(article.clinical_takeaways || []).map((t, i) => `${i + 1}. ${t}`),
+    ].filter(Boolean).join('\n')
+
+    await saveFromModule(content, 'NB Insight', article.title_zh || article.title)
+    showToast('已存入 Notes ✓')
+  } catch (e) {
+    console.error('Save to notes error:', e)
+    showToast('儲存失敗')
+  }
+}
 </script>

@@ -104,6 +104,25 @@ TOPIC_QUERIES = {
     ),
     "AKI": "(acute kidney injury[tiab] OR AKI[tiab]) AND (kidney OR renal)",
     "CKD": "(chronic kidney disease[tiab] OR CKD[tiab]) AND (kidney OR renal)",
+    # Phase 2: 新增主題
+    "GN": (
+        "((glomerulonephritis[tiab] OR glomerulopathy[tiab] OR nephrotic syndrome[tiab] "
+        "OR IgA nephropathy[tiab] OR membranous nephropathy[tiab] OR FSGS[tiab] "
+        "OR lupus nephritis[tiab] OR ANCA vasculitis[tiab] OR minimal change[tiab]))"
+    ),
+    "Transplant": (
+        "((kidney transplant[tiab] OR renal transplant[tiab] OR transplant rejection[tiab] "
+        "OR immunosuppression[tiab]) AND (kidney OR renal))"
+    ),
+    "Electrolyte": (
+        "((hyperkalemia[tiab] OR hypokalemia[tiab] OR hyponatremia[tiab] OR hypernatremia[tiab] "
+        "OR metabolic acidosis[tiab] OR hypercalcemia[tiab] OR hypocalcemia[tiab] "
+        "OR hyperphosphatemia[tiab]) AND (kidney OR renal OR nephrology))"
+    ),
+    "PD": (
+        "((peritoneal dialysis[tiab] OR PD catheter[tiab] OR peritonitis[tiab]) "
+        "AND (kidney OR renal OR dialysis))"
+    ),
 }
 
 HIGH_EVIDENCE_FILTER = (
@@ -153,7 +172,12 @@ NB_INSIGHT_PROMPT = """你是資深腎臟科專科醫師，負責為 Nephro Brai
     "限制1",
     "限制2"
   ],
-  "next_steps": "建議的下一步（臨床或研究延伸，1-2句）"
+  "next_steps": "建議的下一步（臨床或研究延伸，1-2句）",
+  "study_quality": {{
+    "score": "1-5（5=最高品質，如大型 RCT；1=最低，如 case report）",
+    "strengths": ["方法學優點1"],
+    "weaknesses": ["方法學缺點1"]
+  }}
 }}"""
 
 # ============================================================
@@ -284,7 +308,7 @@ def detect_topics(title: str, abstract: str, mesh_terms: list) -> list:
 
     esrd_kw = [
         "esrd", "eskd", "end stage", "hemodialysis", "haemodialysis",
-        "dialysis", "hemodiafiltration", "peritoneal dialysis",
+        "dialysis", "hemodiafiltration",
     ]
     aki_kw = [
         "acute kidney injury", " aki ", "acute renal failure",
@@ -292,7 +316,29 @@ def detect_topics(title: str, abstract: str, mesh_terms: list) -> list:
     ]
     ckd_kw = [
         "chronic kidney disease", " ckd ", "chronic renal",
-        "glomerulonephritis", "nephropathy", "proteinuria",
+        "proteinuria", "albuminuria",
+    ]
+    # Phase 2: 新增主題偵測
+    gn_kw = [
+        "glomerulonephritis", "glomerulopathy", "nephrotic syndrome",
+        "iga nephropathy", "membranous nephropathy", "fsgs",
+        "lupus nephritis", "anca vasculitis", "minimal change",
+        "nephritic", "complement", "c3 glomerulopathy",
+    ]
+    transplant_kw = [
+        "kidney transplant", "renal transplant", "transplantation",
+        "rejection", "tacrolimus", "immunosuppression",
+        "donor", "allograft", "bk virus",
+    ]
+    electrolyte_kw = [
+        "hyperkalemia", "hypokalemia", "hyponatremia", "hypernatremia",
+        "metabolic acidosis", "metabolic alkalosis",
+        "hypercalcemia", "hypocalcemia", "hyperphosphatemia",
+        "electrolyte", "acid-base",
+    ]
+    pd_kw = [
+        "peritoneal dialysis", "pd catheter", "peritonitis",
+        "capd", "apd", "automated peritoneal",
     ]
 
     if any(kw in text for kw in esrd_kw):
@@ -301,6 +347,14 @@ def detect_topics(title: str, abstract: str, mesh_terms: list) -> list:
         topics.append("AKI")
     if any(kw in text for kw in ckd_kw):
         topics.append("CKD")
+    if any(kw in text for kw in gn_kw):
+        topics.append("GN")
+    if any(kw in text for kw in transplant_kw):
+        topics.append("Transplant")
+    if any(kw in text for kw in electrolyte_kw):
+        topics.append("Electrolyte")
+    if any(kw in text for kw in pd_kw):
+        topics.append("PD")
 
     return topics if topics else ["CKD"]
 

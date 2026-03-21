@@ -136,6 +136,29 @@ export function useNotes() {
     }
   }
 
+  // === 跨模組存入 ===
+  async function saveFromModule(content, source, title) {
+    const autoTitle = title
+      || content.split('\n')[0].replace(/[#*_`>]/g, '').trim().slice(0, 30)
+      || '跨模組筆記'
+    const finalTitle = autoTitle.length >= 30 ? autoTitle + '…' : autoTitle
+
+    const docRef = await addDoc(collection(db, 'notes'), {
+      title: finalTitle,
+      content,
+      tags: [source].filter(Boolean),
+      links: [],
+      sources: [{
+        type: source,
+        snippet: content.slice(0, 200),
+        saved_at: new Date().toISOString(),
+      }],
+      created_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+    })
+    return docRef.id
+  }
+
   // === 輔助 ===
   function getNoteById(id) {
     return notes.value.find((n) => n.id === id)
@@ -159,6 +182,7 @@ export function useNotes() {
     deleteNote,
     addLink,
     removeLink,
+    saveFromModule,
     getNoteById,
     getLinkedNotes,
     unsubscribe,

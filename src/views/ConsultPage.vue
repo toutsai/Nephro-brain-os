@@ -181,9 +181,26 @@
               :source-meta="{ chatId: currentChatId }"
             />
 
-            <!-- Typing indicator -->
+            <!-- Streaming content (SSE) -->
             <div
-              v-if="answering"
+              v-if="answering && streamingContent"
+              class="flex gap-3"
+            >
+              <div class="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
+                NB
+              </div>
+              <div class="max-w-[90%] min-w-0">
+                <div class="inline-block text-left bg-white text-slate-800 border border-slate-200 rounded-2xl rounded-bl-md px-5 py-4 shadow-sm max-w-full overflow-hidden">
+                  <div class="prose-chat text-[13.5px] leading-[1.75] text-slate-700" v-html="renderMd(streamingContent)" />
+                  <span class="inline-block w-1.5 h-4 bg-teal-500 rounded-sm animate-pulse ml-0.5 align-middle" />
+                </div>
+                <div class="text-[10px] text-slate-400 mt-1 px-1">串流回應中...</div>
+              </div>
+            </div>
+
+            <!-- Typing indicator (before streaming starts) -->
+            <div
+              v-else-if="answering"
               class="flex gap-3"
             >
               <div class="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
@@ -338,6 +355,7 @@
 
 <script setup>
 import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { db, storage } from '../firebase.js'
@@ -348,6 +366,7 @@ import BookCard from '../components/BookCard.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
 import GuestLock from '../components/GuestLock.vue'
 import { useUserRole } from '../composables/useUserRole.js'
+import { renderMd } from '../utils/renderMarkdown.js'
 
 const { role } = useUserRole()
 
@@ -361,11 +380,13 @@ const {
   chatsLoading,
   apiStatus,
   knowledgeStats,
+  streamingContent,
   subscribeChats,
   selectChat,
   createChat,
   deleteChat,
   sendQuestion,
+  sendQuestionStream,
   checkApiHealth,
   fetchStats,
   cleanup: cleanupChat,
@@ -471,7 +492,8 @@ async function handleSend() {
   if (!text || answering.value) return
   inputText.value = ''
   textareaHeight.value = '40px'
-  await sendQuestion(text)
+  // 優先使用 SSE streaming，失敗會自動 fallback
+  await sendQuestionStream(text)
 }
 
 // === 整則回覆收進 Notes ===
@@ -533,11 +555,30 @@ watch(
   }
 )
 
+// Auto-scroll during streaming
+watch(
+  () => streamingContent.value,
+  async () => {
+    await nextTick()
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    }
+  }
+)
+
 // Lifecycle
+const route = useRoute()
+
 onMounted(() => {
   subscribeChats()
   checkApiHealth()
   fetchStats()
+
+  // 從其他模組帶入的問題（例如 InsightPage 的「深入問答」）
+  if (route.query.q) {
+    inputText.value = route.query.q
+    activeTab.value = 'chat'
+  }
 })
 
 onUnmounted(() => {

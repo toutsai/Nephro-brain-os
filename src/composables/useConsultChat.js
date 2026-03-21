@@ -149,6 +149,128 @@ export function useConsultChat() {
     }
   }
 
+  // === SSE Streaming 發送問題 ===
+  const streamingContent = ref('')
+
+  async function sendQuestionStream(question) {
+    if (!question.trim()) return
+    error.value = null
+
+    // 如果沒有 chat，先建一個
+    let chatId = currentChatId.value
+    if (!chatId) {
+      const title = question.length > 20 ? question.slice(0, 20) + '…' : question
+      chatId = await createChat(title)
+    }
+
+    // 1. 存使用者訊息
+    await addDoc(collection(db, 'chats', chatId, 'messages'), {
+      role: 'user',
+      content: question,
+      created_at: serverTimestamp(),
+    })
+
+    // 更新 chat metadata
+    await updateDoc(doc(db, 'chats', chatId), {
+      updated_at: serverTimestamp(),
+      last_message: question.slice(0, 60),
+    })
+
+    // 2. 呼叫 SSE streaming API
+    answering.value = true
+    streamingContent.value = ''
+
+    try {
+      const res = await fetch(`${API_BASE}/consult/chat-stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question }),
+      })
+
+      if (!res.ok) throw new Error(`API 回應 ${res.status}`)
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const payload = line.slice(6).trim()
+
+          if (payload === '[DONE]') break
+
+          try {
+            const parsed = JSON.parse(payload)
+            if (parsed.type === 'content') {
+              streamingContent.value += parsed.content
+            } else if (parsed.type === 'error') {
+              throw new Error(parsed.content)
+            }
+            // status type: 可用於顯示搜尋進度
+          } catch (parseErr) {
+            if (parseErr.message && !parseErr.message.includes('JSON')) {
+              throw parseErr
+            }
+          }
+        }
+      }
+
+      const finalAnswer = streamingContent.value || '❌ 無回應'
+
+      // 3. 存 AI 回覆到 Firestore
+      await addDoc(collection(db, 'chats', chatId, 'messages'), {
+        role: 'assistant',
+        content: finalAnswer,
+        created_at: serverTimestamp(),
+      })
+
+      streamingContent.value = ''
+      apiStatus.value = 'online'
+    } catch (err) {
+      console.error('Stream API error:', err)
+      error.value = err.message
+      streamingContent.value = ''
+
+      await addDoc(collection(db, 'chats', chatId, 'messages'), {
+        role: 'assistant',
+        content: `⚠️ 串流回應失敗：${err.message}\n\n正在使用非串流模式重試...`,
+        created_at: serverTimestamp(),
+        is_error: true,
+      })
+
+      // Fallback to non-streaming
+      try {
+        const fallbackRes = await fetch(`${API_BASE}/ask`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question }),
+        })
+        if (fallbackRes.ok) {
+          const data = await fallbackRes.json()
+          const answer = data.answer || '❌ 無回應'
+          await addDoc(collection(db, 'chats', chatId, 'messages'), {
+            role: 'assistant',
+            content: answer,
+            created_at: serverTimestamp(),
+          })
+          apiStatus.value = 'online'
+        }
+      } catch {
+        // silent fallback failure
+      }
+    } finally {
+      answering.value = false
+    }
+  }
+
   // === API 狀態檢查（更穩健：多種方式判定）===
   const apiStatus = ref(null) // 'online' | 'offline' | null
   async function checkApiHealth() {
@@ -212,11 +334,13 @@ export function useConsultChat() {
     chatsLoading,
     apiStatus,
     knowledgeStats,
+    streamingContent,
     subscribeChats,
     selectChat,
     createChat,
     deleteChat,
     sendQuestion,
+    sendQuestionStream,
     checkApiHealth,
     fetchStats,
     cleanup,

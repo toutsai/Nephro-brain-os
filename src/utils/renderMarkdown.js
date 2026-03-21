@@ -40,6 +40,26 @@ function renderSummaryBlocks(text) {
  * → <div class="mermaid-block">...</div>
  * (rendered client-side by mermaid.js)
  */
+function sanitizeMermaidCode(raw) {
+  // 自動修正常見的 Mermaid 語法錯誤
+  let fixed = raw
+  // 移除標籤中的禁止符號
+  fixed = fixed.replace(/\[([^\]]*)[#/≥≤²（）「」？]+([^\]]*)\]/g, (m, a, b) => `[${a}${b}]`)
+  // 修正中文 ID（替換為英文 ID）
+  const lines = fixed.split('\n')
+  let idCounter = 0
+  const idMap = {}
+  const fixedLines = lines.map(line => {
+    return line.replace(/([^\w\-]|^)([一-龥]+)(\[|\{)/g, (m, pre, zhId, bracket) => {
+      if (!idMap[zhId]) {
+        idMap[zhId] = `N${idCounter++}`
+      }
+      return `${pre}${idMap[zhId]}${bracket}`
+    })
+  })
+  return fixedLines.join('\n')
+}
+
 function extractMermaidBlocks(text) {
   let counter = 0
   const validStarts = ['graph ', 'flowchart ', 'sequenceDiagram', 'classDiagram', 'stateDiagram', 'erDiagram', 'gantt', 'pie', 'gitGraph', 'mindmap', 'timeline']
@@ -48,7 +68,7 @@ function extractMermaidBlocks(text) {
     (_, code) => {
       counter++
       // Un-escape HTML entities so mermaid can parse
-      const raw = code.trim()
+      let raw = code.trim()
         .replace(/&amp;/g, '&')
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
@@ -58,7 +78,11 @@ function extractMermaidBlocks(text) {
         // Not valid mermaid — render as plain code block
         return `<pre class="code-block"><code>${code.trim()}</code></pre>`
       }
-      return `<div class="mermaid-block" data-mermaid-id="mmd-${counter}">${raw}</div>`
+      // 自動修正常見語法錯誤
+      raw = sanitizeMermaidCode(raw)
+      // Error boundary: 存放原始碼作為 fallback
+      const escapedFallback = escapeHtml(raw).replace(/"/g, '&quot;')
+      return `<div class="mermaid-block" data-mermaid-id="mmd-${counter}" data-mermaid-fallback="${escapedFallback}">${raw}</div>`
     }
   )
 }
