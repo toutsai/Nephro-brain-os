@@ -1,28 +1,49 @@
 <template>
-  <div class="h-screen flex flex-col bg-slate-50">
+  <div class="h-screen flex flex-col bg-slate-50 pb-14 sm:pb-0">
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 sticky top-0 z-20 shrink-0">
-      <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <router-link to="/" class="text-lg font-bold text-slate-800 hover:text-blue-600 transition-colors">
+          <router-link to="/" class="hidden sm:block text-lg font-bold text-slate-800 hover:text-blue-600 transition-colors">
             NB — OS
           </router-link>
-          <span class="text-slate-300">|</span>
+          <span class="hidden sm:block text-slate-300">|</span>
           <div>
             <h1 class="text-sm font-bold text-slate-800">NB Teach</h1>
             <p class="text-[10px] text-slate-400">教學素材產生器</p>
           </div>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="hidden sm:flex items-center gap-2">
           <router-link to="/notes" class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-purple-50 text-slate-500 hover:text-purple-600 rounded-lg transition-colors">📝 Notes</router-link>
           <router-link to="/consult" class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-teal-50 text-slate-500 hover:text-teal-600 rounded-lg transition-colors">💬 Consult</router-link>
         </div>
       </div>
     </header>
 
-    <div class="flex-1 overflow-hidden flex">
-      <!-- Left: Sessions + Input -->
-      <aside class="w-80 border-r border-slate-200 bg-white flex flex-col shrink-0">
+    <div class="flex-1 overflow-hidden flex flex-col lg:flex-row">
+
+      <!-- Mobile top bar -->
+      <div class="lg:hidden flex items-center gap-2 px-4 py-2 bg-white border-b border-slate-100 shrink-0">
+        <button
+          class="shrink-0 text-xs px-2.5 py-1.5 bg-orange-500 text-white rounded-md font-medium"
+          @click="startNewSession"
+        >
+          + 新素材
+        </button>
+        <select
+          class="flex-1 min-w-0 text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white"
+          :value="selectedId || ''"
+          @change="selectSession($event.target.value)"
+        >
+          <option value="" disabled>選擇素材...</option>
+          <option v-for="s in sessions" :key="s.id" :value="s.id">
+            {{ s.title || '未命名' }}
+          </option>
+        </select>
+      </div>
+
+      <!-- Left: Sessions + Input (desktop only) -->
+      <aside class="hidden lg:flex w-72 border-r border-slate-200 bg-white flex-col shrink-0">
         <!-- New session -->
         <div class="p-3 border-b border-slate-100">
           <button
@@ -48,7 +69,7 @@
               <span v-if="s.file_url" class="text-orange-400">📄 PDF</span>
               <span v-if="s.summary" class="text-emerald-500">✓ 摘要</span>
               <span v-if="s.flashcards" class="text-blue-500">✓ 卡片</span>
-              <span v-if="s.outline" class="text-purple-500">✓ 關聯</span>
+              <span v-if="s.relation" class="text-purple-500">✓ 關聯</span>
             </div>
             <button
               class="text-[10px] text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity mt-1"
@@ -252,7 +273,7 @@
                 <button class="mt-2 text-xs text-orange-500 hover:underline" @click="regenOne('summary')">生成摘要</button>
               </div>
               <div v-else class="bg-white rounded-xl border border-slate-200 p-6">
-                <div class="prose-teach text-sm text-slate-700 leading-relaxed" v-html="renderMd(currentSession.summary)" />
+                <div ref="summaryEl" class="prose-teach text-sm text-slate-700 leading-relaxed" v-html="renderMd(currentSession.summary)" />
               </div>
             </div>
 
@@ -310,7 +331,7 @@
                 <button class="mt-2 text-xs text-orange-500 hover:underline" @click="regenOne('relation')">生成關聯分析</button>
               </div>
               <div v-else class="bg-white rounded-xl border border-slate-200 p-6">
-                <div class="prose-teach text-sm text-slate-700 leading-relaxed" v-html="renderMd(currentSession.relation)" />
+                <div ref="relationEl" class="prose-teach text-sm text-slate-700 leading-relaxed" v-html="renderMd(currentSession.relation)" />
               </div>
             </div>
 
@@ -341,10 +362,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onUnmounted, watch } from 'vue'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { storage } from '../firebase.js'
 import { useTeach } from '../composables/useTeach.js'
+import { renderMd } from '../utils/renderMarkdown.js'
+import { renderMermaidIn } from '../composables/useMermaid.js'
 import FlashCard from '../components/FlashCard.vue'
 import MindMap from '../components/MindMap.vue'
 
@@ -364,6 +387,8 @@ const selectedId = ref(null)
 const sourceText = ref('')
 const sessionTitle = ref('')
 const activeTab = ref('summary')
+const summaryEl = ref(null)
+const relationEl = ref(null)
 const cardIndex = ref(0)
 const isNewSession = ref(false)
 const inputMode = ref('text') // 'text' | 'file'
@@ -397,13 +422,11 @@ const contentTabs = computed(() => [
 const parsedCards = computed(() => {
   const raw = currentSession.value?.flashcards
   if (!raw) return []
-  // 嘗試 JSON 解析
   if (typeof raw === 'string') {
     try {
       const parsed = JSON.parse(raw)
       return Array.isArray(parsed) ? parsed : parsed.flashcards || parsed.cards || []
     } catch {
-      // 嘗試從 markdown 解析
       return parseCardsFromText(raw)
     }
   }
@@ -432,7 +455,6 @@ const parsedMindmap = computed(() => {
     try {
       return JSON.parse(raw)
     } catch {
-      // 嘗試從 markdown 大綱解析成樹
       return parseOutlineToTree(raw)
     }
   }
@@ -517,7 +539,6 @@ async function handleFileSelect(e) {
         size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
       }
       uploading.value = false
-      // 自動用檔名當標題
       if (!sessionTitle.value) {
         sessionTitle.value = file.name.replace(/\.pdf$/i, '')
       }
@@ -591,34 +612,11 @@ function handleDelete(sid) {
 // 換卡片時重設 index
 watch(() => currentSession.value?.flashcards, () => { cardIndex.value = 0 })
 
+// Render mermaid in summary/relation
+watch(() => currentSession.value?.summary, () => nextTick(() => renderMermaidIn(summaryEl.value)))
+watch(() => currentSession.value?.relation, () => nextTick(() => renderMermaidIn(relationEl.value)))
+
 onUnmounted(() => unsubscribe())
-
-// === Markdown 渲染 ===
-function renderMd(text) {
-  if (!text) return ''
-  let html = text
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, l, c) =>
-    `<pre class="code-block"><code>${c.trim()}</code></pre>`)
-  html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
-  html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>')
-  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>')
-  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>')
-  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>')
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
-  html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>')
-  html = html.replace(/(<li>[\s\S]*?<\/li>)(\n(?!<li)|\s*$)/g, '<ul>$1</ul>')
-  html = html.replace(/^\d+\. (.+)$/gm, '<li class="ol">$1</li>')
-  html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>')
-  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noreferrer">$1 ↗</a>')
-  html = html.replace(/\n\n/g, '</p><p>')
-  html = html.replace(/\n/g, '<br>')
-  html = `<p>${html}</p>`.replace(/<p>\s*<\/p>/g, '')
-  return html
-}
 </script>
 
 <style scoped>
@@ -634,4 +632,21 @@ function renderMd(text) {
 .prose-teach :deep(.code-block) { background: #1e293b; color: #6ee7b7; font-size: 12px; padding: 12px; border-radius: 8px; margin: 8px 0; overflow-x: auto; }
 .prose-teach :deep(.inline-code) { background: #f1f5f9; color: #dc2626; font-size: 12px; padding: 1px 6px; border-radius: 4px; font-family: monospace; }
 .prose-teach :deep(a) { color: #f97316; text-decoration: underline; }
+.prose-teach :deep(.table-wrap) { overflow-x: auto; margin: 12px 0; }
+.prose-teach :deep(table) { width: 100%; border-collapse: collapse; font-size: 13px; }
+.prose-teach :deep(th) { background: #f8fafc; font-weight: 600; color: #1e293b; padding: 8px 12px; border: 1px solid #e2e8f0; white-space: nowrap; }
+.prose-teach :deep(td) { padding: 8px 12px; border: 1px solid #e2e8f0; color: #334155; }
+.prose-teach :deep(tbody tr:hover) { background: #f8fafc; }
+.prose-teach :deep(tr:nth-child(even) td) { background: #f8fafc; }
+
+/* Summary card */
+.prose-teach :deep(.summary-card) { background: linear-gradient(135deg, #fff7ed 0%, #fffbeb 100%); border: 1px solid #fed7aa; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; }
+.prose-teach :deep(.summary-card .summary-title) { font-weight: 700; font-size: 13px; color: #9a3412; margin-bottom: 8px; }
+.prose-teach :deep(.summary-card ul) { padding-left: 18px; margin: 0; }
+.prose-teach :deep(.summary-card li) { list-style: disc; font-size: 13px; color: #1e293b; line-height: 1.6; margin-bottom: 4px; }
+.prose-teach :deep(.summary-card strong) { color: #9a3412; }
+
+/* Mermaid */
+.prose-teach :deep(.mermaid-block) { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin: 16px 0; overflow-x: auto; text-align: center; }
+.prose-teach :deep(.mermaid-block svg) { max-width: 100%; height: auto; }
 </style>
