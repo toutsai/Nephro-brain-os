@@ -198,7 +198,7 @@ async function appendToNote(noteId) {
   try {
     const separator = '\n\n---\n\n'
     const timestamp = new Date().toLocaleString('zh-TW')
-    const sourceLabel = { insight: '論文摘錄', consult: '問答摘錄', teach: '教材摘錄' }[props.sourceType] || '摘錄'
+    const sourceLabel = { insight: '論文摘錄', consult: '問答摘錄', teach: '教材摘錄', assist: '臨床輔助摘錄' }[props.sourceType] || '摘錄'
     const appendedContent = `${note.content || ''}${separator}> 📎 ${sourceLabel} (${timestamp})\n\n${selectedText.value}`
 
     await updateDoc(doc(db, 'notes', noteId), {
