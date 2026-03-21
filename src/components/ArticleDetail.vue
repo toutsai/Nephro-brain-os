@@ -93,7 +93,7 @@
       </Section>
 
       <!-- 底部操作 -->
-      <div class="flex items-center gap-3 pt-3 border-t border-slate-100">
+      <div class="flex items-center gap-3 pt-3 border-t border-slate-100 flex-wrap">
         <button
           class="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors"
           :class="
@@ -114,6 +114,20 @@
           PubMed ↗
         </a>
       </div>
+      <div class="flex items-center gap-2 pt-2">
+        <button
+          class="flex-1 py-2 rounded-lg text-xs font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+          @click="$emit('deepConsult', article)"
+        >
+          🔍 深入問答
+        </button>
+        <button
+          class="flex-1 py-2 rounded-lg text-xs font-medium bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors"
+          @click="$emit('saveToNotes', article)"
+        >
+          📝 存入筆記
+        </button>
+      </div>
     </div>
   </div>
 
@@ -133,7 +147,7 @@ const props = defineProps({
   isSaved: { type: Boolean, default: false },
 })
 
-defineEmits(['toggleSave'])
+defineEmits(['toggleSave', 'deepConsult', 'saveToNotes'])
 
 const levelBadgeClass = computed(() => {
   const lv = props.article?.evidence_level

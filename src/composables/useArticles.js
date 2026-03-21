@@ -49,6 +49,20 @@ export function useArticles() {
     articles.value.filter((a) => a.topics?.includes('CKD'))
   )
 
+  // 新增分類
+  const gnArticles = computed(() =>
+    articles.value.filter((a) => a.topics?.includes('GN'))
+  )
+  const transplantArticles = computed(() =>
+    articles.value.filter((a) => a.topics?.includes('Transplant'))
+  )
+  const electrolyteArticles = computed(() =>
+    articles.value.filter((a) => a.topics?.includes('Electrolyte'))
+  )
+  const pdArticles = computed(() =>
+    articles.value.filter((a) => a.topics?.includes('PD'))
+  )
+
   // 期刊文章（有 journals 欄位，或 sources 包含 "journal"）
   const journalArticles = computed(() =>
     articles.value.filter((a) =>
@@ -69,6 +83,10 @@ export function useArticles() {
     esrdArticles,
     akiArticles,
     ckdArticles,
+    gnArticles,
+    transplantArticles,
+    electrolyteArticles,
+    pdArticles,
     journalArticles,
     loading,
     error,
