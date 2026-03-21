@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 
 const STORAGE_KEY = 'nb_user_role'
-const PRO_CODE = 'nephro2025'
+const PRO_CODE = 'nephro2026'
 
 const role = ref(localStorage.getItem(STORAGE_KEY) || 'guest')
 
