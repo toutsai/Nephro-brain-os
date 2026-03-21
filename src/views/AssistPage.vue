@@ -26,7 +26,7 @@
               :class="activeMode === m.key
                 ? 'bg-rose-100 text-rose-700 border border-rose-200'
                 : 'bg-slate-100 text-slate-600'"
-              @click="activeMode = m.key; selectedHistoryId = null; currentResult = null"
+              @click="switchMode(m.key)"
             >
               {{ m.icon }} {{ m.label }}
             </button>
@@ -82,15 +82,36 @@
 
       <!-- Left: mode selector + history (desktop only) -->
       <aside class="hidden lg:flex w-72 border-r border-slate-200 bg-white flex-col shrink-0">
-        <div class="p-3 space-y-2 border-b border-slate-100">
+        <!-- Mode groups -->
+        <div class="p-3 space-y-1 border-b border-slate-100 max-h-[55vh] overflow-y-auto">
+          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 pt-1">AI 輔助</div>
           <button
-            v-for="m in modes"
+            v-for="m in aiModes"
             :key="m.key"
-            class="w-full text-left px-3 py-2.5 rounded-lg transition-colors"
+            class="w-full text-left px-3 py-2 rounded-lg transition-colors"
             :class="activeMode === m.key
               ? 'bg-rose-50 border border-rose-200 text-rose-700'
               : 'hover:bg-slate-50 text-slate-600'"
-            @click="activeMode = m.key; selectedHistoryId = null; currentResult = null"
+            @click="switchMode(m.key)"
+          >
+            <div class="flex items-center gap-2">
+              <span class="text-base">{{ m.icon }}</span>
+              <div>
+                <div class="text-xs font-bold">{{ m.label }}</div>
+                <div class="text-[10px] text-slate-400">{{ m.desc }}</div>
+              </div>
+            </div>
+          </button>
+
+          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 pt-2">零成本工具</div>
+          <button
+            v-for="m in toolModes"
+            :key="m.key"
+            class="w-full text-left px-3 py-2 rounded-lg transition-colors"
+            :class="activeMode === m.key
+              ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+              : 'hover:bg-slate-50 text-slate-600'"
+            @click="switchMode(m.key)"
           >
             <div class="flex items-center gap-2">
               <span class="text-base">{{ m.icon }}</span>
@@ -145,7 +166,6 @@
               placeholder="例如：65 歲男性，DM + CKD stage 4 (eGFR 22)，近期出現持續性高血鉀 (K 6.2)..."
             />
 
-            <!-- Image upload -->
             <ImageUploader v-model="clinicalImages" :to-base64="fileToBase64" class="mt-3" />
 
             <button
@@ -214,7 +234,6 @@
               placeholder="其他備註（選填）"
             />
 
-            <!-- Image upload -->
             <ImageUploader v-model="doseImages" :to-base64="fileToBase64" class="mb-3" />
 
             <button
@@ -241,7 +260,6 @@ BUN 85, Cr 4.2, K 6.1, Na 132
 Ca 7.8, P 6.5, Albumin 2.8..."
             />
 
-            <!-- Image upload -->
             <ImageUploader v-model="labImages" :to-base64="fileToBase64" class="mt-3" />
 
             <button
@@ -311,6 +329,39 @@ Dapagliflozin 10mg
             </button>
           </div>
 
+          <!-- ============ Transplant ============ -->
+          <div v-if="activeMode === 'transplant'">
+            <AssistTransplant
+              :loading="generating"
+              :to-base64="fileToBase64"
+              @submit="handleAiSubmit"
+            />
+          </div>
+
+          <!-- ============ PD ============ -->
+          <div v-if="activeMode === 'pd'">
+            <AssistPD
+              :loading="generating"
+              :to-base64="fileToBase64"
+              @submit="handleAiSubmit"
+            />
+          </div>
+
+          <!-- ============ Calculator ============ -->
+          <div v-if="activeMode === 'calculator'">
+            <AssistCalculator />
+          </div>
+
+          <!-- ============ Drug Search ============ -->
+          <div v-if="activeMode === 'drug_search'">
+            <AssistDrugSearch />
+          </div>
+
+          <!-- ============ Pathway ============ -->
+          <div v-if="activeMode === 'pathway'">
+            <AssistPathway />
+          </div>
+
           <!-- ============ Guest Lock ============ -->
           <GuestLock />
 
@@ -325,8 +376,8 @@ Dapagliflozin 10mg
             ⚠️ {{ assistError }}
           </div>
 
-          <!-- ============ Result ============ -->
-          <div v-if="currentResult" class="mt-6">
+          <!-- ============ Result (AI modes only) ============ -->
+          <div v-if="currentResult && !isToolMode(activeMode)" class="mt-6">
             <div class="mb-4 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-[10px] text-amber-700">
               ⚠️ 此建議由 AI 根據實證醫學資料生成，僅供臨床參考。實際治療決策應由主治醫師根據完整病歷資訊做出判斷。
             </div>
@@ -357,13 +408,18 @@ Dapagliflozin 10mg
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { useAssist } from '../composables/useAssist.js'
 import ImageUploader from '../components/ImageUploader.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
 import GuestLock from '../components/GuestLock.vue'
+import AssistCalculator from '../components/assist/AssistCalculator.vue'
+import AssistDrugSearch from '../components/assist/AssistDrugSearch.vue'
+import AssistPathway from '../components/assist/AssistPathway.vue'
+import AssistTransplant from '../components/assist/AssistTransplant.vue'
+import AssistPD from '../components/assist/AssistPD.vue'
 import { useUserRole } from '../composables/useUserRole.js'
 import { renderMd } from '../utils/renderMarkdown.js'
 import { renderMermaidIn } from '../composables/useMermaid.js'
@@ -395,13 +451,33 @@ const assistResultEl = ref(null)
 
 watch(currentResult, () => nextTick(() => renderMermaidIn(assistResultEl.value)))
 
-const modes = [
+// --- Mode definitions ---
+const aiModes = [
   { key: 'clinical', icon: '🏥', label: '臨床情境', desc: '實證指引建議' },
   { key: 'dose', icon: '💊', label: '劑量調整', desc: '腎功能藥物劑量' },
   { key: 'lab', icon: '🔬', label: 'Lab 鑑別', desc: '檢驗鑑別診斷' },
   { key: 'nhi', icon: '🏛️', label: '健保查詢', desc: '台灣健保給付規則' },
   { key: 'interaction', icon: '⚡', label: '交互作用', desc: '藥物交互作用檢查' },
+  { key: 'transplant', icon: '🫘', label: '移植諮詢', desc: '腎臟移植決策' },
+  { key: 'pd', icon: '🔄', label: 'PD 諮詢', desc: '腹膜透析管理' },
 ]
+
+const toolModes = [
+  { key: 'calculator', icon: '🧮', label: '計算器', desc: '16 種臨床計算' },
+  { key: 'drug_search', icon: '📦', label: '藥物搜尋', desc: '藥物資料庫查詢' },
+  { key: 'pathway', icon: '🗺️', label: 'Pathway', desc: '臨床決策路徑' },
+]
+
+const modes = computed(() => [...aiModes, ...toolModes])
+
+const TOOL_MODES = new Set(['calculator', 'drug_search', 'pathway'])
+function isToolMode(mode) { return TOOL_MODES.has(mode) }
+
+function switchMode(key) {
+  activeMode.value = key
+  selectedHistoryId.value = null
+  currentResult.value = null
+}
 
 // Inputs
 const clinicalInput = ref('')
@@ -419,7 +495,7 @@ const nhiImages = ref([])
 const interactionInput = ref('')
 const interactionImages = ref([])
 
-// === Submit ===
+// === Submit (existing modes) ===
 async function submitClinical() {
   const res = await queryAssist({
     mode: 'clinical',
@@ -471,6 +547,12 @@ async function submitInteraction() {
   if (res) currentResult.value = res.result
 }
 
+// === Generic AI submit handler (for transplant, pd) ===
+async function handleAiSubmit({ mode, payload, images }) {
+  const res = await queryAssist({ mode, payload, images })
+  if (res) currentResult.value = res.result
+}
+
 // === History ===
 function viewHistory(h) {
   selectedHistoryId.value = h.id
@@ -481,6 +563,7 @@ function viewHistory(h) {
   if (h.mode === 'lab') { labInput.value = h.input?.lab_data || ''; labImages.value = [] }
   if (h.mode === 'nhi') { nhiInput.value = h.input?.query || ''; nhiImages.value = [] }
   if (h.mode === 'interaction') { interactionInput.value = h.input?.drugs || ''; interactionImages.value = [] }
+  if (h.mode === 'transplant' || h.mode === 'pd') { /* sub-components handle their own state */ }
 }
 
 function handleDelete(id) {
@@ -489,7 +572,7 @@ function handleDelete(id) {
   if (selectedHistoryId.value === id) { selectedHistoryId.value = null; currentResult.value = null }
 }
 
-function modeIcon(mode) { return modes.find((m) => m.key === mode)?.icon || '📋' }
+function modeIcon(mode) { return modes.value.find((m) => m.key === mode)?.icon || '📋' }
 
 function historyTitle(h) {
   if (h.mode === 'clinical') return (h.input?.scenario || '').slice(0, 30) || '臨床情境'
@@ -497,6 +580,8 @@ function historyTitle(h) {
   if (h.mode === 'lab') return (h.input?.lab_data || '').slice(0, 30) || 'Lab 鑑別'
   if (h.mode === 'nhi') return (h.input?.query || '').slice(0, 30) || '健保查詢'
   if (h.mode === 'interaction') return (h.input?.drugs || '').slice(0, 30) || '交互作用'
+  if (h.mode === 'transplant') return (h.input?.scenario || '').slice(0, 30) || '移植諮詢'
+  if (h.mode === 'pd') return (h.input?.scenario || '').slice(0, 30) || 'PD 諮詢'
   return '查詢'
 }
 
