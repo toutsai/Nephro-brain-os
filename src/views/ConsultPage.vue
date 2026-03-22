@@ -173,6 +173,7 @@
               :key="msg.id"
               :msg="msg"
               @save-to-notes="saveFullReplyToNotes"
+              @send-to-teach="sendToTeach"
             />
 
             <!-- Selection toolbar for text selection -->
@@ -355,7 +356,7 @@
 
 <script setup>
 import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { db, storage } from '../firebase.js'
@@ -369,6 +370,7 @@ import { useUserRole } from '../composables/useUserRole.js'
 import { renderMd } from '../utils/renderMarkdown.js'
 
 const { role } = useUserRole()
+const router = useRouter()
 
 // === Chat ===
 const {
@@ -524,6 +526,11 @@ async function saveFullReplyToNotes(content) {
     console.error('Save to notes error:', e)
     alert('儲存失敗')
   }
+}
+
+// === 加入 Teach ===
+function sendToTeach(content) {
+  router.push({ path: '/teach', query: { text: content } })
 }
 
 function autoResize() {

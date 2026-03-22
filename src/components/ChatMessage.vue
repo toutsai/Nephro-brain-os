@@ -49,6 +49,13 @@
         >
           📝 收進 Notes
         </button>
+        <button
+          v-if="msg.role === 'assistant' && !msg.is_error"
+          class="text-slate-300 hover:text-orange-500 transition-colors"
+          @click="$emit('sendToTeach', msg.content)"
+        >
+          🎓 加入 Teach
+        </button>
       </div>
     </div>
   </div>
@@ -63,7 +70,7 @@ const props = defineProps({
   msg: { type: Object, required: true },
 })
 
-defineEmits(['saveToNotes'])
+defineEmits(['saveToNotes', 'sendToTeach'])
 
 const proseEl = ref(null)
 
