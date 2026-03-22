@@ -55,7 +55,7 @@
         <h2 class="text-sm font-semibold text-slate-700 mb-3">模型別消耗</h2>
         <div class="space-y-2">
           <div v-for="(data, model) in modelData" :key="model" class="flex items-center justify-between text-sm">
-            <span class="text-slate-600 font-mono text-xs">{{ model }}</span>
+            <span class="text-slate-600 font-mono text-xs">{{ model.replaceAll('_', '.') }}</span>
             <span>
               <span class="font-medium">NT${{ formatCostTWD(data.cost) }}</span>
               <span class="text-slate-400 ml-2">{{ formatTokens(data.input) }} in / {{ formatTokens(data.output) }} out</span>
