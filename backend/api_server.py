@@ -99,6 +99,7 @@ MODEL_ROUTING = {
     "teach_flashcards": "gemini-flash",
     "teach_relation": "gemini-flash",
     "teach_mindmap": "gemini-flash",
+    "teach_ppt": "gemini-flash",
     "insight": "gemini-flash",
     "pathway_interactive": "gemini-flash",
 }
@@ -862,6 +863,21 @@ def teach_generate():
             except:
                 result['mindmap'] = cleaned
 
+        if mode == 'ppt':
+            ppt_options = data.get('ppt_options', {})
+            prompt = build_ppt_prompt(ppt_options)
+            raw = _teach_call(contents, prompt, "teach_ppt")
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3].strip()
+            try:
+                parsed = json.loads(cleaned)
+                result['ppt'] = json.dumps(parsed, ensure_ascii=False)
+            except:
+                result['ppt'] = cleaned
+
         return jsonify(result)
 
     except Exception as e:
@@ -986,6 +1002,112 @@ TEACH_PROMPT_MINDMAP = """你是一位醫學教育專家。請根據上面的素
     }
   ]
 }"""
+
+
+def build_ppt_prompt(options):
+    """根據使用者選項動態組合 PPT 生成 prompt"""
+    language = options.get('language', 'zh-TW')
+    audience = options.get('audience', 'doctor')
+    length = options.get('length', 'standard')
+    style = options.get('style', 'balanced')
+
+    # 語言設定
+    lang_map = {
+        'zh-TW': '全程使用繁體中文，醫學術語用「中文 (English)」格式。',
+        'en': '全程使用英文 (English)。',
+        'zh-mixed': '全程使用繁體中文，但疾病名稱、藥物名稱、檢驗項目使用英文。',
+    }
+    lang_instruction = lang_map.get(language, lang_map['zh-TW'])
+
+    # 對象設定
+    audience_map = {
+        'public': '對象是一般民眾（衛教用途）。用簡單易懂的語言，避免過多專業術語，多用比喻和生活化的說明。每頁重點不超過 3 個。',
+        'staff': '對象是醫院專師、護理師、住院醫師（教育用途）。可使用專業術語但需解釋關鍵概念，著重臨床實務應用和操作流程。',
+        'doctor': '對象是主治醫師（學術報告用）。可使用完整專業術語，強調實證醫學證據、最新指引、臨床決策重點。',
+    }
+    audience_instruction = audience_map.get(audience, audience_map['doctor'])
+
+    # 頁數設定
+    length_map = {
+        'brief': '投影片總數 5-8 頁（精簡版）。',
+        'standard': '投影片總數 10-15 頁（完整版）。',
+    }
+    length_instruction = length_map.get(length, length_map['standard'])
+
+    # 風格設定
+    style_map = {
+        'chart-heavy': '盡量多使用圖表（chart）和表格（table）呈現資料，至少 40% 的頁面使用視覺化呈現。文字精簡，讓數據說話。',
+        'text-heavy': '以文字內容為主，使用條列式重點。僅在有明確數據時才使用圖表。',
+        'balanced': '均衡使用文字和圖表。有數據比較時用圖表，概念說明用文字條列。',
+    }
+    style_instruction = style_map.get(style, style_map['balanced'])
+
+    return f"""你是一位醫學簡報設計專家。請根據上面的學習素材，製作一份專業的投影片簡報。
+
+【簡報設定】
+- {lang_instruction}
+- {audience_instruction}
+- {length_instruction}
+- {style_instruction}
+
+【輸出格式】：純 JSON，不要 markdown 標記。嚴格遵守以下結構：
+
+{{
+  "title": "簡報主題",
+  "slides": [
+    {{
+      "layout": "title",
+      "title": "簡報標題",
+      "subtitle": "副標題或講者資訊"
+    }},
+    {{
+      "layout": "content",
+      "title": "投影片標題",
+      "bullets": ["重點 1", "重點 2", "重點 3"],
+      "notes": "講者備註（口頭補充說明）"
+    }},
+    {{
+      "layout": "two_column",
+      "title": "比較標題",
+      "left": {{ "heading": "左欄標題", "bullets": ["項目 A", "項目 B"] }},
+      "right": {{ "heading": "右欄標題", "bullets": ["項目 C", "項目 D"] }},
+      "notes": "講者備註"
+    }},
+    {{
+      "layout": "chart",
+      "title": "圖表標題",
+      "chart_type": "bar",
+      "chart_data": {{
+        "labels": ["A", "B", "C"],
+        "datasets": [{{ "name": "系列1", "values": [10, 20, 30] }}]
+      }},
+      "notes": "講者備註"
+    }},
+    {{
+      "layout": "table",
+      "title": "表格標題",
+      "headers": ["欄位1", "欄位2", "欄位3"],
+      "rows": [["值A", "值B", "值C"], ["值D", "值E", "值F"]],
+      "notes": "講者備註"
+    }},
+    {{
+      "layout": "summary",
+      "title": "總結與重點回顧",
+      "bullets": ["重點回顧 1", "重點回顧 2"],
+      "notes": "講者備註"
+    }}
+  ]
+}}
+
+【規則】：
+1. 第一頁必須是 layout: "title"，最後一頁必須是 layout: "summary"
+2. 可用的 layout 類型：title, content, two_column, chart, table, summary
+3. 可用的 chart_type：bar, pie, line, doughnut
+4. 僅在素材中有明確數據時才使用 chart layout，絕對不要捏造數字
+5. 每個 content 頁的 bullets 不超過 5 個
+6. notes 欄位提供講者的口頭補充說明，比投影片內容更詳細
+7. 根據素材內容選擇最適合的 layout 類型組合
+8. 表格用於比較、分類、藥物劑量等結構化資訊"""
 
 
 # === NB Assist 端點（加在 api_server.py 的 teach 端點後面）===

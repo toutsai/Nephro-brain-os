@@ -51,6 +51,7 @@ export function useTeach() {
       flashcards: null,
       relation: null,
       mindmap: null,
+      ppt: null,
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
     })
@@ -58,7 +59,7 @@ export function useTeach() {
   }
 
   // === 呼叫 API 生成（支援文字或 PDF URL）===
-  async function generate(sessionId, { text, fileUrl, mode }) {
+  async function generate(sessionId, { text, fileUrl, mode, pptOptions }) {
     generating.value = true
     generatingMode.value = mode
     error.value = null
@@ -69,6 +70,9 @@ export function useTeach() {
         body.file_url = fileUrl
       } else {
         body.text = text
+      }
+      if (mode === 'ppt' && pptOptions) {
+        body.ppt_options = pptOptions
       }
 
       const res = await fetch(`${API_BASE}/teach/generate`, {
