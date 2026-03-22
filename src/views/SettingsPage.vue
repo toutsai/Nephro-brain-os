@@ -34,7 +34,7 @@
           <div v-for="(data, key) in featureData" :key="key">
             <div class="flex items-center justify-between text-sm mb-1">
               <span class="text-slate-600">{{ featureLabels[key] || key }}</span>
-              <span class="font-medium">${{ (data.cost || 0).toFixed(3) }}
+              <span class="font-medium">${{ formatCost(data.cost) }}
                 <span class="text-slate-400 font-normal ml-1">{{ data.calls || 0 }} 次</span>
               </span>
             </div>
@@ -57,7 +57,7 @@
           <div v-for="(data, model) in modelData" :key="model" class="flex items-center justify-between text-sm">
             <span class="text-slate-600 font-mono text-xs">{{ model }}</span>
             <span>
-              <span class="font-medium">${{ (data.cost || 0).toFixed(3) }}</span>
+              <span class="font-medium">${{ formatCost(data.cost) }}</span>
               <span class="text-slate-400 ml-2">{{ formatTokens(data.input) }} in / {{ formatTokens(data.output) }} out</span>
             </span>
           </div>
@@ -103,6 +103,12 @@ const maxFeatureCost = computed(() => {
 
 function featurePct(cost) {
   return Math.min(((cost || 0) / maxFeatureCost.value) * 100, 100)
+}
+
+function formatCost(v) {
+  const c = v || 0
+  if (c > 0 && c < 0.01) return c.toFixed(4)
+  return c.toFixed(2)
 }
 
 function formatTokens(n) {

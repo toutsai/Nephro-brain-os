@@ -14,7 +14,10 @@ export function useTokenUsage() {
 
   const monthlyCost = computed(() => {
     if (!monthlyData.value) return '0.00'
-    return (monthlyData.value.total_cost_usd || 0).toFixed(2)
+    const cost = monthlyData.value.total_cost_usd || 0
+    // 小金額顯示更多位數，避免一直顯示 $0.00
+    if (cost > 0 && cost < 0.01) return cost.toFixed(4)
+    return cost.toFixed(2)
   })
 
   const totalCalls = computed(() => {
