@@ -11,9 +11,30 @@ async function getMermaid() {
     mermaidInstance = m.default
     mermaidInstance.initialize({
       startOnLoad: false,
-      theme: 'neutral',
-      fontFamily: 'system-ui, sans-serif',
-      flowchart: { htmlLabels: true, curve: 'basis' },
+      theme: 'base',
+      fontFamily: '-apple-system, "Noto Sans TC", system-ui, sans-serif',
+      flowchart: {
+        htmlLabels: true,
+        curve: 'basis',
+        padding: 16,
+        nodeSpacing: 30,
+        rankSpacing: 50,
+        useMaxWidth: true,
+      },
+      themeVariables: {
+        primaryColor: '#dbeafe',
+        primaryTextColor: '#1e293b',
+        primaryBorderColor: '#93c5fd',
+        lineColor: '#94a3b8',
+        secondaryColor: '#fef3c7',
+        secondaryTextColor: '#92400e',
+        secondaryBorderColor: '#fbbf24',
+        tertiaryColor: '#f0fdf4',
+        tertiaryTextColor: '#166534',
+        tertiaryBorderColor: '#86efac',
+        fontFamily: '-apple-system, "Noto Sans TC", system-ui, sans-serif',
+        fontSize: '14px',
+      },
       suppressErrors: true,
     })
     return mermaidInstance
@@ -101,6 +122,16 @@ function sanitizeMermaidCode(code) {
 
     // Remove parentheses inside bracket labels (they break mermaid node syntax)
     l = l.replace(/(\[[^\]]*)\(([^\)]*)\)([^\]]*\])/g, '$1$2$3')
+
+    // Remove colons and question marks inside labels (break mermaid parsing)
+    // Loop to handle multiple occurrences
+    let prev
+    do { prev = l; l = l.replace(/(\[[^\]]*)[:?]([^\]]*\])/g, '$1$2') } while (l !== prev)
+    do { prev = l; l = l.replace(/(\{\{[^}]*)[:?]([^}]*\}\})/g, '$1$2') } while (l !== prev)
+
+    // Remove quotes inside labels
+    do { prev = l; l = l.replace(/(\[[^\]]*)["']([^\]]*\])/g, '$1$2') } while (l !== prev)
+    do { prev = l; l = l.replace(/(\{\{[^}]*)["']([^}]*\}\})/g, '$1$2') } while (l !== prev)
 
     return '  ' + l
   })
@@ -257,7 +288,8 @@ export async function renderMermaidIn(container) {
         const { svg } = await mermaid.render(id, code)
         block.innerHTML = svg
         block.dataset.rendered = 'true'
-      } catch {
+      } catch (err) {
+        console.warn('[Mermaid render failed]', err?.message, '\nSanitized code:', code)
         // Try structured fallback: parse nodes and show as step list
         const parsed = parseMermaidToSteps(code)
         const fallbackHtml = buildFallbackHtml(parsed)
