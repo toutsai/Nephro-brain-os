@@ -22,6 +22,7 @@ import pickle
 import threading
 import json
 import base64
+import re
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
@@ -836,47 +837,23 @@ def teach_generate():
 
         if mode in ('flashcards', 'all'):
             raw = _teach_call(contents, TEACH_PROMPT_FLASHCARDS, "teach_flashcards")
-            cleaned = raw.strip()
-            if cleaned.startswith("```"):
-                cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3].strip()
-            try:
-                parsed = json.loads(cleaned)
-                result['flashcards'] = json.dumps(parsed, ensure_ascii=False)
-            except:
-                result['flashcards'] = cleaned
+            parsed = _extract_json(raw)
+            result['flashcards'] = json.dumps(parsed, ensure_ascii=False)
 
         if mode in ('relation', 'all'):
             result['relation'] = _teach_call(contents, TEACH_PROMPT_RELATION, "teach_relation")
 
         if mode in ('mindmap', 'all'):
             raw = _teach_call(contents, TEACH_PROMPT_MINDMAP, "teach_mindmap")
-            cleaned = raw.strip()
-            if cleaned.startswith("```"):
-                cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3].strip()
-            try:
-                parsed = json.loads(cleaned)
-                result['mindmap'] = json.dumps(parsed, ensure_ascii=False)
-            except:
-                result['mindmap'] = cleaned
+            parsed = _extract_json(raw)
+            result['mindmap'] = json.dumps(parsed, ensure_ascii=False)
 
         if mode == 'ppt':
             ppt_options = data.get('ppt_options', {})
             prompt = build_ppt_prompt(ppt_options)
             raw = _teach_call(contents, prompt, "teach_ppt")
-            cleaned = raw.strip()
-            if cleaned.startswith("```"):
-                cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3].strip()
-            try:
-                parsed = json.loads(cleaned)
-                result['ppt'] = json.dumps(parsed, ensure_ascii=False)
-            except:
-                result['ppt'] = cleaned
+            parsed = _extract_json(raw)
+            result['ppt'] = json.dumps(parsed, ensure_ascii=False)
             result['ppt_theme'] = ppt_options.get('theme', 'orange')
 
         return jsonify(result)
@@ -884,6 +861,35 @@ def teach_generate():
     except Exception as e:
         print(f"❌ Teach generate error: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+def _extract_json(raw):
+    """從 LLM 回傳的文字中擷取 JSON，處理 code fence 和額外文字"""
+    text = raw.strip()
+    # 1. 嘗試從 code fence 中擷取
+    m = re.search(r'```(?:json)?\s*\n([\s\S]*?)\n```', text)
+    if m:
+        try:
+            return json.loads(m.group(1).strip())
+        except json.JSONDecodeError:
+            pass
+    # 2. 嘗試找第一個 { 到最後一個 } 之間的內容
+    start = text.find('{')
+    end = text.rfind('}')
+    if start != -1 and end != -1 and end > start:
+        try:
+            return json.loads(text[start:end + 1])
+        except json.JSONDecodeError:
+            pass
+    # 3. 嘗試找 [ 到 ] (陣列格式)
+    start = text.find('[')
+    end = text.rfind(']')
+    if start != -1 and end != -1 and end > start:
+        try:
+            return json.loads(text[start:end + 1])
+        except json.JSONDecodeError:
+            pass
+    raise ValueError(f"無法從回應中擷取有效 JSON（前 200 字元：{text[:200]}）")
 
 
 def _teach_call(contents, prompt_text, task_key="teach_summary"):
