@@ -31,6 +31,11 @@ const routes = [
     name: 'assist',
     component: () => import('./views/AssistPage.vue'),
   },
+  {
+    path: '/settings',
+    name: 'settings',
+    component: () => import('./views/SettingsPage.vue'),
+  },
 ]
 
 export default createRouter({
