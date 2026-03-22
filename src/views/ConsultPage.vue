@@ -192,7 +192,7 @@
               </div>
               <div class="max-w-[90%] min-w-0">
                 <div class="inline-block text-left bg-white text-slate-800 border border-slate-200 rounded-2xl rounded-bl-md px-5 py-4 shadow-sm max-w-full overflow-hidden">
-                  <div class="prose-chat text-[13.5px] leading-[1.75] text-slate-700" v-html="renderMd(streamingContent)" />
+                  <div ref="streamingProseEl" class="prose-chat text-[13.5px] leading-[1.75] text-slate-700" v-html="renderMd(streamingContent)" />
                   <span class="inline-block w-1.5 h-4 bg-teal-500 rounded-sm animate-pulse ml-0.5 align-middle" />
                 </div>
                 <div class="text-[10px] text-slate-400 mt-1 px-1">串流回應中...</div>
@@ -368,6 +368,7 @@ import SelectionToolbar from '../components/SelectionToolbar.vue'
 import GuestLock from '../components/GuestLock.vue'
 import { useUserRole } from '../composables/useUserRole.js'
 import { renderMd } from '../utils/renderMarkdown.js'
+import { renderMermaidIn } from '../composables/useMermaid.js'
 
 const { role } = useUserRole()
 const router = useRouter()
@@ -412,6 +413,7 @@ const messagesContainer = ref(null)
 const inputEl = ref(null)
 const uploading = ref(false)
 const uploadProgress = ref(0)
+const streamingProseEl = ref(null)
 
 const mainTabs = [
   { key: 'chat', label: '問答', icon: '💬' },
@@ -573,6 +575,17 @@ watch(
   }
 )
 
+// Render mermaid blocks when streaming completes
+watch(
+  () => answering.value,
+  async (newVal, oldVal) => {
+    if (oldVal === true && newVal === false && streamingProseEl.value) {
+      await nextTick()
+      renderMermaidIn(streamingProseEl.value)
+    }
+  }
+)
+
 // Lifecycle
 const route = useRoute()
 
@@ -593,3 +606,89 @@ onUnmounted(() => {
   unsubBooks()
 })
 </script>
+
+<style scoped>
+/* ── Summary card (streaming phase) ── */
+.prose-chat :deep(.summary-card) {
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0f9ff 100%);
+  border: 1px solid #a7f3d0;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+.prose-chat :deep(.summary-card .summary-title) {
+  font-weight: 700;
+  font-size: 13px;
+  color: #065f46;
+  margin-bottom: 8px;
+}
+.prose-chat :deep(.summary-card ul) {
+  padding-left: 18px;
+  margin: 0;
+}
+.prose-chat :deep(.summary-card li) {
+  list-style: disc;
+  font-size: 13px;
+  color: #1e293b;
+  line-height: 1.6;
+  margin-bottom: 4px;
+  padding-left: 2px;
+}
+.prose-chat :deep(.summary-card li:last-child) {
+  margin-bottom: 0;
+}
+.prose-chat :deep(.summary-card strong) {
+  color: #065f46;
+}
+
+/* ── Mermaid flowchart (streaming phase) ── */
+.prose-chat :deep(.mermaid-block) {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 20px 16px;
+  margin: 16px 0;
+  overflow-x: auto;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.prose-chat :deep(.mermaid-block svg) {
+  max-width: 100%;
+  height: auto;
+}
+.prose-chat :deep(.mermaid-block .node polygon) {
+  fill: #fef3c7 !important;
+  stroke: #f59e0b !important;
+  stroke-width: 1.5px;
+}
+.prose-chat :deep(.mermaid-block .node rect) {
+  fill: #eff6ff !important;
+  stroke: #93c5fd !important;
+  stroke-width: 1.5px;
+  rx: 8;
+  ry: 8;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.06));
+}
+.prose-chat :deep(.mermaid-block .edgePath .path) {
+  stroke: #94a3b8 !important;
+  stroke-width: 1.5px;
+}
+.prose-chat :deep(.mermaid-block .edgeLabel) {
+  background-color: #ffffff !important;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.prose-chat :deep(.mermaid-block .nodeLabel) {
+  font-family: -apple-system, "Noto Sans TC", system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+}
+.prose-chat :deep(.mermaid-block .arrowheadPath) {
+  fill: #94a3b8 !important;
+}
+.prose-chat :deep(.mermaid-fallback) {
+  text-align: left;
+  padding: 8px 0;
+}
+</style>

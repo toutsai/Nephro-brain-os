@@ -225,16 +225,59 @@ function formatTime(timestamp) {
 
 /* ── Mermaid flowchart ── */
 .prose-chat :deep(.mermaid-block) {
-  background: #f8fafc;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 14px;
+  padding: 20px 16px;
   margin: 16px 0;
   overflow-x: auto;
   text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 .prose-chat :deep(.mermaid-block svg) {
   max-width: 100%;
   height: auto;
+}
+/* Decision diamonds: amber */
+.prose-chat :deep(.mermaid-block .node polygon) {
+  fill: #fef3c7 !important;
+  stroke: #f59e0b !important;
+  stroke-width: 1.5px;
+}
+/* Action rectangles: light blue */
+.prose-chat :deep(.mermaid-block .node rect) {
+  fill: #eff6ff !important;
+  stroke: #93c5fd !important;
+  stroke-width: 1.5px;
+  rx: 8;
+  ry: 8;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.06));
+}
+/* Edge lines */
+.prose-chat :deep(.mermaid-block .edgePath .path) {
+  stroke: #94a3b8 !important;
+  stroke-width: 1.5px;
+}
+/* Edge labels */
+.prose-chat :deep(.mermaid-block .edgeLabel) {
+  background-color: #ffffff !important;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+/* Node labels */
+.prose-chat :deep(.mermaid-block .nodeLabel) {
+  font-family: -apple-system, "Noto Sans TC", system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+}
+/* Arrowheads */
+.prose-chat :deep(.mermaid-block .arrowheadPath) {
+  fill: #94a3b8 !important;
+}
+/* Fallback styling */
+.prose-chat :deep(.mermaid-fallback) {
+  text-align: left;
+  padding: 8px 0;
 }
 </style>
