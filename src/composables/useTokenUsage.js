@@ -12,12 +12,13 @@ export function useTokenUsage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   })
 
-  const monthlyCost = computed(() => {
-    if (!monthlyData.value) return '0.00'
-    const cost = monthlyData.value.total_cost_usd || 0
-    // 小金額顯示更多位數，避免一直顯示 $0.00
-    if (cost > 0 && cost < 0.01) return cost.toFixed(4)
-    return cost.toFixed(2)
+  const USD_TO_TWD = 32.5
+
+  const monthlyCostTWD = computed(() => {
+    if (!monthlyData.value) return '0'
+    const twd = (monthlyData.value.total_cost_usd || 0) * USD_TO_TWD
+    if (twd > 0 && twd < 1) return twd.toFixed(2)
+    return Math.round(twd).toString()
   })
 
   const totalCalls = computed(() => {
@@ -38,5 +39,5 @@ export function useTokenUsage() {
     if (unsubscribe) unsubscribe()
   })
 
-  return { monthlyData, monthlyCost, totalCalls, loading, monthKey }
+  return { monthlyData, monthlyCostTWD, USD_TO_TWD, totalCalls, loading, monthKey }
 }
