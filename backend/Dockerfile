@@ -11,6 +11,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY api_server.py .
+COPY scoring_calculators.py .
+COPY clinical_pathways.py .
+COPY drug_database.json .
 
 ENV PORT=8080
 EXPOSE 8080
