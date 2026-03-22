@@ -25,9 +25,18 @@ async function getMermaid() {
 }
 
 /**
+ * Un-escape HTML entities that renderMarkdown.js preserves in mermaid blocks.
+ */
+function unescapeHtml(text) {
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+}
+
+/**
  * Sanitize Gemini-generated mermaid code to fix common syntax issues.
- * Gemini often outputs everything on one line, uses Chinese punctuation,
- * and includes special characters that break mermaid parsing.
  */
 function sanitizeMermaidCode(code) {
   let text = code.trim()
@@ -42,28 +51,19 @@ function sanitizeMermaidCode(code) {
   text = text.replace(/，/g, ', ')
 
   // ── Step 1: Split single-line mermaid into multi-line ──
-  // Gemini often puts everything on one line like:
-  //   graph TD  A[...] --> B{...}  B --> C[...]
-  // We need to split before each node definition (letter+bracket or arrow)
   let lines = text.split('\n')
 
-  // Check if the code is mostly on one line (declaration + nodes together)
   if (lines.length <= 3) {
-    // Try to split the longest line at node boundaries
     const expanded = []
     for (const line of lines) {
       const trimmed = line.trim()
-      // If this line has the declaration AND node definitions, split them
       const declMatch = trimmed.match(/^((?:graph|flowchart)\s+(?:TD|TB|BT|RL|LR))\s+(.+)/)
       if (declMatch) {
         expanded.push(declMatch[1])
-        // Split the rest at each new node connection: "A[x] --> B[y]  B --> C[z]"
-        // Split before each uppercase letter that starts a node (but not inside labels)
         const rest = declMatch[2]
         const nodeParts = splitMermaidNodes(rest)
         expanded.push(...nodeParts)
       } else {
-        // Also try splitting lines that have multiple connections
         if ((trimmed.match(/-->/g) || []).length > 1) {
           const nodeParts = splitMermaidNodes(trimmed)
           expanded.push(...nodeParts)
@@ -85,20 +85,22 @@ function sanitizeMermaidCode(code) {
     l = l.replace(/(\{[^}]*?)#([^}]*?\})/g, '$1$2')
 
     // Fix single braces to double for diamond/decision nodes
-    // e.g. B{decision} → B{{decision}} (but don't double-fix already doubled)
+    // Only convert {content} → {{content}} if NOT already doubled
     l = l.replace(/([A-Za-z0-9_]+)\{([^{}]+)\}/g, (match, id, content) => {
       return `${id}{{${content}}}`
     })
+    // Undo quadruple braces if Gemini already sent {{...}} and we doubled again
+    l = l.replace(/\{\{\{\{/g, '{{').replace(/\}\}\}\}/g, '}}')
 
-    // Remove problematic special chars inside labels that break mermaid
-    // Replace ≥ ≤ with >= <=
+    // Remove problematic special chars inside labels
     l = l.replace(/≥/g, '>=').replace(/≤/g, '<=')
-    // Replace ² with ^2
     l = l.replace(/²/g, '^2')
-    // Replace / inside labels with " or " to avoid mermaid parsing issues
-    // Only inside bracket labels
+    // Replace / inside labels with " or "
     l = l.replace(/(\[[^\]]*)\/([^\]]*\])/g, '$1 or $2')
     l = l.replace(/(\{\{[^}]*)\/([^}]*\}\})/g, '$1 or $2')
+
+    // Remove parentheses inside bracket labels (they break mermaid node syntax)
+    l = l.replace(/(\[[^\]]*)\(([^\)]*)\)([^\]]*\])/g, '$1$2$3')
 
     return '  ' + l
   })
@@ -126,12 +128,9 @@ function sanitizeMermaidCode(code) {
 
 /**
  * Split a single line of mermaid node definitions into separate lines.
- * e.g. "A[foo] --> B{bar}  B --> C[baz]" → ["A[foo] --> B{bar}", "B --> C[baz]"]
  */
 function splitMermaidNodes(text) {
   const parts = []
-  // Match patterns like: NodeID[label] --> NodeID[label] or NodeID{label} etc.
-  // Split before each new connection that starts after whitespace
   const regex = /\s{2,}(?=[A-Za-z0-9_]+[\[{(])/g
   let lastIdx = 0
   let match
@@ -146,12 +145,91 @@ function splitMermaidNodes(text) {
 }
 
 /**
+ * Parse mermaid code into steps for structured fallback display.
+ * Extracts node labels and connections to show a useful text list.
+ */
+function parseMermaidToSteps(code) {
+  const nodes = new Map()
+  const edges = []
+
+  // Extract node definitions: A[label], A{label}, A{{label}}, A(label)
+  const nodeRegex = /([A-Za-z][A-Za-z0-9_]*)\s*(?:\[([^\]]+)\]|\{\{([^}]+)\}\}|\{([^}]+)\}|\(([^)]+)\))/g
+  let m
+  while ((m = nodeRegex.exec(code)) !== null) {
+    const id = m[1]
+    const label = m[2] || m[3] || m[4] || m[5] || id
+    if (!nodes.has(id)) nodes.set(id, label.trim())
+  }
+
+  // Extract edges: A --> B, A -->|label| B
+  const edgeRegex = /([A-Za-z][A-Za-z0-9_]*)\s*-->(?:\|([^|]*)\|)?\s*([A-Za-z][A-Za-z0-9_]*)/g
+  while ((m = edgeRegex.exec(code)) !== null) {
+    edges.push({ from: m[1], label: m[2] || '', to: m[3] })
+  }
+
+  // BFS order from root nodes (no incoming edges)
+  const incoming = new Set(edges.map(e => e.to))
+  const roots = [...nodes.keys()].filter(id => !incoming.has(id))
+  if (!roots.length && nodes.size) roots.push(nodes.keys().next().value)
+
+  const ordered = []
+  const visited = new Set()
+  const queue = [...roots]
+  while (queue.length) {
+    const id = queue.shift()
+    if (visited.has(id)) continue
+    visited.add(id)
+    ordered.push(id)
+    for (const e of edges.filter(e => e.from === id)) {
+      queue.push(e.to)
+    }
+  }
+  // Add any unvisited nodes
+  for (const id of nodes.keys()) {
+    if (!visited.has(id)) ordered.push(id)
+  }
+
+  return { nodes, edges, ordered }
+}
+
+/**
+ * Build a styled HTML fallback from parsed mermaid steps.
+ */
+function buildFallbackHtml(parsed) {
+  if (!parsed.nodes.size) return null
+
+  let html = '<div class="mermaid-fallback">'
+  html += '<div style="color:#64748b;font-size:12px;margin-bottom:8px;font-weight:600">📋 流程步驟</div>'
+  html += '<ol style="margin:0;padding-left:20px;list-style:decimal">'
+
+  for (const id of parsed.ordered) {
+    const label = parsed.nodes.get(id) || id
+    const outEdges = parsed.edges.filter(e => e.from === id)
+    let arrow = ''
+    if (outEdges.length === 1) {
+      const e = outEdges[0]
+      const targetLabel = parsed.nodes.get(e.to) || e.to
+      arrow = ` <span style="color:#94a3b8">→ ${targetLabel}</span>`
+    } else if (outEdges.length > 1) {
+      const branches = outEdges.map(e => {
+        const targetLabel = parsed.nodes.get(e.to) || e.to
+        return e.label ? `${e.label}: ${targetLabel}` : targetLabel
+      }).join(' / ')
+      arrow = ` <span style="color:#94a3b8">→ ${branches}</span>`
+    }
+
+    html += `<li style="margin-bottom:4px;font-size:13px;color:#334155"><strong>${label}</strong>${arrow}</li>`
+  }
+
+  html += '</ol></div>'
+  return html
+}
+
+/**
  * Clean up any mermaid error elements left in the DOM
  */
 function cleanupMermaidErrors() {
-  // Mermaid v11 inserts error elements with id starting with 'd'
   document.querySelectorAll('[id^="dmmd-"]').forEach(el => el.remove())
-  // Also clean up any error containers mermaid adds
   document.querySelectorAll('.mermaid-error, .error-icon, [id*="mermaid-"] .error-text').forEach(el => {
     const parent = el.closest('[id*="mermaid-"]') || el
     parent.remove()
@@ -171,7 +249,8 @@ export async function renderMermaidIn(container) {
     const mermaid = await getMermaid()
     if (!mermaid) return
     for (const block of blocks) {
-      const rawCode = block.textContent
+      // textContent returns HTML-escaped text from renderMarkdown; un-escape it
+      const rawCode = unescapeHtml(block.textContent)
       const code = sanitizeMermaidCode(rawCode)
       const id = block.dataset.mermaidId || `mmd-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
       try {
@@ -179,14 +258,20 @@ export async function renderMermaidIn(container) {
         block.innerHTML = svg
         block.dataset.rendered = 'true'
       } catch {
-        // Fallback: show raw code with a hint
-        const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        block.innerHTML = `<div style="text-align:left"><div style="color:#94a3b8;font-size:12px;margin-bottom:6px">⚠ 流程圖語法錯誤，顯示原始碼</div><pre class="code-block"><code>${escaped}</code></pre></div>`
+        // Try structured fallback: parse nodes and show as step list
+        const parsed = parseMermaidToSteps(code)
+        const fallbackHtml = buildFallbackHtml(parsed)
+        if (fallbackHtml) {
+          block.innerHTML = fallbackHtml
+        } else {
+          // Last resort: show raw code
+          const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          block.innerHTML = `<div style="text-align:left"><div style="color:#94a3b8;font-size:12px;margin-bottom:6px">⚠ 流程圖語法錯誤，顯示原始碼</div><pre class="code-block"><code>${escaped}</code></pre></div>`
+        }
         block.dataset.rendered = 'true'
         cleanupMermaidErrors()
       }
     }
-    // Final cleanup pass
     cleanupMermaidErrors()
   } catch {
     // mermaid not available

@@ -69,22 +69,21 @@ function extractMermaidBlocks(text) {
     /```mermaid\s*\n([\s\S]*?)```/g,
     (_, code) => {
       counter++
-      // Un-escape HTML entities so mermaid can parse
+      // Keep code HTML-escaped to avoid browser parsing < > as tags.
+      // useMermaid.js will un-escape when reading textContent.
       let raw = code.trim()
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-      // Validate: must have content and start with a valid mermaid declaration
-      const firstNonEmpty = raw.split('\n').find(l => l.trim())
-      if (!raw || !firstNonEmpty || !validStarts.some(s => firstNonEmpty.trim().startsWith(s))) {
+      // Validate: un-escape temporarily just for checking the declaration line
+      const rawCheck = raw.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      const firstNonEmpty = rawCheck.split('\n').find(l => l.trim())
+      if (!rawCheck || !firstNonEmpty || !validStarts.some(s => firstNonEmpty.trim().startsWith(s))) {
         // Not valid mermaid — render as plain code block
         return `<pre class="code-block"><code>${code.trim()}</code></pre>`
       }
-      // 自動修正常見語法錯誤
-      raw = sanitizeMermaidCode(raw)
-      // Error boundary: 存放原始碼作為 fallback
-      const escapedFallback = escapeHtml(raw).replace(/"/g, '&quot;')
-      return `<div class="mermaid-block" data-mermaid-id="mmd-${counter}" data-mermaid-fallback="${escapedFallback}">${raw}</div>`
+      // 自動修正常見語法錯誤（on un-escaped version）
+      const sanitized = sanitizeMermaidCode(rawCheck)
+      // Store as HTML-escaped text inside the div — browser won't interpret < > as tags
+      const escaped = escapeHtml(sanitized)
+      return `<div class="mermaid-block" data-mermaid-id="mmd-${counter}">${escaped}</div>`
     }
   )
 }
