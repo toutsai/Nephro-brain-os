@@ -119,10 +119,11 @@ TOKEN_PRICES = {
 }
 
 
-def _log_token_usage(response, model, feature):
+def _log_token_usage(response, model, feature, meta=None):
     """記錄 token 用量到 Firestore（用 update + dot-notation 做巢狀原子更新）"""
     try:
-        meta = getattr(response, 'usage_metadata', None)
+        if meta is None:
+            meta = getattr(response, 'usage_metadata', None)
         if not meta:
             return
         input_tokens = getattr(meta, 'prompt_token_count', 0) or 0
@@ -831,11 +832,15 @@ graph TD
                 )
             )
 
+            last_usage = None
             for chunk in response:
                 if chunk.text:
                     yield f"data: {json.dumps({'type': 'content', 'content': chunk.text}, ensure_ascii=False)}\n\n"
+                # streaming 的 usage_metadata 通常在最後一個 chunk
+                if hasattr(chunk, 'usage_metadata') and chunk.usage_metadata:
+                    last_usage = chunk.usage_metadata
 
-            _log_token_usage(response, model, "consult")
+            _log_token_usage(response, model, "consult", meta=last_usage)
             yield "data: [DONE]\n\n"
 
         except Exception as e:
