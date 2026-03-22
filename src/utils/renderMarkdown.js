@@ -21,8 +21,10 @@ function renderSummaryBlocks(text) {
       const items = content
         .split('\n')
         .map(l => l.trim())
-        .filter(l => l.startsWith('-') || l.startsWith('*'))
-        .map(l => l.replace(/^[-*]\s*/, ''))
+        .filter(l => l.length > 0)
+        .map(l => l.replace(/^[-*]\s*/, ''))       // bullet: - or *
+        .map(l => l.replace(/^\d+\.\s*/, ''))       // numbered: 1. 2. 3.
+        .filter(l => l.length > 0)
         .map(l => {
           // allow bold inside summary items
           l = l.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
