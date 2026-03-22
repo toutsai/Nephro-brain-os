@@ -277,11 +277,21 @@ function assignLevels(nodes, edges) {
   const queue = roots.map(id => ({ id, level: 0 }))
   for (const r of roots) levels.set(r, 0)
 
-  while (queue.length) {
+  // Track per-node enqueue count to detect cycles
+  const enqueueCount = new Map()
+  const maxEnqueues = nodes.size // in a DAG a node is re-leveled at most V times
+  let iterations = 0
+  const maxIterations = nodes.size * edges.length + 200 // hard safety cap
+
+  while (queue.length && iterations < maxIterations) {
+    iterations++
     const { id, level } = queue.shift()
     for (const child of childMap.get(id) || []) {
       const newLvl = level + 1
       if (!levels.has(child) || levels.get(child) < newLvl) {
+        const count = (enqueueCount.get(child) || 0) + 1
+        if (count > maxEnqueues) continue // cycle detected, skip
+        enqueueCount.set(child, count)
         levels.set(child, newLvl)
         queue.push({ id: child, level: newLvl })
       }
@@ -541,14 +551,21 @@ export async function renderMermaidIn(container) {
         console.warn('[Mermaid render failed]', err?.message, '\nSanitized code:', code)
 
         // Tier 2: Custom SVG flowchart renderer
-        const parsed = parseMermaidToSteps(code)
-        const svgHtml = buildFlowchartSvg(parsed)
+        let parsed = null
+        let svgHtml = null
+        try {
+          parsed = parseMermaidToSteps(code)
+          svgHtml = buildFlowchartSvg(parsed)
+        } catch (svgErr) {
+          console.warn('[Custom SVG renderer failed]', svgErr?.message)
+          try { parsed = parseMermaidToSteps(code) } catch { /* ignore */ }
+        }
 
         if (svgHtml) {
           block.innerHTML = svgHtml
         } else {
           // Tier 3: Text fallback (last resort)
-          const fallbackHtml = buildFallbackHtml(parsed)
+          const fallbackHtml = parsed ? buildFallbackHtml(parsed) : null
           if (fallbackHtml) {
             block.innerHTML = fallbackHtml
           } else {
