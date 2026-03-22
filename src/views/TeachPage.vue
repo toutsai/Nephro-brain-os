@@ -489,6 +489,22 @@
                 </button>
               </div>
             </div>
+            <!-- 配色主題 -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-2">配色主題</label>
+              <div class="flex gap-2 flex-wrap">
+                <button
+                  v-for="opt in pptThemeOptions"
+                  :key="opt.value"
+                  class="px-3 py-1.5 text-xs rounded-lg border transition-colors flex items-center gap-1.5"
+                  :class="pptOptions.theme === opt.value ? 'border-orange-400 bg-orange-50 text-orange-700 font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
+                  @click="pptOptions.theme = opt.value"
+                >
+                  <span class="inline-block w-3 h-3 rounded-full flex-shrink-0" :style="{ backgroundColor: opt.dot }"></span>
+                  {{ opt.label }}
+                </button>
+              </div>
+            </div>
           </div>
           <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
             <button
@@ -560,6 +576,7 @@ const pptOptions = reactive({
   audience: 'doctor',
   length: 'standard',
   style: 'balanced',
+  theme: 'orange',
 })
 const pptLanguageOptions = [
   { value: 'zh-TW', label: '繁體中文' },
@@ -579,6 +596,12 @@ const pptStyleOptions = [
   { value: 'chart-heavy', label: '圖表為主' },
   { value: 'text-heavy', label: '文字為主' },
   { value: 'balanced', label: '均衡' },
+]
+const pptThemeOptions = [
+  { value: 'orange', label: '橘色', dot: '#F97316' },
+  { value: 'blue', label: '淺藍', dot: '#3B82F6' },
+  { value: 'green', label: '淺綠', dot: '#10B981' },
+  { value: 'bw', label: '黑白', dot: '#1E293B' },
 ]
 
 // File upload state
@@ -839,7 +862,8 @@ async function downloadPpt() {
   try {
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
     const filename = (currentSession.value.title || 'NB-Teach') + '.pptx'
-    await buildAndDownloadPptx(parsed, filename)
+    const theme = currentSession.value?.ppt_theme || pptOptions.theme || 'orange'
+    await buildAndDownloadPptx(parsed, filename, { theme })
   } catch (err) {
     console.error('PPT download error:', err)
     alert('PPT 下載失敗：' + err.message)

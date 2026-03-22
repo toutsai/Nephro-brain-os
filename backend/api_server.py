@@ -877,6 +877,7 @@ def teach_generate():
                 result['ppt'] = json.dumps(parsed, ensure_ascii=False)
             except:
                 result['ppt'] = cleaned
+            result['ppt_theme'] = ppt_options.get('theme', 'orange')
 
         return jsonify(result)
 
@@ -1107,7 +1108,8 @@ def build_ppt_prompt(options):
 5. 每個 content 頁的 bullets 不超過 5 個
 6. notes 欄位提供講者的口頭補充說明，比投影片內容更詳細
 7. 根據素材內容選擇最適合的 layout 類型組合
-8. 表格用於比較、分類、藥物劑量等結構化資訊"""
+8. 表格用於比較、分類、藥物劑量等結構化資訊
+9. **重要文字高亮**：在 bullets 文字中，對關鍵術語、重要數值、藥物名稱、診斷標準、關鍵結論等使用 **粗體** markdown 標記（用 **雙星號** 包起來）。例如："eGFR **< 60 mL/min** 持續 **3 個月**以上即可診斷為 **CKD**"。每條 bullet 中標記 1-3 個最重要的詞彙或數值即可，不要過度標記。"""
 
 
 # === NB Assist 端點（加在 api_server.py 的 teach 端點後面）===

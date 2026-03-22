@@ -96,6 +96,7 @@ export function useTeach() {
       } else {
         updates[mode] = data[mode] || data.result || null
       }
+      if (data.ppt_theme) updates.ppt_theme = data.ppt_theme
 
       await updateDoc(doc(db, 'teach_sessions', sessionId), updates)
       return data
