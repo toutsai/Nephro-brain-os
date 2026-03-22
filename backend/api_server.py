@@ -112,6 +112,46 @@ def get_model_for_task(task_key):
     return MODEL_CONFIG[config_key]["model"]
 
 
+# Token 價格表（USD per million tokens）
+TOKEN_PRICES = {
+    "gemini-2.5-flash": {"input": 0.15, "output": 0.60},
+    "gemini-2.5-pro":   {"input": 1.25, "output": 10.00},
+}
+
+
+def _log_token_usage(response, model, feature):
+    """記錄 token 用量到 Firestore（merge + increment 原子操作）"""
+    try:
+        meta = getattr(response, 'usage_metadata', None)
+        if not meta:
+            return
+        input_tokens = getattr(meta, 'prompt_token_count', 0) or 0
+        output_tokens = getattr(meta, 'candidates_token_count', 0) or 0
+
+        prices = TOKEN_PRICES.get(model, TOKEN_PRICES["gemini-2.5-flash"])
+        cost = (input_tokens * prices["input"] + output_tokens * prices["output"]) / 1_000_000
+
+        month_key = time.strftime("%Y-%m")
+        doc_ref = db.collection("token_usage").document(month_key)
+        doc_ref.set({
+            "month": month_key,
+            "total_input_tokens": firestore.Increment(input_tokens),
+            "total_output_tokens": firestore.Increment(output_tokens),
+            "total_cost_usd": firestore.Increment(cost),
+            f"by_feature.{feature}.input": firestore.Increment(input_tokens),
+            f"by_feature.{feature}.output": firestore.Increment(output_tokens),
+            f"by_feature.{feature}.cost": firestore.Increment(cost),
+            f"by_feature.{feature}.calls": firestore.Increment(1),
+            f"by_model.{model}.input": firestore.Increment(input_tokens),
+            f"by_model.{model}.output": firestore.Increment(output_tokens),
+            f"by_model.{model}.cost": firestore.Increment(cost),
+            "updated_at": firestore.SERVER_TIMESTAMP,
+        }, merge=True)
+        print(f"  📊 Token usage: {input_tokens} in / {output_tokens} out → ${cost:.4f} ({feature}/{model})")
+    except Exception as e:
+        print(f"⚠️ Token usage log failed: {e}")
+
+
 def classify_question_complexity(question):
     """判斷問題複雜度以決定使用哪個模型"""
     complex_keywords = [
@@ -539,6 +579,7 @@ graph TD
                 tools=[types.Tool(google_search=types.GoogleSearch())],
             )
         )
+        _log_token_usage(response, model, "consult")
         return response.text
     except Exception as e:
         print(f"❌ Gemini 生成失敗: {e}")
@@ -574,13 +615,15 @@ def generate_cheat_sheet(topic):
    ```"""
 
     try:
+        model = get_model_for_task("consult_simple")
         response = gemini_client.models.generate_content(
-            model=get_model_for_task("consult_simple"),
+            model=model,
             contents=prompt,
             config=types.GenerateContentConfig(
                 tools=[types.Tool(google_search=types.GoogleSearch())],
             )
         )
+        _log_token_usage(response, model, "consult")
         return response.text
     except Exception as e:
         return f"❌ 生成失敗: {e}"
@@ -624,6 +667,23 @@ def health():
         "chunks_count": len(stored_chunks),
         "db_connected": db is not None,
         "storage_connected": storage_bucket_obj is not None,
+    })
+
+
+@app.route('/usage/monthly', methods=['GET'])
+def get_monthly_usage():
+    """取得每月 token 用量統計"""
+    month = request.args.get('month', time.strftime("%Y-%m"))
+    doc_snapshot = db.collection("token_usage").document(month).get()
+    if doc_snapshot.exists:
+        return jsonify(doc_snapshot.to_dict())
+    return jsonify({
+        "month": month,
+        "total_input_tokens": 0,
+        "total_output_tokens": 0,
+        "total_cost_usd": 0,
+        "by_feature": {},
+        "by_model": {},
     })
 
 
@@ -724,6 +784,7 @@ def ask_stream():
                 if chunk.text:
                     yield f"data: {json.dumps({'type': 'content', 'content': chunk.text}, ensure_ascii=False)}\n\n"
 
+            _log_token_usage(response, model, "consult")
             yield "data: [DONE]\n\n"
 
         except Exception as e:
@@ -895,10 +956,12 @@ def _extract_json(raw):
 def _teach_call(contents, prompt_text, task_key="teach_summary"):
     """呼叫 Gemini，contents 可以是文字或 PDF inline_data"""
     all_contents = contents + [prompt_text]
+    model = get_model_for_task(task_key)
     response = gemini_client.models.generate_content(
-        model=get_model_for_task(task_key),
+        model=model,
         contents=all_contents,
     )
+    _log_token_usage(response, model, "teach")
     return response.text
 
 
@@ -1218,13 +1281,15 @@ def _assist_clinical(scenario, images=None):
         contents.append(f"【臨床情境】\n{scenario}")
     contents.append(prompt)
 
+    model = get_model_for_task("assist_clinical")
     response = gemini_client.models.generate_content(
-        model=get_model_for_task("assist_clinical"),
+        model=model,
         contents=contents,
         config=types.GenerateContentConfig(
             tools=[types.Tool(google_search=types.GoogleSearch())],
         )
     )
+    _log_token_usage(response, model, "assist")
     return response.text + ASSIST_DISCLAIMER
 
 
@@ -1320,13 +1385,15 @@ def _assist_dose(data, images=None):
     contents.extend(_build_image_parts(images))
     contents.append(prompt)
 
+    model = get_model_for_task("assist_dose")
     response = gemini_client.models.generate_content(
-        model=get_model_for_task("assist_dose"),
+        model=model,
         contents=contents,
         config=types.GenerateContentConfig(
             tools=[types.Tool(google_search=types.GoogleSearch())],
         )
     )
+    _log_token_usage(response, model, "assist")
     return response.text + ASSIST_DISCLAIMER
 
 
@@ -1373,13 +1440,15 @@ def _assist_lab(lab_data, images=None):
         contents.append(f"【檢驗數據 / 臨床資訊】\n{lab_data}")
     contents.append(prompt)
 
+    model = get_model_for_task("assist_lab")
     response = gemini_client.models.generate_content(
-        model=get_model_for_task("assist_lab"),
+        model=model,
         contents=contents,
         config=types.GenerateContentConfig(
             tools=[types.Tool(google_search=types.GoogleSearch())],
         )
     )
+    _log_token_usage(response, model, "assist")
     return response.text + ASSIST_DISCLAIMER
 
 
@@ -1429,13 +1498,15 @@ def _assist_nhi(query_text, images=None):
         contents.append(f"【查詢內容】\n{query_text}")
     contents.append(prompt)
 
+    model = get_model_for_task("assist_nhi")
     response = gemini_client.models.generate_content(
-        model=get_model_for_task("assist_nhi"),
+        model=model,
         contents=contents,
         config=types.GenerateContentConfig(
             tools=[types.Tool(google_search=types.GoogleSearch())],
         )
     )
+    _log_token_usage(response, model, "assist")
     return response.text + ASSIST_DISCLAIMER
 
 
@@ -1486,13 +1557,15 @@ def _assist_interaction(drugs_text, images=None):
         contents.append(f"【藥物列表】\n{drugs_text}")
     contents.append(prompt)
 
+    model = get_model_for_task("assist_interaction")
     response = gemini_client.models.generate_content(
-        model=get_model_for_task("assist_interaction"),
+        model=model,
         contents=contents,
         config=types.GenerateContentConfig(
             tools=[types.Tool(google_search=types.GoogleSearch())],
         )
     )
+    _log_token_usage(response, model, "assist")
     return response.text + ASSIST_DISCLAIMER
 
 
@@ -1542,13 +1615,15 @@ def _assist_transplant(data, images=None):
         contents.append(f"【移植相關問題】\n{question}")
     contents.append(prompt)
 
+    model = get_model_for_task("assist_transplant")
     response = gemini_client.models.generate_content(
-        model=get_model_for_task("assist_transplant"),
+        model=model,
         contents=contents,
         config=types.GenerateContentConfig(
             tools=[types.Tool(google_search=types.GoogleSearch())],
         )
     )
+    _log_token_usage(response, model, "assist")
     return response.text + ASSIST_DISCLAIMER
 
 
@@ -1612,13 +1687,15 @@ def _assist_pd(data, images=None):
         contents.append(f"【腹膜透析相關問題】\n{question}")
     contents.append(prompt)
 
+    model = get_model_for_task("assist_pd")
     response = gemini_client.models.generate_content(
-        model=get_model_for_task("assist_pd"),
+        model=model,
         contents=contents,
         config=types.GenerateContentConfig(
             tools=[types.Tool(google_search=types.GoogleSearch())],
         )
     )
+    _log_token_usage(response, model, "assist")
     return response.text + ASSIST_DISCLAIMER
 
 
@@ -1749,6 +1826,7 @@ def ask_gemini_journal_summary(title, abstract_text, max_retries=3):
                 model=GEMINI_MODEL,
                 contents=prompt
             )
+            _log_token_usage(response, GEMINI_MODEL, "other")
             return response.text
         except Exception as e:
             print(f"⚠️ 期刊摘要失敗 (attempt {attempt+1}): {e}")
@@ -1765,6 +1843,7 @@ def extract_search_keywords(title):
             model=GEMINI_MODEL,
             contents=f"Extract 3-5 key medical search terms from this title. Return only the terms separated by spaces, no explanation:\n{title}"
         )
+        _log_token_usage(response, GEMINI_MODEL, "other")
         return response.text.strip()
     except:
         return title[:100]
@@ -1929,6 +2008,7 @@ PMID：{pmid}
             model=GEMINI_MODEL,
             contents=prompt
         )
+        _log_token_usage(response, GEMINI_MODEL, "other")
         result_text = response.text.strip()
 
         if result_text.startswith("```"):
@@ -2099,13 +2179,15 @@ def pathway_interactive(pathway_id):
 請用 Google Search 搜尋補充最新指引。"""
 
     try:
+        model = get_model_for_task("pathway_interactive")
         response = gemini_client.models.generate_content(
-            model=get_model_for_task("pathway_interactive"),
+            model=model,
             contents=prompt,
             config=types.GenerateContentConfig(
                 tools=[types.Tool(google_search=types.GoogleSearch())],
             )
         )
+        _log_token_usage(response, model, "assist")
         return jsonify({
             "result": response.text + ASSIST_DISCLAIMER,
             "pathway_id": pathway_id,
