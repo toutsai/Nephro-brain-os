@@ -65,6 +65,53 @@
         </div>
       </div>
 
+      <!-- 各功能定價參考 -->
+      <details class="bg-white rounded-xl border">
+        <summary class="px-4 py-3 text-sm font-semibold text-slate-700 cursor-pointer select-none hover:bg-slate-50 rounded-xl">
+          各功能定價參考 ▾
+        </summary>
+        <div class="px-4 pb-4 space-y-4">
+          <!-- 定價基準 -->
+          <div>
+            <h3 class="text-xs font-semibold text-slate-500 mb-1">定價基準</h3>
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="text-left text-slate-400 border-b">
+                  <th class="py-1">模型</th><th class="py-1">Input</th><th class="py-1">Output</th>
+                </tr>
+              </thead>
+              <tbody class="text-slate-600">
+                <tr class="border-b border-slate-50"><td class="py-1 font-mono">gemini-2.5-flash</td><td>$0.15/M</td><td>$0.60/M</td></tr>
+                <tr><td class="py-1 font-mono">gemini-2.5-pro</td><td>$1.25/M</td><td>$10.00/M</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 各模組呼叫明細 -->
+          <div v-for="group in pricingGroups" :key="group.label">
+            <h3 class="text-xs font-semibold text-slate-500 mb-1">{{ group.label }}</h3>
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="text-left text-slate-400 border-b">
+                  <th class="py-1">功能</th><th class="py-1">模型</th><th class="py-1 text-right">預估/次</th>
+                </tr>
+              </thead>
+              <tbody class="text-slate-600">
+                <tr v-for="item in group.items" :key="item.name" class="border-b border-slate-50">
+                  <td class="py-1">{{ item.name }}</td>
+                  <td class="py-1">
+                    <span :class="item.model.includes('Pro') ? 'text-amber-600 font-medium' : 'text-slate-500'">{{ item.model }}</span>
+                  </td>
+                  <td class="py-1 text-right whitespace-nowrap">{{ item.cost }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p class="text-[10px] text-slate-400">* 根據問題複雜度自動路由 Flash 或 Pro。費用以 USD→TWD 32.5 估算。</p>
+        </div>
+      </details>
+
       <!-- 月份 -->
       <div class="text-xs text-slate-400 text-center">
         統計月份：{{ monthKey }}
@@ -78,6 +125,47 @@ import { computed } from 'vue'
 import { useTokenUsage } from '../composables/useTokenUsage.js'
 
 const { monthlyData, monthlyCostTWD, USD_TO_TWD, loading, monthKey } = useTokenUsage()
+
+const pricingGroups = [
+  {
+    label: 'Consult 問答 — 3 個呼叫點',
+    items: [
+      { name: '一般問答', model: 'Flash / Pro*', cost: 'NT$0.5~5' },
+      { name: '懶人包', model: 'Flash', cost: '~NT$0.5' },
+      { name: '串流問答', model: 'Flash / Pro*', cost: 'NT$0.5~5' },
+    ],
+  },
+  {
+    label: 'Teach 教學 — 5 個呼叫點',
+    items: [
+      { name: '摘要', model: 'Flash', cost: '~NT$0.5' },
+      { name: '閃卡', model: 'Flash', cost: '~NT$0.5' },
+      { name: '概念圖', model: 'Flash', cost: '~NT$0.5' },
+      { name: '心智圖', model: 'Flash', cost: '~NT$0.5' },
+      { name: '簡報', model: 'Flash', cost: '~NT$0.5' },
+    ],
+  },
+  {
+    label: 'Assist 臨床輔助 — 8 個呼叫點',
+    items: [
+      { name: '臨床分析', model: 'Pro', cost: 'NT$5~15' },
+      { name: '劑量調整', model: 'Flash', cost: '~NT$0.5' },
+      { name: '檢驗判讀', model: 'Pro', cost: 'NT$3~10' },
+      { name: '健保規定', model: 'Flash', cost: '~NT$0.5' },
+      { name: '藥物交互作用', model: 'Flash', cost: '~NT$0.5' },
+      { name: '移植諮詢', model: 'Pro', cost: 'NT$5~15' },
+      { name: '腹膜透析', model: 'Flash', cost: '~NT$0.5' },
+      { name: '臨床路徑', model: 'Flash', cost: '~NT$0.5' },
+    ],
+  },
+  {
+    label: 'Other — 2 個呼叫點',
+    items: [
+      { name: '文獻摘要', model: 'Flash', cost: '~NT$0.5' },
+      { name: '期刊處理', model: 'Flash', cost: '~NT$0.5' },
+    ],
+  },
+]
 
 const featureLabels = {
   consult: 'Consult 問答',
