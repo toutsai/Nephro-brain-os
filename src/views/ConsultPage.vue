@@ -687,6 +687,10 @@ onUnmounted(() => {
 .prose-chat :deep(.mermaid-block .arrowheadPath) {
   fill: #94a3b8 !important;
 }
+.prose-chat :deep(.flowchart-svg) {
+  max-width: 100%;
+  height: auto;
+}
 .prose-chat :deep(.mermaid-fallback) {
   text-align: left;
   padding: 8px 0;

@@ -124,7 +124,6 @@ function sanitizeMermaidCode(code) {
     l = l.replace(/(\[[^\]]*)\(([^\)]*)\)([^\]]*\])/g, '$1$2$3')
 
     // Remove colons and question marks inside labels (break mermaid parsing)
-    // Loop to handle multiple occurrences
     let prev
     do { prev = l; l = l.replace(/(\[[^\]]*)[:?]([^\]]*\])/g, '$1$2') } while (l !== prev)
     do { prev = l; l = l.replace(/(\{\{[^}]*)[:?]([^}]*\}\})/g, '$1$2') } while (l !== prev)
@@ -132,6 +131,12 @@ function sanitizeMermaidCode(code) {
     // Remove quotes inside labels
     do { prev = l; l = l.replace(/(\[[^\]]*)["']([^\]]*\])/g, '$1$2') } while (l !== prev)
     do { prev = l; l = l.replace(/(\{\{[^}]*)["']([^}]*\}\})/g, '$1$2') } while (l !== prev)
+
+    // Clean edge labels: remove problematic chars from -->|...|
+    l = l.replace(/-->\|([^|]*)\|/g, (_, label) => {
+      const cleaned = label.replace(/[:?#"';\\/{}\[\]()]/g, '').trim()
+      return `-->|${cleaned}|`
+    })
 
     return '  ' + l
   })
@@ -175,9 +180,11 @@ function splitMermaidNodes(text) {
   return parts.length > 1 ? parts : [text]
 }
 
+// ── Mermaid parser ──────────────────────────────────────────
+
 /**
- * Parse mermaid code into steps for structured fallback display.
- * Extracts node labels and connections to show a useful text list.
+ * Parse mermaid code into a graph structure with typed nodes.
+ * Returns { nodes: Map<id, {label, type}>, edges: [{from, to, label}], ordered: [ids] }
  */
 function parseMermaidToSteps(code) {
   const nodes = new Map()
@@ -188,12 +195,17 @@ function parseMermaidToSteps(code) {
   let m
   while ((m = nodeRegex.exec(code)) !== null) {
     const id = m[1]
-    const label = m[2] || m[3] || m[4] || m[5] || id
-    if (!nodes.has(id)) nodes.set(id, label.trim())
+    let label, type
+    if (m[2]) { label = m[2]; type = 'action' }        // [label]
+    else if (m[3]) { label = m[3]; type = 'decision' }  // {{label}}
+    else if (m[4]) { label = m[4]; type = 'decision' }  // {label}
+    else if (m[5]) { label = m[5]; type = 'rounded' }   // (label)
+    else { label = id; type = 'action' }
+    if (!nodes.has(id)) nodes.set(id, { label: label.trim(), type })
   }
 
-  // Extract edges: A --> B, A -->|label| B
-  const edgeRegex = /([A-Za-z][A-Za-z0-9_]*)\s*-->(?:\|([^|]*)\|)?\s*([A-Za-z][A-Za-z0-9_]*)/g
+  // Extract edges: A --> B, A[label] -->|label| B{{label}}, etc.
+  const edgeRegex = /([A-Za-z][A-Za-z0-9_]*)(?:\[[^\]]*\]|\{\{[^}]*\}\}|\{[^}]*\}|\([^)]*\))?\s*-->(?:\|([^|]*)\|)?\s*([A-Za-z][A-Za-z0-9_]*)/g
   while ((m = edgeRegex.exec(code)) !== null) {
     edges.push({ from: m[1], label: m[2] || '', to: m[3] })
   }
@@ -215,7 +227,6 @@ function parseMermaidToSteps(code) {
       queue.push(e.to)
     }
   }
-  // Add any unvisited nodes
   for (const id of nodes.keys()) {
     if (!visited.has(id)) ordered.push(id)
   }
@@ -223,8 +234,242 @@ function parseMermaidToSteps(code) {
   return { nodes, edges, ordered }
 }
 
+// ── Custom SVG Flowchart Renderer ───────────────────────────
+
+/** Escape text for use in SVG elements */
+function escSvg(text) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+/** Measure approximate text width for Chinese/ASCII mix (rough estimate) */
+function textWidth(str, fontSize) {
+  let w = 0
+  for (const ch of str) {
+    w += ch.charCodeAt(0) > 0x7f ? fontSize : fontSize * 0.6
+  }
+  return w
+}
+
 /**
- * Build a styled HTML fallback from parsed mermaid steps.
+ * Assign each node to a vertical level using BFS.
+ * Returns array of arrays: [[root ids], [level 1 ids], ...]
+ */
+function assignLevels(nodes, edges) {
+  const levels = new Map()
+  const childMap = new Map()
+  const inDeg = new Map()
+
+  for (const id of nodes.keys()) {
+    childMap.set(id, [])
+    inDeg.set(id, 0)
+  }
+  for (const e of edges) {
+    if (childMap.has(e.from) && nodes.has(e.to)) {
+      childMap.get(e.from).push(e.to)
+      inDeg.set(e.to, (inDeg.get(e.to) || 0) + 1)
+    }
+  }
+
+  // Roots: no incoming edges
+  const roots = [...nodes.keys()].filter(id => !inDeg.get(id))
+  if (!roots.length && nodes.size) roots.push(nodes.keys().next().value)
+
+  const queue = roots.map(id => ({ id, level: 0 }))
+  for (const r of roots) levels.set(r, 0)
+
+  while (queue.length) {
+    const { id, level } = queue.shift()
+    for (const child of childMap.get(id) || []) {
+      const newLvl = level + 1
+      if (!levels.has(child) || levels.get(child) < newLvl) {
+        levels.set(child, newLvl)
+        queue.push({ id: child, level: newLvl })
+      }
+    }
+  }
+
+  // Any unvisited nodes get appended to last level
+  const maxLvl = levels.size ? Math.max(...levels.values()) : 0
+  for (const id of nodes.keys()) {
+    if (!levels.has(id)) levels.set(id, maxLvl + 1)
+  }
+
+  // Group by level
+  const byLevel = []
+  for (const [id, lvl] of levels) {
+    if (!byLevel[lvl]) byLevel[lvl] = []
+    byLevel[lvl].push(id)
+  }
+  return byLevel.filter(Boolean) // remove empty slots
+}
+
+/**
+ * Build an SVG flowchart from parsed mermaid data.
+ * Returns SVG HTML string, or null if not enough data.
+ */
+function buildFlowchartSvg(parsed) {
+  const { nodes, edges } = parsed
+  if (nodes.size < 2) return null
+
+  const FONT = 13
+  const LABEL_FONT = 11
+  const NODE_H = 44
+  const GAP_X = 32
+  const GAP_Y = 56
+  const PAD_X = 24
+  const PAD_Y = 20
+  const MIN_NODE_W = 100
+  const MAX_NODE_W = 220
+  const DIAMOND_R = 34 // half-diagonal of diamond
+
+  // Calculate node widths based on label length
+  const nodeWidths = new Map()
+  for (const [id, node] of nodes) {
+    const tw = textWidth(node.label, FONT) + 28 // padding
+    nodeWidths.set(id, Math.max(MIN_NODE_W, Math.min(MAX_NODE_W, tw)))
+  }
+
+  const levels = assignLevels(nodes, edges)
+
+  // Calculate row widths and SVG dimensions
+  let maxRowW = 0
+  for (const row of levels) {
+    let rowW = 0
+    for (const id of row) rowW += (nodeWidths.get(id) || MIN_NODE_W) + GAP_X
+    rowW -= GAP_X
+    if (rowW > maxRowW) maxRowW = rowW
+  }
+
+  const svgW = Math.max(maxRowW + 2 * PAD_X, 300)
+  const svgH = levels.length * (NODE_H + GAP_Y) - GAP_Y + 2 * PAD_Y + 10
+
+  // Position each node
+  const pos = new Map() // id → {x, y, w, h, cx, cy}
+  for (let lvl = 0; lvl < levels.length; lvl++) {
+    const row = levels[lvl]
+    let rowW = 0
+    for (const id of row) rowW += (nodeWidths.get(id) || MIN_NODE_W) + GAP_X
+    rowW -= GAP_X
+
+    let curX = (svgW - rowW) / 2
+    const y = PAD_Y + lvl * (NODE_H + GAP_Y)
+    for (const id of row) {
+      const w = nodeWidths.get(id) || MIN_NODE_W
+      pos.set(id, { x: curX, y, w, h: NODE_H, cx: curX + w / 2, cy: y + NODE_H / 2 })
+      curX += w + GAP_X
+    }
+  }
+
+  // Build SVG
+  const parts = []
+  parts.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW} ${svgH}" class="flowchart-svg" style="font-family:-apple-system,'Noto Sans TC',system-ui,sans-serif">`)
+
+  // Defs: arrow marker + shadow filter
+  parts.push(`<defs>
+    <marker id="fc-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#94a3b8"/>
+    </marker>
+    <filter id="fc-shadow" x="-4%" y="-4%" width="108%" height="116%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.08"/>
+    </filter>
+  </defs>`)
+
+  // Draw edges
+  for (const edge of edges) {
+    const from = pos.get(edge.from)
+    const to = pos.get(edge.to)
+    if (!from || !to) continue
+
+    const x1 = from.cx
+    const y1 = from.y + from.h
+    const x2 = to.cx
+    const y2 = to.y
+
+    // Bezier curve for smooth connection
+    const midY = (y1 + y2) / 2
+    parts.push(`<path d="M${x1} ${y1} C${x1} ${midY},${x2} ${midY},${x2} ${y2}" fill="none" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#fc-arr)"/>`)
+
+    // Edge label
+    if (edge.label) {
+      const lx = (x1 + x2) / 2
+      const ly = midY
+      const labelTw = textWidth(edge.label, LABEL_FONT) + 12
+      const labelH = 18
+      parts.push(`<rect x="${lx - labelTw / 2}" y="${ly - labelH / 2}" width="${labelTw}" height="${labelH}" rx="4" fill="white" stroke="#e2e8f0" stroke-width="0.75"/>`)
+      parts.push(`<text x="${lx}" y="${ly + 4}" text-anchor="middle" font-size="${LABEL_FONT}" fill="#64748b">${escSvg(edge.label)}</text>`)
+    }
+  }
+
+  // Draw nodes
+  for (const [id, node] of nodes) {
+    const p = pos.get(id)
+    if (!p) continue
+
+    if (node.type === 'decision') {
+      // Diamond: rotated rectangle
+      const r = Math.min(DIAMOND_R, p.w / 2.2)
+      parts.push(`<g transform="translate(${p.cx},${p.cy})">`)
+      parts.push(`<rect x="${-r}" y="${-r}" width="${r * 2}" height="${r * 2}" rx="3" transform="rotate(45)" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5" filter="url(#fc-shadow)"/>`)
+      // Text (counter-rotated, multi-line if needed)
+      const maxChars = Math.floor(r * 1.6 / (FONT * 0.8))
+      const textLines = wrapLabel(node.label, maxChars)
+      const lineH = FONT + 3
+      const startY = -(textLines.length - 1) * lineH / 2 + 4
+      for (let i = 0; i < textLines.length; i++) {
+        parts.push(`<text x="0" y="${startY + i * lineH}" text-anchor="middle" font-size="${FONT}" font-weight="500" fill="#92400e">${escSvg(textLines[i])}</text>`)
+      }
+      parts.push(`</g>`)
+    } else {
+      // Rectangle node
+      const fill = node.type === 'rounded' ? '#f0fdf4' : '#eff6ff'
+      const stroke = node.type === 'rounded' ? '#86efac' : '#93c5fd'
+      const textFill = node.type === 'rounded' ? '#166534' : '#1e293b'
+      const rx = node.type === 'rounded' ? 22 : 8
+
+      parts.push(`<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" filter="url(#fc-shadow)"/>`)
+
+      // Text (possibly multi-line)
+      const maxChars = Math.floor((p.w - 16) / (FONT * 0.8))
+      const textLines = wrapLabel(node.label, maxChars)
+      const lineH = FONT + 3
+      const startY = p.cy - (textLines.length - 1) * lineH / 2 + 4
+      for (let i = 0; i < textLines.length; i++) {
+        parts.push(`<text x="${p.cx}" y="${startY + i * lineH}" text-anchor="middle" font-size="${FONT}" font-weight="500" fill="${textFill}">${escSvg(textLines[i])}</text>`)
+      }
+    }
+  }
+
+  parts.push('</svg>')
+  return parts.join('\n')
+}
+
+/** Wrap a label string into lines of at most maxChars characters */
+function wrapLabel(label, maxChars) {
+  if (maxChars < 4) maxChars = 4
+  if (label.length <= maxChars) return [label]
+  const lines = []
+  let remaining = label
+  while (remaining.length > maxChars) {
+    // Try to break at a natural boundary (space, comma)
+    let breakAt = -1
+    for (let i = maxChars; i >= maxChars / 2; i--) {
+      if (remaining[i] === ' ' || remaining[i] === ',' || remaining[i] === '、') {
+        breakAt = i
+        break
+      }
+    }
+    if (breakAt < 0) breakAt = maxChars
+    lines.push(remaining.slice(0, breakAt).trim())
+    remaining = remaining.slice(breakAt).trim()
+  }
+  if (remaining) lines.push(remaining)
+  return lines.length > 3 ? [...lines.slice(0, 2), lines.slice(2).join('')] : lines
+}
+
+// ── Text fallback (Tier 3) ──────────────────────────────────
+
+/**
+ * Build a styled HTML fallback from parsed mermaid steps (last resort).
  */
 function buildFallbackHtml(parsed) {
   if (!parsed.nodes.size) return null
@@ -234,16 +479,19 @@ function buildFallbackHtml(parsed) {
   html += '<ol style="margin:0;padding-left:20px;list-style:decimal">'
 
   for (const id of parsed.ordered) {
-    const label = parsed.nodes.get(id) || id
+    const node = parsed.nodes.get(id)
+    const label = node?.label || node || id
     const outEdges = parsed.edges.filter(e => e.from === id)
     let arrow = ''
     if (outEdges.length === 1) {
       const e = outEdges[0]
-      const targetLabel = parsed.nodes.get(e.to) || e.to
+      const targetNode = parsed.nodes.get(e.to)
+      const targetLabel = targetNode?.label || targetNode || e.to
       arrow = ` <span style="color:#94a3b8">→ ${targetLabel}</span>`
     } else if (outEdges.length > 1) {
       const branches = outEdges.map(e => {
-        const targetLabel = parsed.nodes.get(e.to) || e.to
+        const targetNode = parsed.nodes.get(e.to)
+        const targetLabel = targetNode?.label || targetNode || e.to
         return e.label ? `${e.label}: ${targetLabel}` : targetLabel
       }).join(' / ')
       arrow = ` <span style="color:#94a3b8">→ ${branches}</span>`
@@ -268,7 +516,8 @@ function cleanupMermaidErrors() {
 }
 
 /**
- * Render all .mermaid-block elements inside a container
+ * Render all .mermaid-block elements inside a container.
+ * Tier 1: Mermaid library → Tier 2: Custom SVG → Tier 3: Text fallback
  * @param {HTMLElement} container
  */
 export async function renderMermaidIn(container) {
@@ -280,25 +529,32 @@ export async function renderMermaidIn(container) {
     const mermaid = await getMermaid()
     if (!mermaid) return
     for (const block of blocks) {
-      // textContent returns HTML-escaped text from renderMarkdown; un-escape it
       const rawCode = unescapeHtml(block.textContent)
       const code = sanitizeMermaidCode(rawCode)
       const id = block.dataset.mermaidId || `mmd-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
       try {
+        // Tier 1: Mermaid library rendering
         const { svg } = await mermaid.render(id, code)
         block.innerHTML = svg
         block.dataset.rendered = 'true'
       } catch (err) {
         console.warn('[Mermaid render failed]', err?.message, '\nSanitized code:', code)
-        // Try structured fallback: parse nodes and show as step list
+
+        // Tier 2: Custom SVG flowchart renderer
         const parsed = parseMermaidToSteps(code)
-        const fallbackHtml = buildFallbackHtml(parsed)
-        if (fallbackHtml) {
-          block.innerHTML = fallbackHtml
+        const svgHtml = buildFlowchartSvg(parsed)
+
+        if (svgHtml) {
+          block.innerHTML = svgHtml
         } else {
-          // Last resort: show raw code
-          const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-          block.innerHTML = `<div style="text-align:left"><div style="color:#94a3b8;font-size:12px;margin-bottom:6px">⚠ 流程圖語法錯誤，顯示原始碼</div><pre class="code-block"><code>${escaped}</code></pre></div>`
+          // Tier 3: Text fallback (last resort)
+          const fallbackHtml = buildFallbackHtml(parsed)
+          if (fallbackHtml) {
+            block.innerHTML = fallbackHtml
+          } else {
+            const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            block.innerHTML = `<div style="text-align:left"><div style="color:#94a3b8;font-size:12px;margin-bottom:6px">⚠ 流程圖語法錯誤，顯示原始碼</div><pre class="code-block"><code>${escaped}</code></pre></div>`
+          }
         }
         block.dataset.rendered = 'true'
         cleanupMermaidErrors()

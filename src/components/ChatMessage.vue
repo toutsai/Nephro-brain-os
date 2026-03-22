@@ -275,6 +275,11 @@ function formatTime(timestamp) {
 .prose-chat :deep(.mermaid-block .arrowheadPath) {
   fill: #94a3b8 !important;
 }
+/* Custom SVG flowchart (Tier 2 fallback) */
+.prose-chat :deep(.flowchart-svg) {
+  max-width: 100%;
+  height: auto;
+}
 /* Fallback styling */
 .prose-chat :deep(.mermaid-fallback) {
   text-align: left;
