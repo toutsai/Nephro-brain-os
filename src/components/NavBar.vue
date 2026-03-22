@@ -34,7 +34,7 @@
             class="text-[10px] text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-full hover:bg-amber-900/50 transition-colors"
             title="當月 API 費用"
           >
-            ${{ monthlyCost }}
+            NT${{ monthlyCostTWD }}
           </router-link>
         </span>
       </div>
@@ -65,7 +65,7 @@ import { useTokenUsage } from '../composables/useTokenUsage.js'
 
 const route = useRoute()
 const { role, logout } = useUserRole()
-const { monthlyCost } = useTokenUsage()
+const { monthlyCostTWD } = useTokenUsage()
 
 const navItems = [
   { path: '/insight', icon: '🔍', label: 'Insight' },

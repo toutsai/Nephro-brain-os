@@ -120,7 +120,7 @@ TOKEN_PRICES = {
 
 
 def _log_token_usage(response, model, feature):
-    """記錄 token 用量到 Firestore（merge + increment 原子操作）"""
+    """記錄 token 用量到 Firestore（用 update + dot-notation 做巢狀原子更新）"""
     try:
         meta = getattr(response, 'usage_metadata', None)
         if not meta:
@@ -133,8 +133,12 @@ def _log_token_usage(response, model, feature):
 
         month_key = time.strftime("%Y-%m")
         doc_ref = db.collection("token_usage").document(month_key)
-        doc_ref.set({
-            "month": month_key,
+
+        # 確保 document 存在
+        doc_ref.set({"month": month_key}, merge=True)
+
+        # update() 會正確解析 dot-notation 為巢狀路徑
+        doc_ref.update({
             "total_input_tokens": firestore.Increment(input_tokens),
             "total_output_tokens": firestore.Increment(output_tokens),
             "total_cost_usd": firestore.Increment(cost),
@@ -146,8 +150,8 @@ def _log_token_usage(response, model, feature):
             f"by_model.{model}.output": firestore.Increment(output_tokens),
             f"by_model.{model}.cost": firestore.Increment(cost),
             "updated_at": firestore.SERVER_TIMESTAMP,
-        }, merge=True)
-        print(f"  📊 Token usage: {input_tokens} in / {output_tokens} out → ${cost:.4f} ({feature}/{model})")
+        })
+        print(f"  📊 Token usage: {input_tokens} in / {output_tokens} out → ${cost:.6f} ({feature}/{model})")
     except Exception as e:
         print(f"⚠️ Token usage log failed: {e}")
 

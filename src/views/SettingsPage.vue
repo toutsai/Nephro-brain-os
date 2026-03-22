@@ -14,7 +14,7 @@
       <!-- 總覽卡片 -->
       <div class="grid grid-cols-3 gap-3">
         <div class="bg-white rounded-xl border p-4 text-center">
-          <div class="text-2xl font-bold text-amber-500">${{ monthlyCost }}</div>
+          <div class="text-2xl font-bold text-amber-500">NT${{ monthlyCostTWD }}</div>
           <div class="text-xs text-slate-500 mt-1">當月預估費用</div>
         </div>
         <div class="bg-white rounded-xl border p-4 text-center">
@@ -34,7 +34,7 @@
           <div v-for="(data, key) in featureData" :key="key">
             <div class="flex items-center justify-between text-sm mb-1">
               <span class="text-slate-600">{{ featureLabels[key] || key }}</span>
-              <span class="font-medium">${{ (data.cost || 0).toFixed(3) }}
+              <span class="font-medium">NT${{ formatCostTWD(data.cost) }}
                 <span class="text-slate-400 font-normal ml-1">{{ data.calls || 0 }} 次</span>
               </span>
             </div>
@@ -57,7 +57,7 @@
           <div v-for="(data, model) in modelData" :key="model" class="flex items-center justify-between text-sm">
             <span class="text-slate-600 font-mono text-xs">{{ model }}</span>
             <span>
-              <span class="font-medium">${{ (data.cost || 0).toFixed(3) }}</span>
+              <span class="font-medium">NT${{ formatCostTWD(data.cost) }}</span>
               <span class="text-slate-400 ml-2">{{ formatTokens(data.input) }} in / {{ formatTokens(data.output) }} out</span>
             </span>
           </div>
@@ -77,7 +77,7 @@
 import { computed } from 'vue'
 import { useTokenUsage } from '../composables/useTokenUsage.js'
 
-const { monthlyData, monthlyCost, loading, monthKey } = useTokenUsage()
+const { monthlyData, monthlyCostTWD, USD_TO_TWD, loading, monthKey } = useTokenUsage()
 
 const featureLabels = {
   consult: 'Consult 問答',
@@ -103,6 +103,12 @@ const maxFeatureCost = computed(() => {
 
 function featurePct(cost) {
   return Math.min(((cost || 0) / maxFeatureCost.value) * 100, 100)
+}
+
+function formatCostTWD(usdValue) {
+  const twd = (usdValue || 0) * USD_TO_TWD
+  if (twd > 0 && twd < 1) return twd.toFixed(2)
+  return Math.round(twd).toString()
 }
 
 function formatTokens(n) {
