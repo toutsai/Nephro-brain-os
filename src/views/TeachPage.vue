@@ -70,6 +70,7 @@
               <span v-if="s.summary" class="text-emerald-500">✓ 摘要</span>
               <span v-if="s.flashcards" class="text-blue-500">✓ 卡片</span>
               <span v-if="s.relation" class="text-purple-500">✓ 關聯</span>
+              <span v-if="s.ppt" class="text-orange-500">✓ PPT</span>
             </div>
             <button
               class="text-[10px] text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity mt-1"
@@ -223,6 +224,13 @@
               >
                 🧠 只要心智圖
               </button>
+              <button
+                :disabled="!canGenerate || generating || isGuest()"
+                class="px-4 py-2.5 border border-orange-300 text-sm text-orange-600 hover:bg-orange-50 rounded-lg transition-colors disabled:opacity-40"
+                @click="showPptModal = true"
+              >
+                📊 只要 PPT
+              </button>
             </div>
           </div>
 
@@ -230,7 +238,7 @@
           <div v-if="generating" class="flex items-center gap-3 mb-6 px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl">
             <div class="w-5 h-5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
             <span class="text-sm text-orange-700">
-              正在生成{{ generatingMode === 'all' ? '摘要 + Flashcards + 關聯分析 + 心智圖' : generatingMode === 'summary' ? '摘要' : generatingMode === 'flashcards' ? 'Flashcards' : generatingMode === 'mindmap' ? '心智圖' : generatingMode === 'relation' ? '關聯分析' : '...' }}...
+              正在生成{{ generatingMode === 'all' ? '摘要 + Flashcards + 關聯分析 + 心智圖' : generatingMode === 'summary' ? '摘要' : generatingMode === 'flashcards' ? 'Flashcards' : generatingMode === 'mindmap' ? '心智圖' : generatingMode === 'relation' ? '關聯分析' : generatingMode === 'ppt' ? 'PPT 投影片' : '...' }}...
             </span>
           </div>
 
@@ -356,6 +364,51 @@
                 <MindMap :tree="parsedMindmap" />
               </div>
             </div>
+
+            <!-- PPT -->
+            <div v-if="activeTab === 'ppt'">
+              <div v-if="!currentSession.ppt" class="text-center py-12 text-slate-400">
+                <p class="text-sm">尚未生成 PPT</p>
+                <button class="mt-2 text-xs text-orange-500 hover:underline" @click="showPptModal = true">生成 PPT</button>
+              </div>
+              <div v-else class="bg-white rounded-xl border border-slate-200 p-6">
+                <div class="flex items-center justify-between mb-4">
+                  <h3 class="text-sm font-bold text-slate-700">📊 投影片預覽</h3>
+                  <div class="flex items-center gap-2">
+                    <button
+                      class="text-xs text-slate-400 hover:text-orange-500 transition-colors"
+                      @click="showPptModal = true"
+                    >
+                      重新生成
+                    </button>
+                    <button
+                      class="px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white text-sm font-medium rounded-lg transition-colors"
+                      @click="downloadPpt"
+                    >
+                      ⬇️ 下載 PPT
+                    </button>
+                  </div>
+                </div>
+                <div class="space-y-2">
+                  <div
+                    v-for="(slide, i) in parsedPptSlides"
+                    :key="i"
+                    class="flex items-start gap-3 px-4 py-3 border border-slate-100 rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    <span class="shrink-0 w-7 h-7 flex items-center justify-center text-[10px] font-bold text-white bg-orange-400 rounded-md">{{ i + 1 }}</span>
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-2 mb-0.5">
+                        <span class="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded uppercase">{{ slide.layout }}</span>
+                        <span v-if="slide.chart_type" class="text-[10px] text-teal-500">📈 {{ slide.chart_type }}</span>
+                      </div>
+                      <p class="text-sm font-medium text-slate-700">{{ slide.title || slide.subtitle || '' }}</p>
+                      <p v-if="slide.bullets" class="text-xs text-slate-400 mt-0.5 truncate">{{ slide.bullets.join(' · ') }}</p>
+                      <p v-if="slide.headers" class="text-xs text-slate-400 mt-0.5 truncate">📋 {{ slide.headers.join(' | ') }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </main>
@@ -366,11 +419,99 @@
       source-type="teach"
       :source-meta="currentSession ? { sessionId: selectedId, title: currentSession.title } : {}"
     />
+
+    <!-- PPT 設定彈窗 -->
+    <Teleport to="body">
+      <div v-if="showPptModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showPptModal = false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h3 class="text-base font-bold text-slate-800">📊 PPT 生成設定</h3>
+            <button class="text-slate-400 hover:text-slate-600" @click="showPptModal = false">✕</button>
+          </div>
+          <div class="px-6 py-5 space-y-5">
+            <!-- 語言 -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-2">語言</label>
+              <div class="flex gap-2 flex-wrap">
+                <button
+                  v-for="opt in pptLanguageOptions"
+                  :key="opt.value"
+                  class="px-3 py-1.5 text-xs rounded-lg border transition-colors"
+                  :class="pptOptions.language === opt.value ? 'border-orange-400 bg-orange-50 text-orange-700 font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
+                  @click="pptOptions.language = opt.value"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
+            </div>
+            <!-- 對象 -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-2">對象</label>
+              <div class="flex gap-2 flex-wrap">
+                <button
+                  v-for="opt in pptAudienceOptions"
+                  :key="opt.value"
+                  class="px-3 py-1.5 text-xs rounded-lg border transition-colors"
+                  :class="pptOptions.audience === opt.value ? 'border-orange-400 bg-orange-50 text-orange-700 font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
+                  @click="pptOptions.audience = opt.value"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
+            </div>
+            <!-- 頁數 -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-2">頁數</label>
+              <div class="flex gap-2">
+                <button
+                  v-for="opt in pptLengthOptions"
+                  :key="opt.value"
+                  class="px-3 py-1.5 text-xs rounded-lg border transition-colors"
+                  :class="pptOptions.length === opt.value ? 'border-orange-400 bg-orange-50 text-orange-700 font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
+                  @click="pptOptions.length = opt.value"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
+            </div>
+            <!-- 風格 -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-2">風格</label>
+              <div class="flex gap-2 flex-wrap">
+                <button
+                  v-for="opt in pptStyleOptions"
+                  :key="opt.value"
+                  class="px-3 py-1.5 text-xs rounded-lg border transition-colors"
+                  :class="pptOptions.style === opt.value ? 'border-orange-400 bg-orange-50 text-orange-700 font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
+                  @click="pptOptions.style = opt.value"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
+            <button
+              class="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 transition-colors"
+              @click="showPptModal = false"
+            >
+              取消
+            </button>
+            <button
+              class="px-5 py-2 bg-orange-500 hover:bg-orange-400 text-white text-sm font-medium rounded-lg transition-colors"
+              @click="generatePpt"
+            >
+              🚀 開始生成
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { storage } from '../firebase.js'
@@ -382,6 +523,7 @@ import MindMap from '../components/MindMap.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
 import GuestLock from '../components/GuestLock.vue'
 import { useUserRole } from '../composables/useUserRole.js'
+import { buildAndDownloadPptx } from '../utils/pptxBuilder.js'
 
 const { isGuest } = useUserRole()
 
@@ -411,6 +553,34 @@ const isNewSession = ref(false)
 const inputMode = ref('text') // 'text' | 'file'
 const expandAll = ref(false)
 
+// PPT modal state
+const showPptModal = ref(false)
+const pptOptions = reactive({
+  language: 'zh-TW',
+  audience: 'doctor',
+  length: 'standard',
+  style: 'balanced',
+})
+const pptLanguageOptions = [
+  { value: 'zh-TW', label: '繁體中文' },
+  { value: 'en', label: 'English' },
+  { value: 'zh-mixed', label: '中文（病名藥名英文）' },
+]
+const pptAudienceOptions = [
+  { value: 'public', label: '一般民眾（衛教）' },
+  { value: 'staff', label: '專師/護理師/住院醫師' },
+  { value: 'doctor', label: '醫師（學術報告）' },
+]
+const pptLengthOptions = [
+  { value: 'brief', label: '精簡版 5-8 頁' },
+  { value: 'standard', label: '完整版 10-15 頁' },
+]
+const pptStyleOptions = [
+  { value: 'chart-heavy', label: '圖表為主' },
+  { value: 'text-heavy', label: '文字為主' },
+  { value: 'balanced', label: '均衡' },
+]
+
 // File upload state
 const uploadedFile = ref(null)
 const fileUrl = ref(null)
@@ -433,6 +603,7 @@ const contentTabs = computed(() => [
   { key: 'flashcards', label: 'Flashcards', icon: '🃏', ready: !!currentSession.value?.flashcards },
   { key: 'relation', label: '關聯分析', icon: '🔗', ready: !!currentSession.value?.relation },
   { key: 'mindmap', label: '心智圖', icon: '🧠', ready: !!currentSession.value?.mindmap },
+  { key: 'ppt', label: 'PPT', icon: '📊', ready: !!currentSession.value?.ppt },
 ])
 
 // 解析 flashcards JSON
@@ -618,6 +789,61 @@ async function regenOne(mode) {
   const url = currentSession.value.file_url || null
   await generate(selectedId.value, { text, fileUrl: url, mode })
   activeTab.value = mode
+}
+
+// === PPT ===
+const parsedPptSlides = computed(() => {
+  const raw = currentSession.value?.ppt
+  if (!raw) return []
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    return parsed.slides || []
+  } catch {
+    return []
+  }
+})
+
+async function generatePpt() {
+  showPptModal.value = false
+  if (!canGenerate.value && !currentSession.value) return
+
+  const title = sessionTitle.value.trim() || (uploadedFile.value?.name || sourceText.value.slice(0, 30)) + '…'
+
+  let sid = selectedId.value
+  if (sid === 'new') {
+    sid = await createSession({
+      title,
+      source_text: sourceText.value || '',
+      file_url: fileUrl.value || null,
+      file_name: uploadedFile.value?.name || null,
+    })
+    selectedId.value = sid
+  }
+
+  const text = isNewSession.value ? (sourceText.value || null) : (currentSession.value?.source_text || null)
+  const fUrl = isNewSession.value ? (fileUrl.value || null) : (currentSession.value?.file_url || null)
+
+  await generate(sid, {
+    text,
+    fileUrl: fUrl,
+    mode: 'ppt',
+    pptOptions: { ...pptOptions },
+  })
+  isNewSession.value = false
+  activeTab.value = 'ppt'
+}
+
+async function downloadPpt() {
+  const raw = currentSession.value?.ppt
+  if (!raw) return
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    const filename = (currentSession.value.title || 'NB-Teach') + '.pptx'
+    await buildAndDownloadPptx(parsed, filename)
+  } catch (err) {
+    console.error('PPT download error:', err)
+    alert('PPT 下載失敗：' + err.message)
+  }
 }
 
 function generateTitle(text) {
