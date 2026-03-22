@@ -1,6 +1,6 @@
 <template>
   <div>
-    <h2 class="text-lg font-bold text-slate-800 mb-1">💊 藥物資料庫搜尋</h2>
+    <h2 class="text-lg font-bold text-slate-800 mb-1">📦 藥物資料庫搜尋</h2>
     <p class="text-xs text-slate-400 mb-4">搜尋腎臟科常用藥物的劑量調整、交互作用與注意事項（零 AI 成本）。</p>
 
     <!-- Search input -->
@@ -141,18 +141,42 @@
       <div class="text-slate-400 text-sm">找不到藥物「{{ searchQuery }}」</div>
       <div class="text-xs text-slate-300 mt-1">可嘗試用英文名稱搜尋，或使用「劑量調整」模式透過 AI 查詢</div>
     </div>
+
+    <!-- All drugs (when no search) -->
+    <div v-if="!searched && !selectedDrug" class="space-y-2">
+      <div class="text-xs text-slate-500 mb-1">資料庫共 {{ allDrugs.length }} 種藥物：</div>
+      <button
+        v-for="drug in allDrugs"
+        :key="drug.drug_name_en"
+        class="w-full text-left px-4 py-3 bg-white border border-slate-200 rounded-lg hover:border-rose-300 hover:bg-rose-50 transition-colors"
+        @click="selectDrug(drug)"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-sm font-bold text-slate-800">{{ drug.drug_name_en }}</span>
+            <span class="text-sm text-slate-500 ml-2">{{ drug.drug_name_zh }}</span>
+          </div>
+          <span class="text-[10px] px-2 py-0.5 rounded-full" :class="drug.nephrotoxic ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'">
+            {{ drug.nephrotoxic ? '腎毒性' : '非腎毒性' }}
+          </span>
+        </div>
+        <div class="text-xs text-slate-400 mt-1">{{ drug.class_zh }} | 排除: {{ drug.elimination }}</div>
+      </button>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-
-const API_BASE = 'https://nephro-brain-api-761804517300.asia-east1.run.app'
+import { ref, computed } from 'vue'
+import drugDB from '../../../backend/drug_database.json'
 
 const searchQuery = ref('')
 const searchResults = ref([])
 const selectedDrug = ref(null)
 const searched = ref(false)
+
+// Build local drug list from imported JSON
+const allDrugs = computed(() => Object.values(drugDB))
 
 let debounceTimer = null
 
@@ -160,24 +184,31 @@ function debouncedSearch() {
   clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => {
     if (searchQuery.value.trim().length >= 2) doSearch()
-  }, 400)
+    else if (!searchQuery.value.trim()) { searched.value = false; searchResults.value = [] }
+  }, 300)
 }
 
-async function doSearch() {
-  const q = searchQuery.value.trim()
+function doSearch() {
+  const q = searchQuery.value.trim().toLowerCase()
   if (!q) return
 
   searched.value = true
   selectedDrug.value = null
 
-  try {
-    const res = await fetch(`${API_BASE}/drugs/search?q=${encodeURIComponent(q)}`)
-    const data = await res.json()
-    searchResults.value = data.drugs || []
-  } catch (e) {
-    console.error('Drug search error:', e)
-    searchResults.value = []
+  // Local search (instant, no API needed)
+  const results = []
+  for (const [key, drug] of Object.entries(drugDB)) {
+    if (
+      key.toLowerCase().includes(q) ||
+      (drug.drug_name_en || '').toLowerCase().includes(q) ||
+      (drug.drug_name_zh || '').includes(q) ||
+      (drug.class_zh || '').includes(q) ||
+      (drug.class_en || '').toLowerCase().includes(q)
+    ) {
+      results.push(drug)
+    }
   }
+  searchResults.value = results
 }
 
 function selectDrug(drug) {

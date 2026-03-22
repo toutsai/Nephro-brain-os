@@ -16,7 +16,11 @@
         <div class="text-[10px] text-slate-300 mt-1">{{ pw.version }}</div>
       </button>
 
-      <div v-if="!pathways.length && !pathwayLoading" class="col-span-full text-center py-6 text-sm text-slate-400">
+      <div v-if="pathwayError" class="col-span-full text-center py-6">
+        <div class="text-sm text-amber-600">{{ pathwayError }}</div>
+        <button class="mt-2 text-xs text-rose-500 hover:text-rose-700" @click="pathwayError = null; fetchPathways()">重試</button>
+      </div>
+      <div v-else-if="!pathways.length && !pathwayLoading" class="col-span-full text-center py-6 text-sm text-slate-400">
         載入中...
       </div>
     </div>
@@ -116,13 +120,17 @@ const interactiveResultEl = ref(null)
 
 onMounted(fetchPathways)
 
+const pathwayError = ref(null)
+
 async function fetchPathways() {
   try {
     const res = await fetch(`${API_BASE}/pathways/list`)
+    if (!res.ok) throw new Error(`API 回應 ${res.status}`)
     const data = await res.json()
     pathways.value = data.pathways || []
   } catch (e) {
     console.error('Fetch pathways error:', e)
+    pathwayError.value = '無法載入 Clinical Pathways（後端 API 可能尚未部署此端點）'
   }
 }
 
@@ -130,15 +138,18 @@ async function loadPathway(id) {
   pathwayLoading.value = true
   interactiveResult.value = null
   patientData.value = ''
+  pathwayError.value = null
 
   try {
     const res = await fetch(`${API_BASE}/pathways/${id}`)
+    if (!res.ok) throw new Error(`API 回應 ${res.status}`)
     const data = await res.json()
     selectedPathway.value = data
     await nextTick()
     renderMermaid()
   } catch (e) {
     console.error('Load pathway error:', e)
+    pathwayError.value = `無法載入路徑: ${e.message}`
   } finally {
     pathwayLoading.value = false
   }
