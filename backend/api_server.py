@@ -134,6 +134,10 @@ def _log_token_usage(response, model, feature):
         month_key = time.strftime("%Y-%m")
         doc_ref = db.collection("token_usage").document(month_key)
 
+        # 模型名稱含 "." (如 gemini-2.5-flash)，會被 Firestore dot-notation 誤解析為巢狀路徑
+        # 替換為 "_" 避免此問題
+        safe_model = model.replace(".", "_")
+
         # 確保 document 存在
         doc_ref.set({"month": month_key}, merge=True)
 
@@ -146,9 +150,9 @@ def _log_token_usage(response, model, feature):
             f"by_feature.{feature}.output": firestore.Increment(output_tokens),
             f"by_feature.{feature}.cost": firestore.Increment(cost),
             f"by_feature.{feature}.calls": firestore.Increment(1),
-            f"by_model.{model}.input": firestore.Increment(input_tokens),
-            f"by_model.{model}.output": firestore.Increment(output_tokens),
-            f"by_model.{model}.cost": firestore.Increment(cost),
+            f"by_model.{safe_model}.input": firestore.Increment(input_tokens),
+            f"by_model.{safe_model}.output": firestore.Increment(output_tokens),
+            f"by_model.{safe_model}.cost": firestore.Increment(cost),
             "updated_at": firestore.SERVER_TIMESTAMP,
         })
         print(f"  📊 Token usage: {input_tokens} in / {output_tokens} out → ${cost:.6f} ({feature}/{model})")
