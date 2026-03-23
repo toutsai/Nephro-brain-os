@@ -479,7 +479,8 @@ def search_drug(query):
 
 PROMPT_HEADER = """你是一位資深腎臟科主治醫師，崇尚實證醫學 (EBM)。
 全程使用繁體中文，醫學術語用「中文 (English)」格式。
-請用 Google Search 搜尋補充最新的指引和實證。"""
+請用 Google Search 搜尋補充最新的指引和實證。搜尋時優先查詢學術來源（PubMed、Google Scholar、KDIGO/KDOQI 指引、UpToDate、Cochrane Library、各醫學會官方指引），避免引用 Wikipedia、Reddit、一般健康資訊網站等非學術來源。
+引用文獻時，盡量以學術論文格式呈現（作者、標題、期刊、年份），例如：[Smith J, et al. Title. *Journal*. 2024](URL)。"""
 
 PROMPT_CONFIDENCE = """
 
@@ -723,10 +724,10 @@ def generate_answer(question):
 
 【要求】：
 1. 結構化回答：教科書觀點、最新實證、臨床指引、綜合建議
-2. 如果教科書和 PubMed 資料不足，請用 Google Search 搜尋補充最新證據
+2. 如果教科書和 PubMed 資料不足，請用 Google Search 搜尋補充最新證據。搜尋時優先查詢學術來源：PubMed、Google Scholar、KDIGO/KDOQI 指引、UpToDate、Cochrane Library、各醫學會官方指引。避免引用 Wikipedia、Reddit、一般健康資訊網站等非學術來源。
 3. 使用 Markdown 格式
 4. 醫學術語用「中文 (English)」格式
-5. 引用文獻時，必須在相關段落內以 Markdown 連結格式附上來源（例如 [文獻標題](URL)）。每個重要醫學主張都應有對應的參考來源。
+5. 引用文獻時，必須以學術論文引用格式呈現，包含作者、標題、期刊、年份。例如：「根據 Smith et al. 的研究 ([Smith J, et al. Title of paper. *Journal Name*. 2024](URL))」。每個重要醫學主張都應有對應的參考來源。
 6. 全程使用繁體中文
 
 【視覺化格式要求 — 務必遵守，這是最重要的規則】：
@@ -976,10 +977,10 @@ def ask_stream():
 
 【要求】：
 1. 結構化回答：教科書觀點、最新實證、臨床指引、綜合建議
-2. 如果教科書和 PubMed 資料不足，請用 Google Search 搜尋補充最新證據
+2. 如果教科書和 PubMed 資料不足，請用 Google Search 搜尋補充最新證據。搜尋時優先查詢學術來源：PubMed、Google Scholar、KDIGO/KDOQI 指引、UpToDate、Cochrane Library、各醫學會官方指引。避免引用 Wikipedia、Reddit、一般健康資訊網站等非學術來源。
 3. 使用 Markdown 格式
 4. 醫學術語用「中文 (English)」格式
-5. 引用文獻時，必須在相關段落內以 Markdown 連結格式附上來源（例如 [文獻標題](URL)）。每個重要醫學主張都應有對應的參考來源。
+5. 引用文獻時，必須以學術論文引用格式呈現，包含作者、標題、期刊、年份。例如：「根據 Smith et al. 的研究 ([Smith J, et al. Title of paper. *Journal Name*. 2024](URL))」。每個重要醫學主張都應有對應的參考來源。
 6. 全程使用繁體中文
 
 【視覺化格式要求】：
@@ -1046,14 +1047,63 @@ graph TD
                     if hasattr(candidate, 'grounding_metadata') and candidate.grounding_metadata:
                         grounding_meta = candidate.grounding_metadata
 
-            # 發送網路搜尋來源
+            # 發送網路搜尋來源（優先學術來源，過濾非學術網站）
             if grounding_meta and hasattr(grounding_meta, 'grounding_chunks') and grounding_meta.grounding_chunks:
+                # 學術來源域名白名單
+                ACADEMIC_DOMAINS = {
+                    'pubmed.ncbi.nlm.nih.gov', 'ncbi.nlm.nih.gov', 'scholar.google.com',
+                    'doi.org', 'nejm.org', 'thelancet.com', 'bmj.com', 'jamanetwork.com',
+                    'nature.com', 'springer.com', 'wiley.com', 'elsevier.com', 'sciencedirect.com',
+                    'cochranelibrary.com', 'uptodate.com', 'kidney-international.org',
+                    'kdigo.org', 'kidney.org', 'asn-online.org', 'era-online.org',
+                    'jasn.asnjournals.org', 'cjasn.asnjournals.org',
+                    'academic.oup.com', 'journals.lww.com', 'karger.com',
+                    'mdpi.com', 'frontiersin.org', 'hindawi.com', 'plos.org',
+                    'annals.org', 'acpjournals.org', 'ahajournals.org',
+                    'nih.gov', 'who.int', 'cdc.gov',
+                    'tsn.org.tw', 'nephrology.org',
+                }
+                # 非學術來源黑名單
+                NON_ACADEMIC_DOMAINS = {
+                    'wikipedia.org', 'reddit.com', 'quora.com', 'facebook.com',
+                    'twitter.com', 'x.com', 'youtube.com', 'tiktok.com',
+                    'healthline.com', 'webmd.com', 'mayoclinic.org',
+                    'medicalnewstoday.com', 'verywellhealth.com',
+                    'droracle.ai', 'zy91.com', 'dxy.cn',
+                    'revivemobileivs.com', 'criticalcaretime.com',
+                }
                 sources = []
                 seen = set()
                 for gc in grounding_meta.grounding_chunks:
                     if hasattr(gc, 'web') and gc.web and gc.web.uri and gc.web.uri not in seen:
                         seen.add(gc.web.uri)
-                        sources.append({'title': gc.web.title or '', 'url': gc.web.uri})
+                        uri = gc.web.uri
+                        # 解析域名，過濾非學術來源
+                        try:
+                            from urllib.parse import urlparse
+                            domain = urlparse(uri).hostname or ''
+                            # 取主域名（去掉 www.）
+                            domain_parts = domain.replace('www.', '').split('.')
+                            main_domain = '.'.join(domain_parts[-2:]) if len(domain_parts) >= 2 else domain
+                        except Exception:
+                            main_domain = ''
+                        # 跳過黑名單域名
+                        if main_domain in NON_ACADEMIC_DOMAINS:
+                            continue
+                        sources.append({'title': gc.web.title or '', 'url': uri})
+                # 排序：學術來源優先
+                def _academic_priority(s):
+                    try:
+                        from urllib.parse import urlparse
+                        d = urlparse(s['url']).hostname or ''
+                        d = d.replace('www.', '')
+                        for ad in ACADEMIC_DOMAINS:
+                            if d.endswith(ad):
+                                return 0
+                        return 1
+                    except Exception:
+                        return 1
+                sources.sort(key=_academic_priority)
                 if sources:
                     yield f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
 
