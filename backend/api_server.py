@@ -174,7 +174,43 @@ def classify_question_complexity(question):
     for kw in complex_keywords:
         if kw in question:
             score += 1
-    return "consult_complex" if score >= 2 else "consult_simple"
+    return "consult_complex" if score >= 3 else "consult_simple"
+
+
+# ---- 去識別化 (De-identification) ----
+# 在將病患資料送往雲端 LLM API 前，過濾 PII（個人可識別資訊）
+
+_PII_PATTERNS = [
+    # 台灣身分證字號（A123456789）
+    (re.compile(r'[A-Z][12]\d{8}'), '[身分證已隱藏]'),
+    # 居留證號（舊式 AB12345678 / 新式 A800000014）
+    (re.compile(r'[A-Z][A-Z89]\d{8}'), '[證號已隱藏]'),
+    # 病歷號（常見格式：數字 6~10 碼，前面帶「病歷號」字樣）
+    (re.compile(r'病歷號[：:\s]*[A-Za-z0-9\-]{4,15}'), '病歷號：[已隱藏]'),
+    # Chart No / MRN
+    (re.compile(r'(?:chart\s*no|MRN|medical\s*record)[.：:\s]*[A-Za-z0-9\-]{4,15}', re.IGNORECASE),
+     '[病歷號已隱藏]'),
+    # 電話號碼（台灣手機 09xx-xxx-xxx 或市話）
+    (re.compile(r'09\d{2}[\-\s]?\d{3}[\-\s]?\d{3}'), '[電話已隱藏]'),
+    (re.compile(r'0[2-8][\-\s]?\d{4}[\-\s]?\d{4}'), '[電話已隱藏]'),
+    # Email
+    (re.compile(r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}'), '[Email已隱藏]'),
+    # 地址（含「路/街/巷/弄/號/樓」的連續文字）
+    (re.compile(r'[\u4e00-\u9fff]{2,4}[縣市][\u4e00-\u9fff]{1,4}[區鄉鎮市][\u4e00-\u9fff\d\-]+[路街][\u4e00-\u9fff\d\-巷弄號樓之]*'),
+     '[地址已隱藏]'),
+    # 出生年月日（民國 or 西元，常見格式）
+    (re.compile(r'(?:生日|出生|DOB|birth)[：:\s]*[\d\-/\.年月日]+', re.IGNORECASE), '[出生日期已隱藏]'),
+]
+
+
+def anonymize_text(text):
+    """移除文字中的個人可識別資訊 (PII)，保留純醫療特徵"""
+    if not text:
+        return text
+    for pattern, replacement in _PII_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
+
 
 # OpenAI（僅用於舊端點，可選）
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -521,7 +557,7 @@ def generate_answer(question):
 【PubMed 文獻】
 {pubmed_ctx}
 
-【問題】：{question}
+【問題】：{anonymize_text(question)}
 
 【要求】：
 1. 結構化回答：教科書觀點、最新實證、臨床指引、綜合建議
@@ -772,7 +808,7 @@ def ask_stream():
 【PubMed 文獻】
 {pubmed_ctx}
 
-【問題】：{question}
+【問題】：{anonymize_text(question)}
 
 【要求】：
 1. 結構化回答：教科書觀點、最新實證、臨床指引、綜合建議
@@ -1334,7 +1370,7 @@ def _assist_clinical(scenario, images=None):
     contents = []
     contents.extend(_build_image_parts(images))
     if scenario:
-        contents.append(f"【臨床情境】\n{scenario}")
+        contents.append(f"【臨床情境】\n{anonymize_text(scenario)}")
     contents.append(prompt)
 
     model = get_model_for_task("assist_clinical")
@@ -1355,7 +1391,7 @@ def _assist_dose(data, images=None):
     egfr = data.get('egfr', '')
     ckd_stage = data.get('ckd_stage', '')
     weight = data.get('weight', '')
-    extra = data.get('extra', '')
+    extra = anonymize_text(data.get('extra', ''))
 
     if not drug and not images:
         return "❌ 請提供藥物名稱或上傳處方圖片。"
@@ -1493,7 +1529,7 @@ def _assist_lab(lab_data, images=None):
     contents = []
     contents.extend(_build_image_parts(images))
     if lab_data:
-        contents.append(f"【檢驗數據 / 臨床資訊】\n{lab_data}")
+        contents.append(f"【檢驗數據 / 臨床資訊】\n{anonymize_text(lab_data)}")
     contents.append(prompt)
 
     model = get_model_for_task("assist_lab")
@@ -1551,7 +1587,7 @@ def _assist_nhi(query_text, images=None):
     contents = []
     contents.extend(_build_image_parts(images))
     if query_text:
-        contents.append(f"【查詢內容】\n{query_text}")
+        contents.append(f"【查詢內容】\n{anonymize_text(query_text)}")
     contents.append(prompt)
 
     model = get_model_for_task("assist_nhi")
@@ -1610,7 +1646,7 @@ def _assist_interaction(drugs_text, images=None):
     contents = []
     contents.extend(_build_image_parts(images))
     if drugs_text:
-        contents.append(f"【藥物列表】\n{drugs_text}")
+        contents.append(f"【藥物列表】\n{anonymize_text(drugs_text)}")
     contents.append(prompt)
 
     model = get_model_for_task("assist_interaction")
@@ -1668,7 +1704,7 @@ def _assist_transplant(data, images=None):
     contents = []
     contents.extend(_build_image_parts(images))
     if question:
-        contents.append(f"【移植相關問題】\n{question}")
+        contents.append(f"【移植相關問題】\n{anonymize_text(question)}")
     contents.append(prompt)
 
     model = get_model_for_task("assist_transplant")
@@ -1740,7 +1776,7 @@ def _assist_pd(data, images=None):
     contents = []
     contents.extend(_build_image_parts(images))
     if question:
-        contents.append(f"【腹膜透析相關問題】\n{question}")
+        contents.append(f"【腹膜透析相關問題】\n{anonymize_text(question)}")
     contents.append(prompt)
 
     model = get_model_for_task("assist_pd")
@@ -2211,7 +2247,7 @@ def pathway_interactive(pathway_id):
 {steps_desc}
 
 【病人資料】:
-{patient_data}
+{anonymize_text(patient_data)}
 
 請根據病人資料，判斷此病人在這個 clinical pathway 中的位置，並提供建議：
 
