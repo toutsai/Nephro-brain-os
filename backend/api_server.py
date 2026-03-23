@@ -480,7 +480,8 @@ def search_drug(query):
 PROMPT_HEADER = """你是一位資深腎臟科主治醫師，崇尚實證醫學 (EBM)。
 全程使用繁體中文，醫學術語用「中文 (English)」格式。
 請用 Google Search 搜尋補充最新的指引和實證。搜尋時優先查詢學術來源（PubMed、Google Scholar、KDIGO/KDOQI 指引、UpToDate、Cochrane Library、各醫學會官方指引），避免引用 Wikipedia、Reddit、一般健康資訊網站等非學術來源。
-引用文獻時，盡量以學術論文格式呈現（作者、標題、期刊、年份），例如：[Smith J, et al. Title. *Journal*. 2024](URL)。"""
+引用文獻時，盡量以學術論文格式呈現（作者、標題、期刊、年份），並在每條文獻後附上 PubMed 連結（格式：https://pubmed.ncbi.nlm.nih.gov/PMID/）。
+回答末尾的「參考文獻」列表必須依年份由新到舊排序。"""
 
 PROMPT_CONFIDENCE = """
 
@@ -522,6 +523,13 @@ Mermaid 語法限制（務必遵守，否則會渲染失敗）：
   - 節點標籤放在方括號內，可以用中文，但標籤要簡短（10字以內）
   - 連接線用 --> 或 -->|標籤|
   - 禁止在標籤中使用這些符號：# / ≥ ≤ ² （ ） 「 」 ？
+
+■ 規則 4：參考文獻格式
+回答末尾必須列出「參考文獻 (References)」專區，格式要求：
+  - 依年份由新到舊排序
+  - 每條文獻格式：作者. 標題. *期刊名*. 年份;卷(期):頁碼. [PubMed](https://pubmed.ncbi.nlm.nih.gov/PMID/)
+  - 若該文獻有 PMID，務必附上 PubMed 連結；若為指引或無 PMID 的來源，附上官方 URL 即可
+  - 使用編號列表（1. 2. 3.）
 
 ■ 總原則：優先用視覺化方式呈現（卡片 + 表格 + 流程圖），減少純文字堆砌。如果回答中沒有摘要卡片，視為格式錯誤。"""
 
@@ -727,7 +735,7 @@ def generate_answer(question):
 2. 如果教科書和 PubMed 資料不足，請用 Google Search 搜尋補充最新證據。搜尋時優先查詢學術來源：PubMed、Google Scholar、KDIGO/KDOQI 指引、UpToDate、Cochrane Library、各醫學會官方指引。避免引用 Wikipedia、Reddit、一般健康資訊網站等非學術來源。
 3. 使用 Markdown 格式
 4. 醫學術語用「中文 (English)」格式
-5. 引用文獻時，必須以學術論文引用格式呈現，包含作者、標題、期刊、年份。例如：「根據 Smith et al. 的研究 ([Smith J, et al. Title of paper. *Journal Name*. 2024](URL))」。每個重要醫學主張都應有對應的參考來源。
+5. 引用文獻時，必須以學術論文引用格式呈現，包含作者、標題、期刊、年份，並附上 PubMed 連結。格式範例：「Smith J, et al. Title of paper. *Journal Name*. 2024;Volume(Issue):Pages. [PubMed](https://pubmed.ncbi.nlm.nih.gov/PMID/)」。每個重要醫學主張都應有對應的參考來源。回答末尾的參考文獻列表必須依年份由新到舊排序。
 6. 全程使用繁體中文
 
 【視覺化格式要求 — 務必遵守，這是最重要的規則】：
@@ -772,6 +780,13 @@ graph TD
   C --> E[評估透析時機]
   D --> F[每3個月追蹤]
 ```
+
+■ 規則 4：參考文獻格式
+回答末尾必須列出「參考文獻 (References)」專區，格式要求：
+  - 依年份由新到舊排序
+  - 每條文獻格式：作者. 標題. *期刊名*. 年份;卷(期):頁碼. [PubMed](https://pubmed.ncbi.nlm.nih.gov/PMID/)
+  - 若該文獻有 PMID，務必附上 PubMed 連結；若為指引或無 PMID 的來源，附上官方 URL 即可
+  - 使用編號列表（1. 2. 3.）
 
 ■ 總原則：優先用視覺化方式呈現（卡片 + 表格 + 流程圖），減少純文字堆砌。如果回答中沒有摘要卡片，視為格式錯誤。"""
 
@@ -980,7 +995,7 @@ def ask_stream():
 2. 如果教科書和 PubMed 資料不足，請用 Google Search 搜尋補充最新證據。搜尋時優先查詢學術來源：PubMed、Google Scholar、KDIGO/KDOQI 指引、UpToDate、Cochrane Library、各醫學會官方指引。避免引用 Wikipedia、Reddit、一般健康資訊網站等非學術來源。
 3. 使用 Markdown 格式
 4. 醫學術語用「中文 (English)」格式
-5. 引用文獻時，必須以學術論文引用格式呈現，包含作者、標題、期刊、年份。例如：「根據 Smith et al. 的研究 ([Smith J, et al. Title of paper. *Journal Name*. 2024](URL))」。每個重要醫學主張都應有對應的參考來源。
+5. 引用文獻時，必須以學術論文引用格式呈現，包含作者、標題、期刊、年份，並附上 PubMed 連結。格式範例：「Smith J, et al. Title of paper. *Journal Name*. 2024;Volume(Issue):Pages. [PubMed](https://pubmed.ncbi.nlm.nih.gov/PMID/)」。每個重要醫學主張都應有對應的參考來源。回答末尾的參考文獻列表必須依年份由新到舊排序。
 6. 全程使用繁體中文
 
 【視覺化格式要求】：
