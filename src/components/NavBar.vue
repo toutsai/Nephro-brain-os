@@ -8,6 +8,24 @@
         <span class="hidden md:inline text-[10px] text-slate-400 font-normal">腎臟科智慧中樞</span>
       </router-link>
 
+      <!-- Mobile: login/user status -->
+      <div class="sm:hidden flex items-center gap-1.5">
+        <template v-if="isLoggedIn">
+          <span class="text-[10px] text-emerald-400 bg-emerald-900/40 px-2 py-0.5 rounded-full">
+            {{ displayName }}
+          </span>
+          <button class="text-[10px] text-slate-500 hover:text-slate-300" @click="handleLogout">登出</button>
+        </template>
+        <template v-else>
+          <button
+            class="text-[10px] text-white bg-blue-600 hover:bg-blue-500 px-2.5 py-1 rounded-full transition-colors"
+            @click="showMobileLogin = !showMobileLogin"
+          >
+            {{ showMobileLogin ? '取消' : '登入' }}
+          </button>
+        </template>
+      </div>
+
       <!-- Desktop nav links -->
       <div class="hidden sm:flex items-center gap-1">
         <router-link
@@ -71,6 +89,32 @@
     </div>
   </nav>
 
+  <!-- Mobile login dropdown -->
+  <div v-if="showMobileLogin && !isLoggedIn" class="sm:hidden bg-slate-800 border-b border-slate-700 px-4 py-3 sticky top-11 z-30">
+    <form class="flex items-center gap-2" @submit.prevent="handleMobileLogin">
+      <input
+        v-model="email"
+        type="email"
+        placeholder="Email"
+        class="flex-1 px-3 py-1.5 text-xs bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      />
+      <input
+        v-model="password"
+        type="password"
+        placeholder="密碼"
+        class="w-24 px-3 py-1.5 text-xs bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      />
+      <button
+        type="submit"
+        :disabled="authLoading || !email || !password"
+        class="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 rounded-lg text-white disabled:opacity-40 transition-colors shrink-0"
+      >
+        {{ authLoading ? '...' : '登入' }}
+      </button>
+    </form>
+    <p v-if="loginError" class="text-[10px] text-red-400 mt-1.5">{{ loginError }}</p>
+  </div>
+
   <!-- Mobile bottom tab bar -->
   <div class="sm:hidden fixed bottom-0 inset-x-0 bg-slate-900 border-t border-slate-700 z-30" style="padding-bottom: env(safe-area-inset-bottom, 0px)">
     <div class="flex justify-around">
@@ -101,6 +145,7 @@ const { monthlyCostTWD } = useTokenUsage()
 const email = ref('')
 const password = ref('')
 const loginError = ref('')
+const showMobileLogin = ref(false)
 
 const navItems = [
   { path: '/insight', icon: '🔍', label: 'Insight' },
@@ -120,6 +165,18 @@ async function handleLogin() {
   if (result.success) {
     email.value = ''
     password.value = ''
+  } else {
+    loginError.value = result.error
+  }
+}
+
+async function handleMobileLogin() {
+  loginError.value = ''
+  const result = await login(email.value, password.value)
+  if (result.success) {
+    email.value = ''
+    password.value = ''
+    showMobileLogin.value = false
   } else {
     loginError.value = result.error
   }
