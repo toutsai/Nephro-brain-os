@@ -726,7 +726,7 @@ def generate_answer(question):
 2. 如果教科書和 PubMed 資料不足，請用 Google Search 搜尋補充最新證據
 3. 使用 Markdown 格式
 4. 醫學術語用「中文 (English)」格式
-5. 引用文獻時附上連結
+5. 引用文獻時，必須在相關段落內以 Markdown 連結格式附上來源（例如 [文獻標題](URL)）。每個重要醫學主張都應有對應的參考來源。
 6. 全程使用繁體中文
 
 【視覺化格式要求 — 務必遵守，這是最重要的規則】：
@@ -979,7 +979,7 @@ def ask_stream():
 2. 如果教科書和 PubMed 資料不足，請用 Google Search 搜尋補充最新證據
 3. 使用 Markdown 格式
 4. 醫學術語用「中文 (English)」格式
-5. 引用文獻時附上連結
+5. 引用文獻時，必須在相關段落內以 Markdown 連結格式附上來源（例如 [文獻標題](URL)）。每個重要醫學主張都應有對應的參考來源。
 6. 全程使用繁體中文
 
 【視覺化格式要求】：
@@ -1033,12 +1033,29 @@ graph TD
             )
 
             last_usage = None
+            grounding_meta = None
             for chunk in response:
                 if chunk.text:
                     yield f"data: {json.dumps({'type': 'content', 'content': chunk.text}, ensure_ascii=False)}\n\n"
                 # streaming 的 usage_metadata 通常在最後一個 chunk
                 if hasattr(chunk, 'usage_metadata') and chunk.usage_metadata:
                     last_usage = chunk.usage_metadata
+                # 收集 grounding metadata（Google Search 來源）
+                if hasattr(chunk, 'candidates') and chunk.candidates:
+                    candidate = chunk.candidates[0]
+                    if hasattr(candidate, 'grounding_metadata') and candidate.grounding_metadata:
+                        grounding_meta = candidate.grounding_metadata
+
+            # 發送網路搜尋來源
+            if grounding_meta and hasattr(grounding_meta, 'grounding_chunks') and grounding_meta.grounding_chunks:
+                sources = []
+                seen = set()
+                for gc in grounding_meta.grounding_chunks:
+                    if hasattr(gc, 'web') and gc.web and gc.web.uri and gc.web.uri not in seen:
+                        seen.add(gc.web.uri)
+                        sources.append({'title': gc.web.title or '', 'url': gc.web.uri})
+                if sources:
+                    yield f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
 
             _log_token_usage(response, model, "consult", meta=last_usage)
             yield "data: [DONE]\n\n"
