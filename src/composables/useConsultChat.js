@@ -156,6 +156,7 @@ export function useConsultChat() {
 
   // === SSE Streaming 發送問題 ===
   const streamingContent = ref('')
+  const streamingSources = ref([])
 
   async function sendQuestionStream(question) {
     if (!question.trim()) return
@@ -211,6 +212,8 @@ export function useConsultChat() {
             const parsed = JSON.parse(payload)
             if (parsed.type === 'content') {
               streamingContent.value += parsed.content
+            } else if (parsed.type === 'sources') {
+              streamingSources.value = parsed.sources || []
             } else if (parsed.type === 'error') {
               throw new Error(parsed.content)
             }
@@ -224,18 +227,29 @@ export function useConsultChat() {
 
       const finalAnswer = streamingContent.value || '❌ 無回應'
 
+      // 將網路搜尋來源附加到回答尾部
+      let contentToSave = finalAnswer
+      if (streamingSources.value.length > 0) {
+        contentToSave += '\n\n---\n\n**🔗 網路搜尋來源：**\n'
+        for (const s of streamingSources.value) {
+          contentToSave += `- [${s.title || s.url}](${s.url})\n`
+        }
+      }
+
       await addDoc(collection(db, 'chats', chatId, 'messages'), {
         role: 'assistant',
-        content: finalAnswer,
+        content: contentToSave,
         created_at: serverTimestamp(),
       })
 
       streamingContent.value = ''
+      streamingSources.value = []
       apiStatus.value = 'online'
     } catch (err) {
       console.error('Stream API error:', err)
       error.value = err.message
       streamingContent.value = ''
+      streamingSources.value = []
 
       await addDoc(collection(db, 'chats', chatId, 'messages'), {
         role: 'assistant',
@@ -328,6 +342,7 @@ export function useConsultChat() {
     apiStatus,
     knowledgeStats,
     streamingContent,
+    streamingSources,
     subscribeChats,
     selectChat,
     createChat,
