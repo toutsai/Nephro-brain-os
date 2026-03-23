@@ -4,7 +4,8 @@
     <div class="max-w-7xl mx-auto px-4 flex items-center justify-between h-11">
       <!-- Logo -->
       <router-link to="/" class="flex items-center gap-2 shrink-0">
-        <span class="text-sm font-bold tracking-tight">NB — OS</span>
+        <span class="text-sm font-bold tracking-tight">Nephro Brain OS</span>
+        <span class="hidden md:inline text-[10px] text-slate-400 font-normal">腎臟科智慧中樞</span>
       </router-link>
 
       <!-- Desktop nav links -->

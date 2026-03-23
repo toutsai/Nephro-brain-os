@@ -5,7 +5,7 @@
       <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
         <div class="flex items-center gap-3">
           <router-link to="/" class="hidden sm:block text-lg font-bold text-slate-800 hover:text-blue-600 transition-colors">
-            NB — OS
+            Nephro Brain OS
           </router-link>
           <span class="hidden sm:block text-slate-300">|</span>
           <div>
