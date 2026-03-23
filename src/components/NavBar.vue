@@ -23,20 +23,48 @@
         </router-link>
 
         <span class="ml-2 border-l border-slate-700 pl-2 flex items-center gap-1.5">
-          <span class="flex items-center gap-1">
+          <!-- 已登入 -->
+          <template v-if="isLoggedIn">
             <span class="text-[10px] text-emerald-400 bg-emerald-900/40 px-2 py-0.5 rounded-full">
               {{ displayName }}
             </span>
             <span v-if="isAdmin" class="text-[10px] text-amber-400 bg-amber-900/40 px-1.5 py-0.5 rounded-full">Admin</span>
             <button class="text-[10px] text-slate-500 hover:text-slate-300" @click="handleLogout">登出</button>
-          </span>
-          <router-link
-            to="/settings"
-            class="text-[10px] text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-full hover:bg-amber-900/50 transition-colors"
-            title="當月 API 費用"
-          >
-            NT${{ monthlyCostTWD }}
-          </router-link>
+            <router-link
+              to="/settings"
+              class="text-[10px] text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-full hover:bg-amber-900/50 transition-colors"
+              title="當月 API 費用"
+            >
+              NT${{ monthlyCostTWD }}
+            </router-link>
+          </template>
+
+          <!-- 未登入：帳密輸入框 -->
+          <template v-else>
+            <form class="flex items-center gap-1" @submit.prevent="handleLogin">
+              <input
+                v-model="email"
+                type="email"
+                placeholder="Email"
+                class="w-28 px-2 py-0.5 text-[10px] bg-slate-800 border border-slate-700 rounded text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <input
+                v-model="password"
+                type="password"
+                placeholder="密碼"
+                class="w-20 px-2 py-0.5 text-[10px] bg-slate-800 border border-slate-700 rounded text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <button
+                type="submit"
+                :disabled="authLoading || !email || !password"
+                class="px-2 py-0.5 text-[10px] bg-blue-600 hover:bg-blue-500 rounded text-white disabled:opacity-40 transition-colors"
+              >
+                {{ authLoading ? '...' : '登入' }}
+              </button>
+            </form>
+            <span v-if="loginError" class="text-[10px] text-red-400">{{ loginError }}</span>
+            <span v-else class="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full">訪客</span>
+          </template>
         </span>
       </div>
     </div>
@@ -60,14 +88,18 @@
 </template>
 
 <script setup>
-import { useRoute, useRouter } from 'vue-router'
+import { ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
 import { useTokenUsage } from '../composables/useTokenUsage.js'
 
 const route = useRoute()
-const router = useRouter()
-const { displayName, isAdmin, logout } = useAuth()
+const { displayName, isAdmin, isLoggedIn, login, logout, authLoading } = useAuth()
 const { monthlyCostTWD } = useTokenUsage()
+
+const email = ref('')
+const password = ref('')
+const loginError = ref('')
 
 const navItems = [
   { path: '/insight', icon: '🔍', label: 'Insight' },
@@ -81,8 +113,18 @@ function isActive(path) {
   return route.path === path
 }
 
+async function handleLogin() {
+  loginError.value = ''
+  const result = await login(email.value, password.value)
+  if (result.success) {
+    email.value = ''
+    password.value = ''
+  } else {
+    loginError.value = result.error
+  }
+}
+
 async function handleLogout() {
   await logout()
-  router.push('/login')
 }
 </script>

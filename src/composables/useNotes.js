@@ -47,8 +47,9 @@ export function useNotes() {
     )
   }
 
-  // 初始訂閱
+  // 初始訂閱 + 登入狀態變更時重新訂閱
   subscribe()
+  watch(uid, () => { subscribe() })
 
   // === 所有標籤（自動統計）===
   const allTags = computed(() => {

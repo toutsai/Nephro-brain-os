@@ -185,8 +185,10 @@
               </div>
             </div>
 
+            <GuestLock />
+
             <!-- Generate buttons -->
-            <div class="flex items-center gap-3 mt-3 flex-wrap">
+            <div v-if="isLoggedIn" class="flex items-center gap-3 mt-3 flex-wrap">
               <button
                 :disabled="!canGenerate || generating"
                 class="px-5 py-2.5 bg-orange-500 hover:bg-orange-400 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -535,7 +537,11 @@ import { renderMermaidIn } from '../composables/useMermaid.js'
 import FlashCard from '../components/FlashCard.vue'
 import MindMap from '../components/MindMap.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
+import GuestLock from '../components/GuestLock.vue'
+import { useAuth } from '../composables/useAuth.js'
 import { buildAndDownloadPptx } from '../utils/pptxBuilder.js'
+
+const { isLoggedIn } = useAuth()
 
 const {
   sessions,

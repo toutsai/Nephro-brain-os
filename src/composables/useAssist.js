@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { db } from '../firebase.js'
 import {
   collection,
@@ -49,6 +49,7 @@ export function useAssist() {
   }
 
   subscribe()
+  watch(uid, () => { subscribe() })
 
   // === 呼叫 API（支援文字 + 圖片）===
   async function queryAssist({ mode, payload, images }) {

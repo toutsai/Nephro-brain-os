@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { db } from '../firebase.js'
 import {
   collection,
@@ -42,6 +42,7 @@ export function useCollection() {
   }
 
   subscribe()
+  watch(uid, () => { subscribe() })
 
   const toggleSave = async (article) => {
     const docRef = doc(db, 'insight_collection', `${uid.value}_${article.id}`)

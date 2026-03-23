@@ -229,7 +229,8 @@
 
           <!-- Input bar -->
           <div class="px-4 py-3 bg-white border-t border-slate-200 shrink-0">
-            <div class="max-w-3xl mx-auto flex items-end gap-2">
+            <GuestLock />
+            <div v-if="isLoggedIn" class="max-w-3xl mx-auto flex items-end gap-2">
               <div class="flex-1 relative">
                 <textarea
                   ref="inputEl"
@@ -364,8 +365,12 @@ import { useBooks } from '../composables/useBooks.js'
 import ChatMessage from '../components/ChatMessage.vue'
 import BookCard from '../components/BookCard.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
+import GuestLock from '../components/GuestLock.vue'
+import { useAuth } from '../composables/useAuth.js'
 import { renderMd } from '../utils/renderMarkdown.js'
 import { renderMermaidIn } from '../composables/useMermaid.js'
+
+const { isLoggedIn } = useAuth()
 const router = useRouter()
 
 // === Chat ===

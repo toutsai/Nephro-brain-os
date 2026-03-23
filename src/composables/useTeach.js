@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { db } from '../firebase.js'
 import {
   collection,
@@ -51,6 +51,7 @@ export function useTeach() {
   }
 
   subscribe()
+  watch(uid, () => { subscribe() })
 
   // === 建立 Session ===
   async function createSession(data = {}) {

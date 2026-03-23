@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { db } from '../firebase.js'
 import {
   collection,
@@ -32,7 +32,12 @@ export function useConsultChat() {
 
   // === 聊天列表（只看自己的）===
   function subscribeChats() {
-    if (!uid.value) return
+    if (unsubChats) unsubChats()
+    if (!uid.value) {
+      chats.value = []
+      chatsLoading.value = false
+      return
+    }
     const q = query(
       collection(db, 'chats'),
       where('userId', '==', uid.value),
@@ -44,6 +49,9 @@ export function useConsultChat() {
       chatsLoading.value = false
     })
   }
+
+  // 使用者登入/登出時自動重新訂閱
+  watch(uid, () => { subscribeChats() })
 
   // === 訊息監聽 ===
   function subscribeMessages(chatId) {
