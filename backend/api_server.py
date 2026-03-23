@@ -10,7 +10,7 @@ Nephro Brain API Server v2 (重構版)
 from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 import firebase_admin
-from firebase_admin import credentials, firestore, storage
+from firebase_admin import credentials, firestore, storage, auth as firebase_auth
 from google import genai
 from google.genai import types
 import faiss
@@ -26,6 +26,7 @@ import re
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
+from functools import wraps
 import gc
 from datetime import datetime
 
@@ -258,6 +259,172 @@ try:
 except Exception as e:
     print(f"❌ Firebase 初始化失敗: {e}")
     print("  API 會啟動但資料庫功能不可用")
+
+
+# ============================================================
+# Firebase Auth — Token 驗證 & 權限裝飾器
+# ============================================================
+
+def verify_token(req):
+    """從 request header 取得並驗證 Firebase ID token，回傳 decoded token dict"""
+    auth_header = req.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return None
+    token = auth_header[7:]
+    try:
+        return firebase_auth.verify_id_token(token)
+    except Exception:
+        return None
+
+
+def require_auth(f):
+    """裝飾器：要求有效的 Firebase Auth token"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        decoded = verify_token(request)
+        if not decoded:
+            return jsonify({"error": "未授權，請先登入"}), 401
+        request.uid = decoded['uid']
+        request.user_email = decoded.get('email', '')
+        return f(*args, **kwargs)
+    return decorated
+
+
+def require_admin(f):
+    """裝飾器：要求 admin 權限（Firestore users collection 的 role 欄位）"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        decoded = verify_token(request)
+        if not decoded:
+            return jsonify({"error": "未授權，請先登入"}), 401
+        uid = decoded['uid']
+        # 查 Firestore users/{uid} 的 role
+        try:
+            user_doc = db.collection('users').document(uid).get()
+            if not user_doc.exists or user_doc.to_dict().get('role') != 'admin':
+                return jsonify({"error": "需要管理員權限"}), 403
+        except Exception:
+            return jsonify({"error": "權限驗證失敗"}), 500
+        request.uid = uid
+        request.user_email = decoded.get('email', '')
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ============================================================
+# Admin API 端點 — 帳號管理
+# ============================================================
+
+@app.route('/admin/users', methods=['GET'])
+@require_admin
+def admin_list_users():
+    """列出所有使用者"""
+    try:
+        users = []
+        page = firebase_auth.list_users()
+        for u in page.users:
+            user_doc = db.collection('users').document(u.uid).get()
+            profile = user_doc.to_dict() if user_doc.exists else {}
+            users.append({
+                'uid': u.uid,
+                'email': u.email,
+                'displayName': profile.get('displayName', u.email.split('@')[0] if u.email else ''),
+                'role': profile.get('role', 'user'),
+                'disabled': u.disabled,
+                'created_at': u.user_metadata.creation_timestamp,
+            })
+        return jsonify({"users": users})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/admin/users', methods=['POST'])
+@require_admin
+def admin_create_user():
+    """建立新使用者"""
+    data = request.get_json()
+    email = data.get('email', '').strip()
+    password = data.get('password', '').strip()
+    display_name = data.get('displayName', '').strip()
+    role = data.get('role', 'user')
+
+    if not email or not password:
+        return jsonify({"error": "Email 和密碼為必填"}), 400
+    if len(password) < 6:
+        return jsonify({"error": "密碼至少 6 碼"}), 400
+
+    try:
+        user_record = firebase_auth.create_user(email=email, password=password)
+        # 在 Firestore 建立 user profile
+        db.collection('users').document(user_record.uid).set({
+            'email': email,
+            'displayName': display_name or email.split('@')[0],
+            'role': role,
+            'created_at': firestore.SERVER_TIMESTAMP,
+        })
+        return jsonify({
+            "uid": user_record.uid,
+            "email": email,
+            "message": f"使用者 {email} 建立成功",
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/admin/users/<user_id>', methods=['DELETE'])
+@require_admin
+def admin_delete_user(user_id):
+    """刪除使用者"""
+    try:
+        firebase_auth.delete_user(user_id)
+        db.collection('users').document(user_id).delete()
+        return jsonify({"message": "使用者已刪除"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/admin/users/<user_id>/role', methods=['PUT'])
+@require_admin
+def admin_update_role(user_id):
+    """更新使用者角色"""
+    data = request.get_json()
+    role = data.get('role', 'user')
+    try:
+        db.collection('users').document(user_id).update({'role': role})
+        return jsonify({"message": f"角色已更新為 {role}"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/admin/migrate-data', methods=['POST'])
+@require_admin
+def admin_migrate_data():
+    """將所有沒有 userId 的舊資料歸給指定使用者"""
+    data = request.get_json()
+    target_uid = data.get('targetUid', request.uid)
+
+    collections_to_migrate = ['chats', 'notes', 'teach_sessions', 'assist_history', 'insight_collection']
+    migrated = {}
+
+    try:
+        for col_name in collections_to_migrate:
+            count = 0
+            docs = db.collection(col_name).where('userId', '==', None).stream()
+            for d in docs:
+                db.collection(col_name).document(d.id).update({'userId': target_uid})
+                count += 1
+            # 也處理沒有 userId 欄位的文件
+            all_docs = db.collection(col_name).stream()
+            for d in all_docs:
+                doc_data = d.to_dict()
+                if 'userId' not in doc_data:
+                    db.collection(col_name).document(d.id).update({'userId': target_uid})
+                    count += 1
+            migrated[col_name] = count
+        return jsonify({"message": "資料遷移完成", "migrated": migrated})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 # 全域變數（FAISS 向量索引）
 index = None
@@ -740,6 +907,7 @@ def get_monthly_usage():
 
 
 @app.route('/ask', methods=['POST'])
+@require_auth
 def ask():
     data = request.get_json()
     question = data.get('question', '')
@@ -766,6 +934,7 @@ def ask():
 # ============================================================
 
 @app.route('/ask-stream', methods=['POST'])
+@require_auth
 def ask_stream():
     """SSE streaming endpoint for NB Consult — 即時串流回答"""
     data = request.get_json()
@@ -897,6 +1066,7 @@ graph TD
 
 
 @app.route('/consult/chat-stream', methods=['POST'])
+@require_auth
 def consult_chat_stream():
     """SSE streaming alias"""
     return ask_stream()
@@ -944,6 +1114,7 @@ def stats():
 # ============================================================
 
 @app.route('/teach/generate', methods=['POST'])
+@require_auth
 def teach_generate():
     """NB Teach: 從文字或 PDF 生成摘要/Flashcards/關聯分析/心智圖"""
     data = request.get_json()
@@ -1278,6 +1449,7 @@ def build_ppt_prompt(options):
 ASSIST_DISCLAIMER = "\n\n---\n> ⚠️ **免責聲明**：以上建議由 AI 根據實證醫學資料生成，僅供臨床參考。實際治療決策應由主治醫師根據完整病歷資訊做出判斷。所有藥物劑量請以最新藥典和院內處方集為準。"
 
 @app.route('/assist/query', methods=['POST'])
+@require_auth
 def assist_query():
     """NB Assist: 臨床決策輔助（支援文字 + 圖片）"""
     data = request.get_json()
@@ -1970,6 +2142,7 @@ def search_pubmed_articles(query_text, years=5, max_results=5):
 
 
 @app.route('/fetch-journal-issue', methods=['POST'])
+@require_auth
 def fetch_journal_issue():
     data = request.get_json()
     journal_tag = data.get('journal', '')
@@ -2007,6 +2180,7 @@ def fetch_journal_issue():
 
 
 @app.route('/search-related', methods=['POST'])
+@require_auth
 def search_related():
     data = request.get_json()
     title = data.get('title', '')
@@ -2058,6 +2232,7 @@ def clean_bad_articles():
 
 
 @app.route('/generate-article-summary', methods=['POST'])
+@require_auth
 def generate_article_summary():
     data = request.get_json()
     pmid = data.get('pmid', '')
@@ -2219,6 +2394,7 @@ def pathway_detail(pathway_id):
 
 
 @app.route('/pathways/<pathway_id>/interactive', methods=['POST'])
+@require_auth
 def pathway_interactive(pathway_id):
     """互動式 pathway — 根據使用者輸入的參數，AI 解讀在 pathway 中的位置"""
     detail = get_pathway_detail(pathway_id)

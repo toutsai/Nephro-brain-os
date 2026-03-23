@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { db } from '../firebase.js'
 import {
   collection,
@@ -9,32 +9,47 @@ import {
   onSnapshot,
   query,
   orderBy,
+  where,
   serverTimestamp,
 } from 'firebase/firestore'
+import { useAuth } from './useAuth.js'
 
 export function useNotes() {
+  const { uid } = useAuth()
+
   const notes = ref([])
   const loading = ref(true)
   const searchQuery = ref('')
-  const activeTag = ref(null) // null = 全部
+  const activeTag = ref(null)
 
-  // 即時監聽 notes collection
-  const q = query(
-    collection(db, 'notes'),
-    orderBy('updated_at', 'desc')
-  )
+  let unsubscribe = null
 
-  const unsubscribe = onSnapshot(
-    q,
-    (snap) => {
-      notes.value = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-      loading.value = false
-    },
-    (err) => {
-      console.error('Notes snapshot error:', err)
-      loading.value = false
-    }
-  )
+  function subscribe() {
+    if (unsubscribe) unsubscribe()
+    if (!uid.value) return
+
+    const q = query(
+      collection(db, 'notes'),
+      where('userId', '==', uid.value),
+      orderBy('updated_at', 'desc')
+    )
+
+    unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        notes.value = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        loading.value = false
+      },
+      (err) => {
+        console.error('Notes snapshot error:', err)
+        loading.value = false
+      }
+    )
+  }
+
+  // 初始訂閱 + 登入狀態變更時重新訂閱
+  subscribe()
+  watch(uid, () => { subscribe() })
 
   // === 所有標籤（自動統計）===
   const allTags = computed(() => {
@@ -53,12 +68,10 @@ export function useNotes() {
   const filteredNotes = computed(() => {
     let result = notes.value
 
-    // 標籤篩選
     if (activeTag.value) {
       result = result.filter((n) => n.tags?.includes(activeTag.value))
     }
 
-    // 搜尋篩選
     if (searchQuery.value.trim()) {
       const q = searchQuery.value.toLowerCase()
       result = result.filter(
@@ -80,6 +93,7 @@ export function useNotes() {
       tags: data.tags || [],
       links: data.links || [],
       sources: data.sources || [],
+      userId: uid.value,
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
     })
@@ -94,7 +108,6 @@ export function useNotes() {
   }
 
   async function deleteNote(noteId) {
-    // 移除其他筆記中對此筆記的連結
     const linkedNotes = notes.value.filter((n) => n.links?.includes(noteId))
     for (const n of linkedNotes) {
       await updateDoc(doc(db, 'notes', n.id), {
@@ -112,7 +125,6 @@ export function useNotes() {
     const toNote = notes.value.find((n) => n.id === toId)
     if (!fromNote || !toNote) return
 
-    // 雙向加
     const fromLinks = [...new Set([...(fromNote.links || []), toId])]
     const toLinks = [...new Set([...(toNote.links || []), fromId])]
 
@@ -153,6 +165,7 @@ export function useNotes() {
         snippet: content.slice(0, 200),
         saved_at: new Date().toISOString(),
       }],
+      userId: uid.value,
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
     })
@@ -185,6 +198,6 @@ export function useNotes() {
     saveFromModule,
     getNoteById,
     getLinkedNotes,
-    unsubscribe,
+    unsubscribe: () => { if (unsubscribe) unsubscribe() },
   }
 }

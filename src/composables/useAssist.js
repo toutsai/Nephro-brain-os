@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { db } from '../firebase.js'
 import {
   collection,
@@ -8,35 +8,48 @@ import {
   onSnapshot,
   query,
   orderBy,
+  where,
   serverTimestamp,
   limit,
 } from 'firebase/firestore'
-
-const API_BASE = 'https://nephro-brain-api-761804517300.asia-east1.run.app'
+import { useAuth } from './useAuth.js'
 
 export function useAssist() {
+  const { uid, authFetch, API_BASE } = useAuth()
+
   const history = ref([])
   const loading = ref(true)
   const generating = ref(false)
   const error = ref(null)
 
-  const q = query(
-    collection(db, 'assist_history'),
-    orderBy('created_at', 'desc'),
-    limit(30)
-  )
+  let unsubscribe = null
 
-  const unsubscribe = onSnapshot(
-    q,
-    (snap) => {
-      history.value = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-      loading.value = false
-    },
-    (err) => {
-      console.error('Assist history error:', err)
-      loading.value = false
-    }
-  )
+  function subscribe() {
+    if (unsubscribe) unsubscribe()
+    if (!uid.value) return
+
+    const q = query(
+      collection(db, 'assist_history'),
+      where('userId', '==', uid.value),
+      orderBy('created_at', 'desc'),
+      limit(30)
+    )
+
+    unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        history.value = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        loading.value = false
+      },
+      (err) => {
+        console.error('Assist history error:', err)
+        loading.value = false
+      }
+    )
+  }
+
+  subscribe()
+  watch(uid, () => { subscribe() })
 
   // === 呼叫 API（支援文字 + 圖片）===
   async function queryAssist({ mode, payload, images }) {
@@ -46,14 +59,12 @@ export function useAssist() {
     try {
       const body = { mode, ...payload }
 
-      // 圖片轉 base64 array
       if (images && images.length > 0) {
-        body.images = images // [{ data: base64, mime_type: "image/jpeg" }, ...]
+        body.images = images
       }
 
-      const res = await fetch(`${API_BASE}/assist/query`, {
+      const res = await authFetch(`${API_BASE}/assist/query`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
 
@@ -64,13 +75,13 @@ export function useAssist() {
 
       const data = await res.json()
 
-      // 存到 Firestore（不存圖片 base64，太大）
       const docRef = await addDoc(collection(db, 'assist_history'), {
         mode,
         input: payload,
         has_images: !!(images && images.length),
         image_count: images ? images.length : 0,
         result: data.result,
+        userId: uid.value,
         created_at: serverTimestamp(),
       })
 
@@ -88,7 +99,6 @@ export function useAssist() {
     await deleteDoc(doc(db, 'assist_history', id))
   }
 
-  // === 圖片轉 base64 工具 ===
   function fileToBase64(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
@@ -109,6 +119,6 @@ export function useAssist() {
     queryAssist,
     deleteHistory,
     fileToBase64,
-    unsubscribe,
+    unsubscribe: () => { if (unsubscribe) unsubscribe() },
   }
 }
