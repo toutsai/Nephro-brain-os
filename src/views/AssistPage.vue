@@ -425,7 +425,7 @@ import AssistPD from '../components/assist/AssistPD.vue'
 import { renderMd } from '../utils/renderMarkdown.js'
 import { renderMermaidIn } from '../composables/useMermaid.js'
 
-const { isLoggedIn } = useAuth()
+const { isLoggedIn, uid } = useAuth()
 
 const {
   history,
@@ -614,6 +614,7 @@ async function saveToNotes() {
       tags: ['Assist', activeMode.value],
       links: [],
       sources: [{ type: 'assist', mode: activeMode.value, saved_at: new Date().toISOString() }],
+      userId: uid.value,
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
     })

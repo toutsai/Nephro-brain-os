@@ -370,7 +370,7 @@ import { useAuth } from '../composables/useAuth.js'
 import { renderMd } from '../utils/renderMarkdown.js'
 import { renderMermaidIn } from '../composables/useMermaid.js'
 
-const { isLoggedIn } = useAuth()
+const { isLoggedIn, uid } = useAuth()
 const router = useRouter()
 
 // === Chat ===
@@ -515,6 +515,7 @@ async function saveFullReplyToNotes(content) {
         snippet: content.slice(0, 200),
         saved_at: new Date().toISOString(),
       }],
+      userId: uid.value,
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
     })

@@ -64,13 +64,16 @@ import {
   addDoc,
   updateDoc,
   query,
+  where,
   orderBy,
   limit,
   getDocs,
   serverTimestamp,
 } from 'firebase/firestore'
+import { useAuth } from '../composables/useAuth.js'
 
 const router = useRouter()
+const { uid } = useAuth()
 
 const props = defineProps({
   // 來源類型：'insight' | 'consult' | 'teach'
@@ -135,9 +138,11 @@ function handleMouseDown(e) {
 
 // 載入最近的筆記（for 「加到現有筆記」）
 async function loadRecentNotes() {
+  if (!uid.value) return
   try {
     const q = query(
       collection(db, 'notes'),
+      where('userId', '==', uid.value),
       orderBy('updated_at', 'desc'),
       limit(10)
     )
@@ -168,6 +173,7 @@ async function saveToNotes() {
       tags: suggestTags(selectedText.value),
       links: [],
       sources: [source],
+      userId: uid.value,
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
     })
