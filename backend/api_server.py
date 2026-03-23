@@ -409,15 +409,10 @@ def admin_migrate_data():
     try:
         for col_name in collections_to_migrate:
             count = 0
-            docs = db.collection(col_name).where('userId', '==', None).stream()
-            for d in docs:
-                db.collection(col_name).document(d.id).update({'userId': target_uid})
-                count += 1
-            # 也處理沒有 userId 欄位的文件
             all_docs = db.collection(col_name).stream()
             for d in all_docs:
                 doc_data = d.to_dict()
-                if 'userId' not in doc_data:
+                if not doc_data.get('userId'):
                     db.collection(col_name).document(d.id).update({'userId': target_uid})
                     count += 1
             migrated[col_name] = count
