@@ -9,36 +9,48 @@ import {
   onSnapshot,
   query,
   orderBy,
+  where,
   serverTimestamp,
   limit,
 } from 'firebase/firestore'
-
-const API_BASE = 'https://nephro-brain-api-761804517300.asia-east1.run.app'
+import { useAuth } from './useAuth.js'
 
 export function useTeach() {
+  const { uid, authFetch, API_BASE } = useAuth()
+
   const sessions = ref([])
   const loading = ref(true)
   const generating = ref(false)
   const generatingMode = ref(null)
   const error = ref(null)
 
-  const q = query(
-    collection(db, 'teach_sessions'),
-    orderBy('created_at', 'desc'),
-    limit(30)
-  )
+  let unsubscribe = null
 
-  const unsubscribe = onSnapshot(
-    q,
-    (snap) => {
-      sessions.value = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-      loading.value = false
-    },
-    (err) => {
-      console.error('Teach sessions error:', err)
-      loading.value = false
-    }
-  )
+  function subscribe() {
+    if (unsubscribe) unsubscribe()
+    if (!uid.value) return
+
+    const q = query(
+      collection(db, 'teach_sessions'),
+      where('userId', '==', uid.value),
+      orderBy('created_at', 'desc'),
+      limit(30)
+    )
+
+    unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        sessions.value = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        loading.value = false
+      },
+      (err) => {
+        console.error('Teach sessions error:', err)
+        loading.value = false
+      }
+    )
+  }
+
+  subscribe()
 
   // === 建立 Session ===
   async function createSession(data = {}) {
@@ -52,13 +64,14 @@ export function useTeach() {
       relation: null,
       mindmap: null,
       ppt: null,
+      userId: uid.value,
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
     })
     return docRef.id
   }
 
-  // === 呼叫 API 生成（支援文字或 PDF URL）===
+  // === 呼叫 API 生成 ===
   async function generate(sessionId, { text, fileUrl, mode, pptOptions }) {
     generating.value = true
     generatingMode.value = mode
@@ -75,9 +88,8 @@ export function useTeach() {
         body.ppt_options = pptOptions
       }
 
-      const res = await fetch(`${API_BASE}/teach/generate`, {
+      const res = await authFetch(`${API_BASE}/teach/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
 
@@ -123,6 +135,6 @@ export function useTeach() {
     createSession,
     generate,
     deleteSession,
-    unsubscribe,
+    unsubscribe: () => { if (unsubscribe) unsubscribe() },
   }
 }

@@ -169,7 +169,7 @@
             <ImageUploader v-model="clinicalImages" :to-base64="fileToBase64" class="mt-3" />
 
             <button
-              :disabled="(!clinicalInput.trim() && !clinicalImages.length) || generating || isGuest()"
+              :disabled="(!clinicalInput.trim() && !clinicalImages.length) || generating"
               class="mt-3 px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               @click="submitClinical"
             >
@@ -237,7 +237,7 @@
             <ImageUploader v-model="doseImages" :to-base64="fileToBase64" class="mb-3" />
 
             <button
-              :disabled="(!doseDrug.trim() && !doseImages.length) || generating || isGuest()"
+              :disabled="(!doseDrug.trim() && !doseImages.length) || generating"
               class="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               @click="submitDose"
             >
@@ -263,7 +263,7 @@ Ca 7.8, P 6.5, Albumin 2.8..."
             <ImageUploader v-model="labImages" :to-base64="fileToBase64" class="mt-3" />
 
             <button
-              :disabled="(!labInput.trim() && !labImages.length) || generating || isGuest()"
+              :disabled="(!labInput.trim() && !labImages.length) || generating"
               class="mt-3 px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               @click="submitLab"
             >
@@ -290,7 +290,7 @@ Ca 7.8, P 6.5, Albumin 2.8..."
             <ImageUploader v-model="nhiImages" :to-base64="fileToBase64" class="mt-3" />
 
             <button
-              :disabled="(!nhiInput.trim() && !nhiImages.length) || generating || isGuest()"
+              :disabled="(!nhiInput.trim() && !nhiImages.length) || generating"
               class="mt-3 px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               @click="submitNhi"
             >
@@ -321,7 +321,7 @@ Dapagliflozin 10mg
             <ImageUploader v-model="interactionImages" :to-base64="fileToBase64" class="mt-3" />
 
             <button
-              :disabled="(!interactionInput.trim() && !interactionImages.length) || generating || isGuest()"
+              :disabled="(!interactionInput.trim() && !interactionImages.length) || generating"
               class="mt-3 px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               @click="submitInteraction"
             >
@@ -362,8 +362,6 @@ Dapagliflozin 10mg
             <AssistPathway />
           </div>
 
-          <!-- ============ Guest Lock ============ -->
-          <GuestLock />
 
           <!-- ============ Generating ============ -->
           <div v-if="generating" class="mt-6 flex items-center gap-3 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl">
@@ -414,17 +412,13 @@ import { db } from '../firebase.js'
 import { useAssist } from '../composables/useAssist.js'
 import ImageUploader from '../components/ImageUploader.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
-import GuestLock from '../components/GuestLock.vue'
 import AssistCalculator from '../components/assist/AssistCalculator.vue'
 import AssistDrugSearch from '../components/assist/AssistDrugSearch.vue'
 import AssistPathway from '../components/assist/AssistPathway.vue'
 import AssistTransplant from '../components/assist/AssistTransplant.vue'
 import AssistPD from '../components/assist/AssistPD.vue'
-import { useUserRole } from '../composables/useUserRole.js'
 import { renderMd } from '../utils/renderMarkdown.js'
 import { renderMermaidIn } from '../composables/useMermaid.js'
-
-const { isGuest } = useUserRole()
 
 const {
   history,

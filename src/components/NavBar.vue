@@ -23,13 +23,14 @@
         </router-link>
 
         <span class="ml-2 border-l border-slate-700 pl-2 flex items-center gap-1.5">
-          <span v-if="role === 'pro'" class="flex items-center gap-1">
-            <span class="text-[10px] text-emerald-400 bg-emerald-900/40 px-2 py-0.5 rounded-full">PRO</span>
-            <button class="text-[10px] text-slate-500 hover:text-slate-300" @click="logout">登出</button>
+          <span class="flex items-center gap-1">
+            <span class="text-[10px] text-emerald-400 bg-emerald-900/40 px-2 py-0.5 rounded-full">
+              {{ displayName }}
+            </span>
+            <span v-if="isAdmin" class="text-[10px] text-amber-400 bg-amber-900/40 px-1.5 py-0.5 rounded-full">Admin</span>
+            <button class="text-[10px] text-slate-500 hover:text-slate-300" @click="handleLogout">登出</button>
           </span>
-          <span v-else class="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full">訪客</span>
           <router-link
-            v-if="role === 'pro'"
             to="/settings"
             class="text-[10px] text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-full hover:bg-amber-900/50 transition-colors"
             title="當月 API 費用"
@@ -59,12 +60,13 @@
 </template>
 
 <script setup>
-import { useRoute } from 'vue-router'
-import { useUserRole } from '../composables/useUserRole.js'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuth } from '../composables/useAuth.js'
 import { useTokenUsage } from '../composables/useTokenUsage.js'
 
 const route = useRoute()
-const { role, logout } = useUserRole()
+const router = useRouter()
+const { displayName, isAdmin, logout } = useAuth()
 const { monthlyCostTWD } = useTokenUsage()
 
 const navItems = [
@@ -77,5 +79,10 @@ const navItems = [
 
 function isActive(path) {
   return route.path === path
+}
+
+async function handleLogout() {
+  await logout()
+  router.push('/login')
 }
 </script>

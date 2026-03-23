@@ -10,14 +10,15 @@ import {
   onSnapshot,
   query,
   orderBy,
+  where,
   serverTimestamp,
   limit,
 } from 'firebase/firestore'
-
-// Cloud Run API（nephro-brain-web 的 api_server.py）
-const API_BASE = 'https://nephro-brain-api-761804517300.asia-east1.run.app'
+import { useAuth } from './useAuth.js'
 
 export function useConsultChat() {
+  const { uid, authFetch, API_BASE } = useAuth()
+
   const chats = ref([])
   const currentChatId = ref(null)
   const messages = ref([])
@@ -29,10 +30,12 @@ export function useConsultChat() {
   let unsubChats = null
   let unsubMessages = null
 
-  // === 聊天列表 ===
+  // === 聊天列表（只看自己的）===
   function subscribeChats() {
+    if (!uid.value) return
     const q = query(
       collection(db, 'chats'),
+      where('userId', '==', uid.value),
       orderBy('updated_at', 'desc'),
       limit(50)
     )
@@ -69,6 +72,7 @@ export function useConsultChat() {
   async function createChat(title = '新對話') {
     const docRef = await addDoc(collection(db, 'chats'), {
       title,
+      userId: uid.value,
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
       message_count: 0,
@@ -91,32 +95,27 @@ export function useConsultChat() {
     if (!question.trim()) return
     error.value = null
 
-    // 如果沒有 chat，先建一個
     let chatId = currentChatId.value
     if (!chatId) {
       const title = question.length > 20 ? question.slice(0, 20) + '…' : question
       chatId = await createChat(title)
     }
 
-    // 1. 存使用者訊息
     await addDoc(collection(db, 'chats', chatId, 'messages'), {
       role: 'user',
       content: question,
       created_at: serverTimestamp(),
     })
 
-    // 更新 chat metadata
     await updateDoc(doc(db, 'chats', chatId), {
       updated_at: serverTimestamp(),
       last_message: question.slice(0, 60),
     })
 
-    // 2. 呼叫 Cloud Run API
     answering.value = true
     try {
-      const res = await fetch(`${API_BASE}/ask`, {
+      const res = await authFetch(`${API_BASE}/ask`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question }),
       })
 
@@ -125,14 +124,12 @@ export function useConsultChat() {
       const data = await res.json()
       const answer = data.answer || '❌ 無回應'
 
-      // 3. 存 AI 回覆
       await addDoc(collection(db, 'chats', chatId, 'messages'), {
         role: 'assistant',
         content: answer,
         created_at: serverTimestamp(),
       })
 
-      // 問答成功 → API 確認在線
       apiStatus.value = 'online'
     } catch (err) {
       console.error('Ask API error:', err)
@@ -156,34 +153,29 @@ export function useConsultChat() {
     if (!question.trim()) return
     error.value = null
 
-    // 如果沒有 chat，先建一個
     let chatId = currentChatId.value
     if (!chatId) {
       const title = question.length > 20 ? question.slice(0, 20) + '…' : question
       chatId = await createChat(title)
     }
 
-    // 1. 存使用者訊息
     await addDoc(collection(db, 'chats', chatId, 'messages'), {
       role: 'user',
       content: question,
       created_at: serverTimestamp(),
     })
 
-    // 更新 chat metadata
     await updateDoc(doc(db, 'chats', chatId), {
       updated_at: serverTimestamp(),
       last_message: question.slice(0, 60),
     })
 
-    // 2. 呼叫 SSE streaming API
     answering.value = true
     streamingContent.value = ''
 
     try {
-      const res = await fetch(`${API_BASE}/consult/chat-stream`, {
+      const res = await authFetch(`${API_BASE}/consult/chat-stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question }),
       })
 
@@ -214,7 +206,6 @@ export function useConsultChat() {
             } else if (parsed.type === 'error') {
               throw new Error(parsed.content)
             }
-            // status type: 可用於顯示搜尋進度
           } catch (parseErr) {
             if (parseErr.message && !parseErr.message.includes('JSON')) {
               throw parseErr
@@ -225,7 +216,6 @@ export function useConsultChat() {
 
       const finalAnswer = streamingContent.value || '❌ 無回應'
 
-      // 3. 存 AI 回覆到 Firestore
       await addDoc(collection(db, 'chats', chatId, 'messages'), {
         role: 'assistant',
         content: finalAnswer,
@@ -246,11 +236,9 @@ export function useConsultChat() {
         is_error: true,
       })
 
-      // Fallback to non-streaming
       try {
-        const fallbackRes = await fetch(`${API_BASE}/ask`, {
+        const fallbackRes = await authFetch(`${API_BASE}/ask`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ question }),
         })
         if (fallbackRes.ok) {
@@ -271,10 +259,9 @@ export function useConsultChat() {
     }
   }
 
-  // === API 狀態檢查（更穩健：多種方式判定）===
-  const apiStatus = ref(null) // 'online' | 'offline' | null
+  // === API 狀態檢查 ===
+  const apiStatus = ref(null)
   async function checkApiHealth() {
-    // 先試 /health
     try {
       const res = await fetch(`${API_BASE}/health`, {
         signal: AbortSignal.timeout(8000),
@@ -286,7 +273,6 @@ export function useConsultChat() {
         return data
       }
     } catch {
-      // /health 失敗，改試 /stats（GET 請求，舊版 API 也支援）
       try {
         const res = await fetch(`${API_BASE}/stats`, {
           signal: AbortSignal.timeout(15000),
@@ -318,7 +304,6 @@ export function useConsultChat() {
     }
   }
 
-  // === 清理 ===
   function cleanup() {
     if (unsubChats) unsubChats()
     if (unsubMessages) unsubMessages()

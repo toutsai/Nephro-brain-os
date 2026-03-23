@@ -185,47 +185,45 @@
               </div>
             </div>
 
-            <GuestLock />
-
             <!-- Generate buttons -->
             <div class="flex items-center gap-3 mt-3 flex-wrap">
               <button
-                :disabled="!canGenerate || generating || isGuest()"
+                :disabled="!canGenerate || generating"
                 class="px-5 py-2.5 bg-orange-500 hover:bg-orange-400 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 @click="generateAll"
               >
                 {{ generating ? '生成中...' : '🚀 一鍵生成全部' }}
               </button>
               <button
-                :disabled="!canGenerate || generating || isGuest()"
+                :disabled="!canGenerate || generating"
                 class="px-4 py-2.5 border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-40"
                 @click="generateOne('summary')"
               >
                 📋 只要摘要
               </button>
               <button
-                :disabled="!canGenerate || generating || isGuest()"
+                :disabled="!canGenerate || generating"
                 class="px-4 py-2.5 border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-40"
                 @click="generateOne('flashcards')"
               >
                 🃏 只要卡片
               </button>
               <button
-                :disabled="!canGenerate || generating || isGuest()"
+                :disabled="!canGenerate || generating"
                 class="px-4 py-2.5 border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-40"
                 @click="generateOne('relation')"
               >
                 🔗 只要關聯分析
               </button>
               <button
-                :disabled="!canGenerate || generating || isGuest()"
+                :disabled="!canGenerate || generating"
                 class="px-4 py-2.5 border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-40"
                 @click="generateOne('mindmap')"
               >
                 🧠 只要心智圖
               </button>
               <button
-                :disabled="!canGenerate || generating || isGuest()"
+                :disabled="!canGenerate || generating"
                 class="px-4 py-2.5 border border-orange-300 text-sm text-orange-600 hover:bg-orange-50 rounded-lg transition-colors disabled:opacity-40"
                 @click="showPptModal = true"
               >
@@ -537,11 +535,7 @@ import { renderMermaidIn } from '../composables/useMermaid.js'
 import FlashCard from '../components/FlashCard.vue'
 import MindMap from '../components/MindMap.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
-import GuestLock from '../components/GuestLock.vue'
-import { useUserRole } from '../composables/useUserRole.js'
 import { buildAndDownloadPptx } from '../utils/pptxBuilder.js'
-
-const { isGuest } = useUserRole()
 
 const {
   sessions,

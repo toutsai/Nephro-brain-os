@@ -117,14 +117,189 @@
         統計月份：{{ monthKey }}
       </div>
     </template>
+
+    <!-- ============ Admin Panel ============ -->
+    <template v-if="isAdmin">
+      <div class="border-t border-slate-200 pt-6">
+        <h2 class="text-lg font-bold text-slate-800 mb-4">管理員面板</h2>
+
+        <!-- 新增使用者 -->
+        <div class="bg-white rounded-xl border p-4 mb-4">
+          <h3 class="text-sm font-semibold text-slate-700 mb-3">新增使用者</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <input
+              v-model="newUser.email"
+              type="email"
+              placeholder="Email"
+              class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              v-model="newUser.password"
+              type="text"
+              placeholder="密碼（至少 6 碼）"
+              class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              v-model="newUser.displayName"
+              type="text"
+              placeholder="顯示名稱"
+              class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div class="flex items-center gap-2 mt-2">
+            <select v-model="newUser.role" class="border border-slate-200 rounded-lg px-3 py-2 text-sm">
+              <option value="user">一般使用者</option>
+              <option value="admin">管理員</option>
+            </select>
+            <button
+              :disabled="!newUser.email || !newUser.password || adminLoading"
+              class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg disabled:opacity-40 transition-colors"
+              @click="createUser"
+            >
+              {{ adminLoading ? '建立中...' : '建立帳號' }}
+            </button>
+          </div>
+          <p v-if="adminMsg" class="text-xs mt-2" :class="adminError ? 'text-red-500' : 'text-emerald-600'">
+            {{ adminMsg }}
+          </p>
+        </div>
+
+        <!-- 使用者列表 -->
+        <div class="bg-white rounded-xl border p-4 mb-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-slate-700">使用者列表</h3>
+            <button
+              class="text-xs text-blue-500 hover:text-blue-700"
+              @click="fetchUsers"
+            >
+              重新整理
+            </button>
+          </div>
+          <div v-if="users.length === 0" class="text-sm text-slate-400">尚無使用者資料</div>
+          <div v-else class="space-y-2">
+            <div
+              v-for="u in users"
+              :key="u.uid"
+              class="flex items-center justify-between py-2 px-3 bg-slate-50 rounded-lg"
+            >
+              <div>
+                <span class="text-sm font-medium text-slate-700">{{ u.displayName }}</span>
+                <span class="text-xs text-slate-400 ml-2">{{ u.email }}</span>
+                <span
+                  v-if="u.role === 'admin'"
+                  class="ml-2 text-[10px] text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full"
+                >Admin</span>
+              </div>
+              <button
+                v-if="u.uid !== uid"
+                class="text-xs text-red-400 hover:text-red-600"
+                @click="deleteUser(u.uid, u.email)"
+              >
+                刪除
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 資料遷移 -->
+        <div class="bg-white rounded-xl border p-4">
+          <h3 class="text-sm font-semibold text-slate-700 mb-2">舊資料遷移</h3>
+          <p class="text-xs text-slate-400 mb-2">將所有沒有 userId 的舊資料歸給你的帳號</p>
+          <button
+            :disabled="adminLoading"
+            class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm rounded-lg disabled:opacity-40 transition-colors"
+            @click="migrateData"
+          >
+            {{ adminLoading ? '遷移中...' : '執行遷移' }}
+          </button>
+          <p v-if="migrateMsg" class="text-xs text-emerald-600 mt-2">{{ migrateMsg }}</p>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useTokenUsage } from '../composables/useTokenUsage.js'
+import { useAuth } from '../composables/useAuth.js'
 
 const { monthlyData, monthlyCostTWD, USD_TO_TWD, loading, monthKey } = useTokenUsage()
+const { isAdmin, uid, authFetch, API_BASE } = useAuth()
+
+// === Admin state ===
+const users = ref([])
+const adminLoading = ref(false)
+const adminMsg = ref('')
+const adminError = ref(false)
+const migrateMsg = ref('')
+const newUser = ref({ email: '', password: '', displayName: '', role: 'user' })
+
+async function fetchUsers() {
+  try {
+    const res = await authFetch(`${API_BASE}/admin/users`)
+    if (res.ok) {
+      const data = await res.json()
+      users.value = data.users || []
+    }
+  } catch { /* silent */ }
+}
+
+async function createUser() {
+  adminLoading.value = true
+  adminMsg.value = ''
+  adminError.value = false
+  try {
+    const res = await authFetch(`${API_BASE}/admin/users`, {
+      method: 'POST',
+      body: JSON.stringify(newUser.value),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      adminMsg.value = data.message
+      newUser.value = { email: '', password: '', displayName: '', role: 'user' }
+      fetchUsers()
+    } else {
+      adminMsg.value = data.error
+      adminError.value = true
+    }
+  } catch (e) {
+    adminMsg.value = e.message
+    adminError.value = true
+  } finally {
+    adminLoading.value = false
+  }
+}
+
+async function deleteUser(userId, email) {
+  if (!confirm(`確定要刪除 ${email} 嗎？`)) return
+  adminLoading.value = true
+  try {
+    const res = await authFetch(`${API_BASE}/admin/users/${userId}`, { method: 'DELETE' })
+    if (res.ok) fetchUsers()
+  } catch { /* silent */ }
+  finally { adminLoading.value = false }
+}
+
+async function migrateData() {
+  adminLoading.value = true
+  migrateMsg.value = ''
+  try {
+    const res = await authFetch(`${API_BASE}/admin/migrate-data`, {
+      method: 'POST',
+      body: JSON.stringify({ targetUid: uid.value }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      migrateMsg.value = `遷移完成：${JSON.stringify(data.migrated)}`
+    }
+  } catch { /* silent */ }
+  finally { adminLoading.value = false }
+}
+
+onMounted(() => {
+  if (isAdmin.value) fetchUsers()
+})
 
 const pricingGroups = [
   {

@@ -83,7 +83,7 @@
 例如：68 歲男性，Cr 從 0.9 升至 3.2 (48h)，尿量 300mL/12h，目前使用 NSAIDs..."
         />
         <button
-          :disabled="!patientData.trim() || interactiveLoading || isGuest()"
+          :disabled="!patientData.trim() || interactiveLoading"
           class="mt-2 px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           @click="runInteractive"
         >
@@ -103,11 +103,9 @@
 import { ref, onMounted, watch, nextTick } from 'vue'
 import { renderMd } from '../../utils/renderMarkdown.js'
 import { renderMermaidIn } from '../../composables/useMermaid.js'
-import { useUserRole } from '../../composables/useUserRole.js'
+import { useAuth } from '../../composables/useAuth.js'
 
-const { isGuest } = useUserRole()
-
-const API_BASE = 'https://nephro-brain-api-761804517300.asia-east1.run.app'
+const { authFetch, API_BASE } = useAuth()
 
 const pathways = ref([])
 const selectedPathway = ref(null)
@@ -169,9 +167,8 @@ async function runInteractive() {
   interactiveResult.value = null
 
   try {
-    const res = await fetch(`${API_BASE}/pathways/${selectedPathway.value.id}/interactive`, {
+    const res = await authFetch(`${API_BASE}/pathways/${selectedPathway.value.id}/interactive`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ patient_data: patientData.value }),
     })
     const data = await res.json()
