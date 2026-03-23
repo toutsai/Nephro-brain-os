@@ -194,14 +194,14 @@
                 <div class="inline-block text-left bg-white text-slate-800 border border-slate-200 rounded-2xl rounded-bl-md px-5 py-4 shadow-sm max-w-full overflow-hidden">
                   <div ref="streamingProseEl" class="prose-chat text-[13.5px] leading-[1.75] text-slate-700" v-html="renderMd(streamingContent)" />
                   <span class="inline-block w-1.5 h-4 bg-teal-500 rounded-sm animate-pulse ml-0.5 align-middle" />
-                  <!-- 網路搜尋來源 -->
+                  <!-- 參考文獻來源 -->
                   <div v-if="streamingSources.length" class="mt-3 pt-3 border-t border-slate-100">
-                    <div class="text-[11px] font-semibold text-slate-500 mb-1.5">🔗 網路搜尋來源</div>
-                    <ul class="space-y-1">
-                      <li v-for="(src, i) in streamingSources" :key="i" class="text-[11px]">
+                    <div class="text-[11px] font-semibold text-slate-500 mb-1.5">📚 參考文獻</div>
+                    <ol class="space-y-1 list-decimal list-inside">
+                      <li v-for="(src, i) in streamingSources" :key="i" class="text-[11px] text-slate-600">
                         <a :href="src.url" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline underline-offset-2">{{ src.title || src.url }}</a>
                       </li>
-                    </ul>
+                    </ol>
                   </div>
                 </div>
                 <div class="text-[10px] text-slate-400 mt-1 px-1">串流回應中...</div>
