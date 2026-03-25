@@ -227,18 +227,9 @@ export function useConsultChat() {
 
       const finalAnswer = streamingContent.value || '❌ 無回應'
 
-      // 將參考文獻附加到回答尾部
-      let contentToSave = finalAnswer
-      if (streamingSources.value.length > 0) {
-        contentToSave += '\n\n---\n\n**📚 參考文獻：**\n'
-        streamingSources.value.forEach((s, i) => {
-          contentToSave += `${i + 1}. [${s.title || s.url}](${s.url})\n`
-        })
-      }
-
       await addDoc(collection(db, 'chats', chatId, 'messages'), {
         role: 'assistant',
-        content: contentToSave,
+        content: finalAnswer,
         created_at: serverTimestamp(),
       })
 
