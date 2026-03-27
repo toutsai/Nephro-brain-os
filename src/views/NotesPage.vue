@@ -2,7 +2,7 @@
   <div class="h-[calc(100vh-44px)] flex flex-col bg-slate-50 overflow-hidden pb-14 sm:pb-0">
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 shrink-0">
-      <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
+      <div class="px-4 py-2 flex items-center justify-between">
         <div class="flex items-center gap-2">
           <h1 class="text-sm font-bold text-slate-800">NB Notes</h1>
           <span class="text-[10px] text-slate-400">個人知識整理區</span>

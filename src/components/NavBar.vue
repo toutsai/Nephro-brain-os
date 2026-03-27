@@ -1,7 +1,7 @@
 <template>
   <!-- Desktop top nav -->
   <nav class="bg-slate-900 text-white sticky top-0 z-30 shrink-0">
-    <div class="max-w-7xl mx-auto px-4 flex items-center h-11">
+    <div class="px-4 flex items-center h-11">
       <!-- Logo -->
       <router-link to="/" class="flex items-center gap-2 shrink-0">
         <span class="text-sm font-bold tracking-tight">Nephro Brain OS</span>

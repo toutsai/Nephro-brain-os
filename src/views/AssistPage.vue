@@ -2,7 +2,7 @@
   <div class="h-[calc(100vh-44px)] flex flex-col bg-slate-50 overflow-hidden pb-14 sm:pb-0">
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 shrink-0">
-      <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
+      <div class="px-4 py-2 flex items-center justify-between">
         <div class="flex items-center gap-2">
           <h1 class="text-sm font-bold text-slate-800">NB Assist</h1>
           <span class="text-[10px] text-slate-400">臨床決策輔助</span>
@@ -152,7 +152,7 @@
 
       <!-- Right: input form + result -->
       <main class="flex-1 overflow-y-auto">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        <div class="px-4 sm:px-6 py-6">
 
           <!-- ============ Clinical Scenario ============ -->
           <div v-if="activeMode === 'clinical'">
