@@ -7,6 +7,7 @@ import {
   limit,
   where,
   onSnapshot,
+  Timestamp,
 } from 'firebase/firestore'
 
 export function useArticles() {
@@ -14,12 +15,16 @@ export function useArticles() {
   const loading = ref(true)
   const error = ref(null)
 
-  // 即時監聯 articles_v2（最近 150 篇，增加以涵蓋期刊）
+  // 即時監聽 articles_v2（最近 30 天 + 上限 300 篇）
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
   const q = query(
     collection(db, 'articles_v2'),
     where('process_status', '==', 'completed'),
+    where('created_at', '>=', Timestamp.fromDate(thirtyDaysAgo)),
     orderBy('created_at', 'desc'),
-    limit(150)
+    limit(300)
   )
 
   const unsubscribe = onSnapshot(
@@ -48,8 +53,6 @@ export function useArticles() {
   const ckdArticles = computed(() =>
     articles.value.filter((a) => a.topics?.includes('CKD'))
   )
-
-  // 新增分類
   const gnArticles = computed(() =>
     articles.value.filter((a) => a.topics?.includes('GN'))
   )
@@ -61,6 +64,26 @@ export function useArticles() {
   )
   const pdArticles = computed(() =>
     articles.value.filter((a) => a.topics?.includes('PD'))
+  )
+
+  // Phase 3: 擴充主題
+  const ckmArticles = computed(() =>
+    articles.value.filter((a) => a.topics?.includes('CKM'))
+  )
+  const htnArticles = computed(() =>
+    articles.value.filter((a) => a.topics?.includes('HTN'))
+  )
+  const pkdArticles = computed(() =>
+    articles.value.filter((a) => a.topics?.includes('PKD'))
+  )
+  const ckdMbdArticles = computed(() =>
+    articles.value.filter((a) => a.topics?.includes('CKD-MBD'))
+  )
+  const stoneArticles = computed(() =>
+    articles.value.filter((a) => a.topics?.includes('Stone'))
+  )
+  const oncoNephroArticles = computed(() =>
+    articles.value.filter((a) => a.topics?.includes('Onco-Nephro'))
   )
 
   // 期刊文章（有 journals 欄位，或 sources 包含 "journal"）
@@ -87,6 +110,12 @@ export function useArticles() {
     transplantArticles,
     electrolyteArticles,
     pdArticles,
+    ckmArticles,
+    htnArticles,
+    pkdArticles,
+    ckdMbdArticles,
+    stoneArticles,
+    oncoNephroArticles,
     journalArticles,
     loading,
     error,

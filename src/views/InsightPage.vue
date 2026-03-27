@@ -228,6 +228,12 @@ const {
   transplantArticles,
   electrolyteArticles,
   pdArticles,
+  ckmArticles,
+  htnArticles,
+  pkdArticles,
+  ckdMbdArticles,
+  stoneArticles,
+  oncoNephroArticles,
   journalArticles,
   loading,
   isToday,
@@ -269,6 +275,12 @@ const tabs = computed(() => [
   { key: 'Transplant', label: 'Transplant', count: transplantArticles.value.length },
   { key: 'Electrolyte', label: 'Electrolyte', count: electrolyteArticles.value.length },
   { key: 'PD', label: 'PD', count: pdArticles.value.length },
+  { key: 'CKM', label: '心腎代謝', count: ckmArticles.value.length },
+  { key: 'HTN', label: '高血壓腎病', count: htnArticles.value.length },
+  { key: 'PKD', label: '遺傳腎病', count: pkdArticles.value.length },
+  { key: 'CKD-MBD', label: '骨礦代謝', count: ckdMbdArticles.value.length },
+  { key: 'Stone', label: '腎結石', count: stoneArticles.value.length },
+  { key: 'Onco-Nephro', label: '腫瘤腎臟', count: oncoNephroArticles.value.length },
   { key: 'journal', label: '📰 期刊', count: journalArticles.value.length },
   { key: 'collection', label: '✅ 收藏庫', count: savedArticles.value.length },
 ])
@@ -281,6 +293,12 @@ const currentArticles = computed(() => {
   if (activeTab.value === 'Transplant') return transplantArticles.value
   if (activeTab.value === 'Electrolyte') return electrolyteArticles.value
   if (activeTab.value === 'PD') return pdArticles.value
+  if (activeTab.value === 'CKM') return ckmArticles.value
+  if (activeTab.value === 'HTN') return htnArticles.value
+  if (activeTab.value === 'PKD') return pkdArticles.value
+  if (activeTab.value === 'CKD-MBD') return ckdMbdArticles.value
+  if (activeTab.value === 'Stone') return stoneArticles.value
+  if (activeTab.value === 'Onco-Nephro') return oncoNephroArticles.value
   if (activeTab.value === 'journal') return journalArticles.value
   return []
 })
