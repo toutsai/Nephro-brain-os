@@ -91,7 +91,7 @@
         </div>
 
         <!-- Session content -->
-        <div v-else class="max-w-4xl mx-auto px-4 py-6">
+        <div v-else class="max-w-7xl mx-auto px-4 py-6">
           <!-- Input area (only if no content generated yet) -->
           <div v-if="isNewSession" class="mb-6">
             <label class="block text-sm font-bold text-slate-700 mb-2">學習素材</label>

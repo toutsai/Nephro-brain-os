@@ -269,7 +269,7 @@
 
     <!-- ===================== Library View ===================== -->
     <template v-if="activeTab === 'library'">
-      <main class="flex-1 overflow-y-auto max-w-4xl mx-auto w-full px-4 py-6">
+      <main class="flex-1 overflow-y-auto max-w-7xl mx-auto w-full px-4 py-6">
 
         <!-- Stats cards -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
