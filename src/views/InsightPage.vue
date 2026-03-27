@@ -32,33 +32,17 @@
         </div>
       </div>
 
-      <!-- Tab bar -->
-      <div class="max-w-7xl mx-auto px-4">
-        <nav class="flex gap-1 -mb-px overflow-x-auto scrollbar-hide">
-          <button
-            v-for="tab in tabs"
-            :key="tab.key"
-            class="shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 transition-colors"
-            :class="
-              activeTab === tab.key
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            "
-            @click="activeTab = tab.key; selectedArticle = null"
-          >
-            {{ tab.label }}
-            <span
-              class="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full"
-              :class="
-                activeTab === tab.key
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'bg-slate-100 text-slate-500'
-              "
-            >
-              {{ tab.count }}
-            </span>
-          </button>
-        </nav>
+      <!-- 手機版：橫向 Tab bar (下拉選單) -->
+      <div class="lg:hidden px-4 pb-2">
+        <select
+          v-model="activeTab"
+          class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          @change="selectedArticle = null"
+        >
+          <option v-for="tab in tabs" :key="tab.key" :value="tab.key">
+            {{ tab.label }} ({{ tab.count }})
+          </option>
+        </select>
       </div>
     </header>
 
@@ -71,19 +55,80 @@
     </div>
 
     <!-- Main content -->
-    <main v-else class="flex-1 overflow-hidden max-w-7xl mx-auto w-full px-4 py-4">
+    <main v-else class="flex-1 overflow-hidden max-w-7xl mx-auto w-full">
 
-      <!-- 收藏知識庫 tab -->
-      <template v-if="activeTab === 'collection'">
-        <div v-if="!savedArticles.length" class="text-center py-16 text-slate-400">
-          <div class="text-4xl mb-3">📚</div>
-          <p class="text-sm">還沒有收藏的文獻</p>
-          <p class="text-xs mt-1">點擊文章卡片上的「收藏」按鈕開始收集</p>
-        </div>
+      <!-- 桌面版：三欄式 (sidebar + 文章列表 + 文章詳情) -->
+      <div class="hidden lg:grid lg:grid-cols-[180px_1fr_1fr] h-full">
 
-        <!-- 桌面版：左右獨立捲軸 -->
-        <div v-else class="hidden lg:grid lg:grid-cols-[1fr_1fr] gap-4 h-full">
-          <div class="overflow-y-auto pr-2 space-y-3 pb-4">
+        <!-- 左側 Sidebar -->
+        <aside class="border-r border-slate-200 bg-white overflow-y-auto py-2">
+          <div class="px-2 mb-1">
+            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2 py-1">主題分類</p>
+          </div>
+          <button
+            v-for="tab in topicTabs"
+            :key="tab.key"
+            class="w-full flex items-center justify-between px-3 py-2 text-sm transition-colors rounded-lg mx-1"
+            :class="
+              activeTab === tab.key
+                ? 'bg-blue-50 text-blue-700 font-medium'
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+            "
+            style="width: calc(100% - 8px)"
+            @click="activeTab = tab.key; selectedArticle = null"
+          >
+            <span class="truncate">{{ tab.label }}</span>
+            <span
+              class="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full"
+              :class="
+                activeTab === tab.key
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-slate-100 text-slate-500'
+              "
+            >
+              {{ tab.count }}
+            </span>
+          </button>
+
+          <div class="mx-3 my-2 border-t border-slate-100" />
+
+          <div class="px-2 mb-1">
+            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2 py-1">其他</p>
+          </div>
+          <button
+            v-for="tab in specialTabs"
+            :key="tab.key"
+            class="w-full flex items-center justify-between px-3 py-2 text-sm transition-colors rounded-lg mx-1"
+            :class="
+              activeTab === tab.key
+                ? 'bg-blue-50 text-blue-700 font-medium'
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+            "
+            style="width: calc(100% - 8px)"
+            @click="activeTab = tab.key; selectedArticle = null"
+          >
+            <span class="truncate">{{ tab.label }}</span>
+            <span
+              class="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full"
+              :class="
+                activeTab === tab.key
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-slate-100 text-slate-500'
+              "
+            >
+              {{ tab.count }}
+            </span>
+          </button>
+        </aside>
+
+        <!-- 文章列表 -->
+        <div class="overflow-y-auto border-r border-slate-100 p-3 space-y-3">
+          <template v-if="activeTab === 'collection'">
+            <div v-if="!savedArticles.length" class="text-center py-16 text-slate-400">
+              <div class="text-4xl mb-3">📚</div>
+              <p class="text-sm">還沒有收藏的文獻</p>
+              <p class="text-xs mt-1">點擊文章卡片上的「收藏」按鈕開始收集</p>
+            </div>
             <ArticleCard
               v-for="article in savedArticles"
               :key="article.id"
@@ -93,42 +138,12 @@
               @select="selectedArticle = $event"
               @toggle-save="toggleSave"
             />
-          </div>
-          <div class="overflow-y-auto pl-2 pb-4">
-            <ArticleDetail
-              :article="selectedArticle"
-              :is-saved="selectedArticle ? isSaved(selectedArticle.id) : false"
-              @toggle-save="toggleSave"
-              @deep-consult="handleDeepConsult"
-              @save-to-notes="handleSaveToNotes"
-            />
-          </div>
-        </div>
-
-        <!-- 手機版：單欄 -->
-        <div v-if="savedArticles.length" class="lg:hidden space-y-3 overflow-y-auto h-full pb-4">
-          <ArticleCard
-            v-for="article in savedArticles"
-            :key="article.id"
-            :article="article"
-            :selected="selectedArticle?.id === article.id"
-            :is-saved="true"
-            @select="selectedArticle = $event"
-            @toggle-save="toggleSave"
-          />
-        </div>
-      </template>
-
-      <!-- 文獻分區 tabs (ESRD/HD, AKI, CKD) -->
-      <template v-else>
-        <div v-if="!currentArticles.length" class="text-center py-16 text-slate-400">
-          <div class="text-4xl mb-3">📭</div>
-          <p class="text-sm">此分區目前沒有文獻</p>
-        </div>
-
-        <!-- 桌面版：左右獨立捲軸 -->
-        <div v-else class="hidden lg:grid lg:grid-cols-[1fr_1fr] gap-4 h-full">
-          <div class="overflow-y-auto pr-2 space-y-3 pb-4">
+          </template>
+          <template v-else>
+            <div v-if="!currentArticles.length" class="text-center py-16 text-slate-400">
+              <div class="text-4xl mb-3">📭</div>
+              <p class="text-sm">此分區目前沒有文獻</p>
+            </div>
             <ArticleCard
               v-for="article in currentArticles"
               :key="article.id"
@@ -139,20 +154,44 @@
               @select="selectedArticle = $event"
               @toggle-save="toggleSave"
             />
-          </div>
-          <div class="overflow-y-auto pl-2 pb-4">
-            <ArticleDetail
-              :article="selectedArticle"
-              :is-saved="selectedArticle ? isSaved(selectedArticle.id) : false"
-              @toggle-save="toggleSave"
-              @deep-consult="handleDeepConsult"
-              @save-to-notes="handleSaveToNotes"
-            />
-          </div>
+          </template>
         </div>
 
-        <!-- 手機版：單欄 -->
-        <div v-if="currentArticles.length" class="lg:hidden space-y-3 overflow-y-auto h-full pb-4">
+        <!-- 文章詳情 -->
+        <div class="overflow-y-auto p-3">
+          <ArticleDetail
+            :article="selectedArticle"
+            :is-saved="selectedArticle ? isSaved(selectedArticle.id) : false"
+            @toggle-save="toggleSave"
+            @deep-consult="handleDeepConsult"
+            @save-to-notes="handleSaveToNotes"
+          />
+        </div>
+      </div>
+
+      <!-- 手機版：單欄 -->
+      <div class="lg:hidden overflow-y-auto h-full px-4 py-4 space-y-3">
+        <template v-if="activeTab === 'collection'">
+          <div v-if="!savedArticles.length" class="text-center py-16 text-slate-400">
+            <div class="text-4xl mb-3">📚</div>
+            <p class="text-sm">還沒有收藏的文獻</p>
+            <p class="text-xs mt-1">點擊文章卡片上的「收藏」按鈕開始收集</p>
+          </div>
+          <ArticleCard
+            v-for="article in savedArticles"
+            :key="article.id"
+            :article="article"
+            :selected="selectedArticle?.id === article.id"
+            :is-saved="true"
+            @select="selectedArticle = $event"
+            @toggle-save="toggleSave"
+          />
+        </template>
+        <template v-else>
+          <div v-if="!currentArticles.length" class="text-center py-16 text-slate-400">
+            <div class="text-4xl mb-3">📭</div>
+            <p class="text-sm">此分區目前沒有文獻</p>
+          </div>
           <ArticleCard
             v-for="article in currentArticles"
             :key="article.id"
@@ -163,9 +202,8 @@
             @select="selectedArticle = $event"
             @toggle-save="toggleSave"
           />
-        </div>
-
-      </template>
+        </template>
+      </div>
     </main>
 
     <!-- 手機版：點擊文章後彈出詳細（所有 tab 共用） -->
@@ -266,8 +304,8 @@ onUnmounted(() => {
   unsubCollection()
 })
 
-// Tabs config
-const tabs = computed(() => [
+// Tabs config — 分為主題與特殊分類
+const topicTabs = computed(() => [
   { key: 'ESRD/HD', label: 'ESRD / HD', count: esrdArticles.value.length },
   { key: 'AKI', label: 'AKI', count: akiArticles.value.length },
   { key: 'CKD', label: 'CKD', count: ckdArticles.value.length },
@@ -281,9 +319,15 @@ const tabs = computed(() => [
   { key: 'CKD-MBD', label: '骨礦代謝', count: ckdMbdArticles.value.length },
   { key: 'Stone', label: '腎結石', count: stoneArticles.value.length },
   { key: 'Onco-Nephro', label: '腫瘤腎臟', count: oncoNephroArticles.value.length },
+])
+
+const specialTabs = computed(() => [
   { key: 'journal', label: '📰 期刊', count: journalArticles.value.length },
   { key: 'collection', label: '✅ 收藏庫', count: savedArticles.value.length },
 ])
+
+// 合併所有 tabs（手機版 select 使用）
+const tabs = computed(() => [...topicTabs.value, ...specialTabs.value])
 
 const currentArticles = computed(() => {
   if (activeTab.value === 'ESRD/HD') return esrdArticles.value
