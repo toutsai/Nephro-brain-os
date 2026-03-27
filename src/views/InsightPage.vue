@@ -1,5 +1,5 @@
 <template>
-  <div class="h-[calc(100vh-44px)] flex flex-col bg-slate-50 overflow-hidden pb-14 sm:pb-0">
+  <div class="h-[calc(100dvh-44px)] flex flex-col bg-slate-50 overflow-hidden pb-14 sm:pb-0">
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 shrink-0">
       <div class="px-4 py-2 flex items-center justify-between">

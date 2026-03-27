@@ -1,5 +1,5 @@
 <template>
-  <div class="h-[calc(100vh-44px)] flex flex-col bg-slate-50 overflow-hidden pb-14 sm:pb-0">
+  <div class="h-[calc(100dvh-44px)] flex flex-col bg-slate-50 overflow-hidden pb-14 sm:pb-0">
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 shrink-0">
       <div class="px-4 py-2 flex items-center justify-between">
@@ -118,13 +118,13 @@
           <!-- Mobile: chat selector -->
           <div class="lg:hidden flex items-center gap-2 px-4 py-2 bg-white border-b border-slate-100">
             <button
-              class="text-xs px-2 py-1 bg-blue-600 text-white rounded-md"
+              class="text-xs px-3 py-2 bg-blue-600 text-white rounded-lg font-medium"
               @click="startNewChat"
             >
               + 新對話
             </button>
             <select
-              class="flex-1 text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white"
+              class="flex-1 text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white"
               :value="currentChatId || ''"
               @change="selectChat($event.target.value)"
             >

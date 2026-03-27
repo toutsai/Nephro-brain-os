@@ -1,5 +1,5 @@
 <template>
-  <div class="h-[calc(100vh-44px)] flex flex-col bg-slate-50 overflow-hidden pb-14 sm:pb-0">
+  <div class="h-[calc(100dvh-44px)] flex flex-col bg-slate-50 overflow-hidden pb-14 sm:pb-0">
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 shrink-0">
       <div class="px-4 py-2 flex items-center justify-between">
@@ -17,12 +17,12 @@
 
       <!-- Mobile mode selector + history toggle -->
       <div class="lg:hidden bg-white border-b border-slate-100 shrink-0">
-        <div class="px-4 py-2 overflow-x-auto">
+        <div class="px-4 py-2 overflow-x-auto scrollbar-hide">
           <div class="flex gap-2 whitespace-nowrap">
             <button
               v-for="m in modes"
               :key="m.key"
-              class="shrink-0 px-3 py-1.5 text-xs font-medium rounded-full transition-colors"
+              class="shrink-0 px-3 py-2 text-xs font-medium rounded-full transition-colors"
               :class="activeMode === m.key
                 ? 'bg-rose-100 text-rose-700 border border-rose-200'
                 : 'bg-slate-100 text-slate-600'"
@@ -31,7 +31,7 @@
               {{ m.icon }} {{ m.label }}
             </button>
             <button
-              class="shrink-0 px-3 py-1.5 text-xs font-medium rounded-full bg-slate-100 text-slate-500"
+              class="shrink-0 px-3 py-2 text-xs font-medium rounded-full bg-slate-100 text-slate-500"
               @click="showMobileHistory = true"
             >
               📜 歷史
