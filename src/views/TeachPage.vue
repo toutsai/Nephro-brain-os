@@ -2,7 +2,7 @@
   <div class="h-[calc(100vh-44px)] flex flex-col bg-slate-50 overflow-hidden pb-14 sm:pb-0">
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 sticky top-0 z-20 shrink-0">
-      <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
+      <div class="px-4 py-2 flex items-center justify-between">
         <div class="flex items-center gap-2">
           <h1 class="text-sm font-bold text-slate-800">NB Teach</h1>
           <span class="text-[10px] text-slate-400">教學素材產生器</span>
@@ -91,7 +91,7 @@
         </div>
 
         <!-- Session content -->
-        <div v-else class="max-w-7xl mx-auto px-4 py-6">
+        <div v-else class="px-4 py-6">
           <!-- Input area (only if no content generated yet) -->
           <div v-if="isNewSession" class="mb-6">
             <label class="block text-sm font-bold text-slate-700 mb-2">學習素材</label>

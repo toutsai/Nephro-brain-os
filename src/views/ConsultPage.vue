@@ -2,7 +2,7 @@
   <div class="h-[calc(100vh-44px)] flex flex-col bg-slate-50 overflow-hidden pb-14 sm:pb-0">
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 shrink-0">
-      <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
+      <div class="px-4 py-2 flex items-center justify-between">
         <div class="flex items-center gap-2">
           <h1 class="text-sm font-bold text-slate-800">NB Consult</h1>
           <span class="text-[10px] text-slate-400">腎臟知識問答引擎</span>
@@ -269,7 +269,7 @@
 
     <!-- ===================== Library View ===================== -->
     <template v-if="activeTab === 'library'">
-      <main class="flex-1 overflow-y-auto max-w-7xl mx-auto w-full px-4 py-6">
+      <main class="flex-1 overflow-y-auto w-full px-4 py-6">
 
         <!-- Stats cards -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">

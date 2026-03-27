@@ -2,7 +2,7 @@
   <div class="h-[calc(100vh-44px)] flex flex-col bg-slate-50 overflow-hidden pb-14 sm:pb-0">
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 shrink-0">
-      <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
+      <div class="px-4 py-2 flex items-center justify-between">
         <div class="flex items-center gap-2">
           <h1 class="text-sm font-bold text-slate-800">NB Insight</h1>
           <span class="text-[10px] text-slate-400">每日文獻智慧引擎</span>
@@ -35,7 +35,7 @@
     </div>
 
     <!-- Main content -->
-    <main v-else class="flex-1 overflow-hidden max-w-7xl mx-auto w-full">
+    <main v-else class="flex-1 overflow-hidden w-full">
 
       <!-- 桌面版：三欄式 (sidebar + 文章列表 + 文章詳情) -->
       <div class="hidden lg:grid lg:grid-cols-[180px_1fr_1fr] h-full">
