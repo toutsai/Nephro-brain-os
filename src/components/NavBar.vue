@@ -88,7 +88,6 @@
             <span v-if="loginError" class="text-[10px] text-red-400">{{ loginError }}</span>
             <span v-else class="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full">訪客</span>
           </template>
-        </span>
       </div>
     </div>
   </nav>
