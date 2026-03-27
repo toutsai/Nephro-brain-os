@@ -1,12 +1,30 @@
 <template>
   <!-- Desktop top nav -->
   <nav class="bg-slate-900 text-white sticky top-0 z-30 shrink-0">
-    <div class="max-w-7xl mx-auto px-4 flex items-center justify-between h-11">
+    <div class="max-w-7xl mx-auto px-4 flex items-center h-11">
       <!-- Logo -->
       <router-link to="/" class="flex items-center gap-2 shrink-0">
         <span class="text-sm font-bold tracking-tight">Nephro Brain OS</span>
         <span class="hidden md:inline text-[10px] text-slate-400 font-normal">腎臟科智慧中樞</span>
       </router-link>
+
+      <!-- Desktop nav links（靠左接在 logo 後） -->
+      <div class="hidden sm:flex items-center gap-1 ml-4">
+        <router-link
+          v-for="item in navItems"
+          :key="item.path"
+          :to="item.path"
+          class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
+          :class="isActive(item.path)
+            ? 'bg-white/15 text-white'
+            : 'text-slate-400 hover:text-white hover:bg-white/5'"
+        >
+          <span>{{ item.icon }}</span>
+          <span>{{ item.label }}</span>
+        </router-link>
+      </div>
+
+      <div class="flex-1" />
 
       <!-- Mobile: login/user status -->
       <div class="sm:hidden flex items-center gap-1.5">
@@ -26,22 +44,8 @@
         </template>
       </div>
 
-      <!-- Desktop nav links -->
-      <div class="hidden sm:flex items-center gap-1">
-        <router-link
-          v-for="item in navItems"
-          :key="item.path"
-          :to="item.path"
-          class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
-          :class="isActive(item.path)
-            ? 'bg-white/15 text-white'
-            : 'text-slate-400 hover:text-white hover:bg-white/5'"
-        >
-          <span>{{ item.icon }}</span>
-          <span>{{ item.label }}</span>
-        </router-link>
-
-        <span class="ml-2 border-l border-slate-700 pl-2 flex items-center gap-1.5">
+      <!-- Desktop user info（靠右） -->
+      <div class="hidden sm:flex items-center gap-1.5">
           <!-- 已登入 -->
           <template v-if="isLoggedIn">
             <span class="text-[10px] text-emerald-400 bg-emerald-900/40 px-2 py-0.5 rounded-full">
