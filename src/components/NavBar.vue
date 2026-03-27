@@ -27,16 +27,16 @@
       <div class="flex-1" />
 
       <!-- Mobile: login/user status -->
-      <div class="sm:hidden flex items-center gap-1.5">
+      <div class="sm:hidden flex items-center gap-2">
         <template v-if="isLoggedIn">
-          <span class="text-[10px] text-emerald-400 bg-emerald-900/40 px-2 py-0.5 rounded-full">
+          <span class="text-xs text-emerald-400 bg-emerald-900/40 px-2.5 py-1 rounded-full">
             {{ displayName }}
           </span>
-          <button class="text-[10px] text-slate-500 hover:text-slate-300" @click="handleLogout">登出</button>
+          <button class="text-xs text-slate-500 hover:text-slate-300 px-2 py-1" @click="handleLogout">登出</button>
         </template>
         <template v-else>
           <button
-            class="text-[10px] text-white bg-blue-600 hover:bg-blue-500 px-2.5 py-1 rounded-full transition-colors"
+            class="text-xs text-white bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-full transition-colors"
             @click="showMobileLogin = !showMobileLogin"
           >
             {{ showMobileLogin ? '取消' : '登入' }}
@@ -125,11 +125,11 @@
         v-for="item in navItems"
         :key="item.path"
         :to="item.path"
-        class="flex flex-col items-center py-2 flex-1 min-w-0 transition-colors"
-        :class="isActive(item.path) ? 'text-white' : 'text-slate-500'"
+        class="flex flex-col items-center py-2.5 flex-1 min-w-0 transition-colors"
+        :class="isActive(item.path) ? 'text-white border-t-2 border-white' : 'text-slate-500 border-t-2 border-transparent'"
       >
         <span class="text-lg leading-none">{{ item.icon }}</span>
-        <span class="text-[10px] mt-0.5 truncate">{{ item.label }}</span>
+        <span class="text-xs mt-0.5 truncate">{{ item.label }}</span>
       </router-link>
     </div>
   </div>

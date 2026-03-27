@@ -35,7 +35,7 @@
             v-model="newTag"
             @keydown.enter.prevent="addTag"
             @keydown.tab.prevent="addTag"
-            class="text-[11px] w-20 border-none outline-none bg-transparent text-slate-500 placeholder:text-slate-300"
+            class="text-xs flex-1 min-w-[80px] border-none outline-none bg-transparent text-slate-500 placeholder:text-slate-300"
             placeholder="+ 標籤"
           />
         </div>
@@ -56,21 +56,21 @@
       <!-- Toolbar -->
       <div class="flex items-center gap-2 mt-3 pt-2 border-t border-slate-100">
         <button
-          class="text-[11px] px-2 py-1 rounded transition-colors"
+          class="text-xs px-2.5 py-1.5 rounded transition-colors"
           :class="editMode === 'write' ? 'bg-slate-200 text-slate-700' : 'text-slate-400 hover:bg-slate-100'"
           @click="editMode = 'write'"
         >
           編輯
         </button>
         <button
-          class="text-[11px] px-2 py-1 rounded transition-colors"
+          class="text-xs px-2.5 py-1.5 rounded transition-colors"
           :class="editMode === 'preview' ? 'bg-slate-200 text-slate-700' : 'text-slate-400 hover:bg-slate-100'"
           @click="editMode = 'preview'"
         >
           預覽
         </button>
         <button
-          class="text-[11px] px-2 py-1 rounded transition-colors"
+          class="text-xs px-2.5 py-1.5 rounded transition-colors"
           :class="editMode === 'links' ? 'bg-purple-100 text-purple-700' : 'text-slate-400 hover:bg-slate-100'"
           @click="editMode = 'links'"
         >

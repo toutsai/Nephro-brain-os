@@ -1,5 +1,5 @@
 <template>
-  <div class="h-[calc(100vh-44px)] flex flex-col bg-slate-50 overflow-hidden pb-14 sm:pb-0">
+  <div class="h-[calc(100dvh-44px)] flex flex-col bg-slate-50 overflow-hidden pb-14 sm:pb-0">
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 sticky top-0 z-20 shrink-0">
       <div class="px-4 py-2 flex items-center justify-between">
@@ -15,13 +15,20 @@
       <!-- Mobile top bar -->
       <div class="lg:hidden flex items-center gap-2 px-4 py-2 bg-white border-b border-slate-100 shrink-0">
         <button
-          class="shrink-0 text-xs px-2.5 py-1.5 bg-orange-500 text-white rounded-md font-medium"
+          v-if="selectedId"
+          class="shrink-0 text-xs px-2 py-2 text-slate-500 hover:text-slate-700"
+          @click="selectedId = null"
+        >
+          ← 列表
+        </button>
+        <button
+          class="shrink-0 text-xs px-3 py-2 bg-orange-500 text-white rounded-lg font-medium"
           @click="startNewSession"
         >
           + 新素材
         </button>
         <select
-          class="flex-1 min-w-0 text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white"
+          class="flex-1 min-w-0 text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white"
           :value="selectedId || ''"
           @change="selectSession($event.target.value)"
         >

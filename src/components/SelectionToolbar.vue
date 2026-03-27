@@ -28,7 +28,7 @@
       <!-- Note list dropdown -->
       <div
         v-if="showNoteList"
-        class="absolute top-full left-0 mt-1 w-64 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg"
+        class="absolute top-full left-0 mt-1 w-64 max-w-[calc(100vw-16px)] max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg"
       >
         <div
           v-for="note in existingNotes"
@@ -117,8 +117,8 @@ function handleMouseUp(e) {
       const range = selection.getRangeAt(0)
       const rect = range.getBoundingClientRect()
       position.value = {
-        x: Math.min(rect.left + rect.width / 2 - 80, window.innerWidth - 260),
-        y: rect.top + window.scrollY - 50,
+        x: Math.max(8, Math.min(rect.left + rect.width / 2 - 80, window.innerWidth - 260)),
+        y: Math.max(8, rect.top + window.scrollY - 50),
       }
       visible.value = true
       showNoteList.value = false
