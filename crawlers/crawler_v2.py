@@ -81,7 +81,7 @@ else:
 # --- 速率設定 ---
 GEMINI_DELAY = 7        # Gemini 免費版 10 RPM → 安全間隔 7 秒
 GROQ_DELAY = 2.5        # Groq 免費版 30 RPM → 安全間隔 2.5 秒
-MAX_ARTICLES_PER_RUN = 60  # 每次最多處理篇數
+MAX_ARTICLES_PER_RUN = 80  # 每次最多處理篇數
 
 # ============================================================
 # 2. 查詢配置
@@ -122,6 +122,38 @@ TOPIC_QUERIES = {
     "PD": (
         "((peritoneal dialysis[tiab] OR PD catheter[tiab] OR peritonitis[tiab]) "
         "AND (kidney OR renal OR dialysis))"
+    ),
+    # Phase 3: 擴充主題
+    "CKM": (
+        "((diabetic kidney disease[tiab] OR diabetic nephropathy[tiab] OR DKD[tiab] "
+        "OR SGLT2 inhibitor[tiab] OR dapagliflozin[tiab] OR empagliflozin[tiab] "
+        "OR canagliflozin[tiab] OR GLP-1[tiab] OR semaglutide[tiab] OR finerenone[tiab] "
+        "OR cardiorenal[tiab] OR heart failure[tiab]) AND (kidney OR renal OR nephropathy))"
+    ),
+    "HTN": (
+        "((hypertensive nephrosclerosis[tiab] OR hypertensive kidney[tiab] "
+        "OR renal artery stenosis[tiab] OR resistant hypertension[tiab] "
+        "OR renovascular[tiab]) AND (kidney OR renal))"
+    ),
+    "PKD": (
+        "((polycystic kidney[tiab] OR ADPKD[tiab] OR ARPKD[tiab] OR tolvaptan[tiab] "
+        "OR Alport syndrome[tiab] OR Fabry disease[tiab] OR hereditary nephritis[tiab]) "
+        "AND (kidney OR renal))"
+    ),
+    "CKD-MBD": (
+        "((secondary hyperparathyroidism[tiab] OR phosphate binder[tiab] "
+        "OR calciphylaxis[tiab] OR renal osteodystrophy[tiab] OR CKD-MBD[tiab] "
+        "OR vitamin D[tiab]) AND (kidney OR renal OR dialysis OR CKD))"
+    ),
+    "Stone": (
+        "((nephrolithiasis[tiab] OR kidney stone[tiab] OR renal calculi[tiab] "
+        "OR urolithiasis[tiab] OR hyperoxaluria[tiab] OR uric acid stone[tiab]))"
+    ),
+    "Onco-Nephro": (
+        "((checkpoint inhibitor[tiab] OR tumor lysis syndrome[tiab] "
+        "OR cisplatin nephrotoxicity[tiab] OR onconephrology[tiab] "
+        "OR monoclonal gammopathy[tiab] OR MGRS[tiab] OR amyloidosis[tiab] "
+        "OR myeloma kidney[tiab]) AND (kidney OR renal OR nephrology))"
     ),
 }
 
@@ -340,6 +372,41 @@ def detect_topics(title: str, abstract: str, mesh_terms: list) -> list:
         "peritoneal dialysis", "pd catheter", "peritonitis",
         "capd", "apd", "automated peritoneal",
     ]
+    # Phase 3: 擴充主題偵測
+    ckm_kw = [
+        "diabetic kidney", "diabetic nephropathy", " dkd ",
+        "sglt2", "dapagliflozin", "empagliflozin", "canagliflozin",
+        "glp-1", "semaglutide", "liraglutide", "tirzepatide",
+        "finerenone", "cardiorenal", "cardio-renal",
+        "heart failure", "type 2 diabetes",
+    ]
+    htn_kw = [
+        "hypertensive nephrosclerosis", "hypertensive kidney",
+        "renal artery stenosis", "resistant hypertension",
+        "renovascular", "malignant hypertension",
+    ]
+    pkd_kw = [
+        "polycystic kidney", "adpkd", "arpkd", "tolvaptan",
+        "alport syndrome", "fabry disease", "hereditary nephritis",
+        "thin basement membrane",
+    ]
+    ckd_mbd_kw = [
+        "hyperparathyroidism", "phosphate binder", "calciphylaxis",
+        "renal osteodystrophy", "ckd-mbd", "vitamin d",
+        "calcimimetic", "cinacalcet", "etelcalcetide",
+        "paricalcitol", "bone mineral",
+    ]
+    stone_kw = [
+        "nephrolithiasis", "kidney stone", "renal calculi",
+        "urolithiasis", "hyperoxaluria", "uric acid stone",
+        "calcium oxalate", "struvite", "cystinuria",
+    ]
+    onco_nephro_kw = [
+        "checkpoint inhibitor", "tumor lysis", "cisplatin nephrotoxicity",
+        "onconephrology", "monoclonal gammopathy", " mgrs ",
+        "amyloidosis", "myeloma kidney", "myeloma cast",
+        "light chain deposition",
+    ]
 
     if any(kw in text for kw in esrd_kw):
         topics.append("ESRD/HD")
@@ -355,6 +422,18 @@ def detect_topics(title: str, abstract: str, mesh_terms: list) -> list:
         topics.append("Electrolyte")
     if any(kw in text for kw in pd_kw):
         topics.append("PD")
+    if any(kw in text for kw in ckm_kw):
+        topics.append("CKM")
+    if any(kw in text for kw in htn_kw):
+        topics.append("HTN")
+    if any(kw in text for kw in pkd_kw):
+        topics.append("PKD")
+    if any(kw in text for kw in ckd_mbd_kw):
+        topics.append("CKD-MBD")
+    if any(kw in text for kw in stone_kw):
+        topics.append("Stone")
+    if any(kw in text for kw in onco_nephro_kw):
+        topics.append("Onco-Nephro")
 
     return topics if topics else ["CKD"]
 
