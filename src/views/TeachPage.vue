@@ -273,6 +273,46 @@
               </button>
             </div>
 
+            <!-- Source / 原始資料 -->
+            <div v-if="activeTab === 'source'">
+              <div class="bg-white rounded-xl border border-slate-200 p-4">
+                <!-- PDF info -->
+                <div v-if="currentSession.file_url" class="flex items-center gap-2 mb-3 px-3 py-2 bg-orange-50 rounded-lg">
+                  <span class="text-orange-500">📄</span>
+                  <span class="text-xs text-slate-600">{{ currentSession.file_name || 'PDF 檔案' }}</span>
+                  <a :href="currentSession.file_url" target="_blank" class="text-xs text-orange-500 hover:underline ml-auto">開啟原始 PDF</a>
+                </div>
+
+                <!-- Editable source text -->
+                <label class="block text-xs font-medium text-slate-500 mb-1">原始文字內容</label>
+                <textarea
+                  v-model="editableSourceText"
+                  rows="16"
+                  class="w-full text-sm border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-400 font-mono leading-relaxed resize-none"
+                  placeholder="此素材尚無文字內容（PDF 上傳後生成時會自動提取）"
+                />
+
+                <!-- Action buttons -->
+                <div class="flex items-center gap-3 mt-3">
+                  <button
+                    :disabled="editableSourceText === (currentSession.source_text || '') || savingSource"
+                    class="px-4 py-2 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    @click="saveSourceText"
+                  >
+                    {{ savingSource ? '儲存中...' : '💾 儲存修改' }}
+                  </button>
+                  <button
+                    :disabled="!editableSourceText.trim() || generating"
+                    class="px-4 py-2 text-xs font-medium bg-orange-500 hover:bg-orange-400 text-white rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    @click="regenFromSource"
+                  >
+                    🔄 用此內容重新生成全部
+                  </button>
+                  <span v-if="sourceToast" class="text-xs text-emerald-600">{{ sourceToast }}</span>
+                </div>
+              </div>
+            </div>
+
             <!-- Summary -->
             <div v-if="activeTab === 'summary'">
               <div v-if="!currentSession.summary" class="text-center py-12 text-slate-400">
@@ -527,7 +567,8 @@
 import { ref, reactive, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
-import { storage } from '../firebase.js'
+import { db, storage } from '../firebase.js'
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { useTeach } from '../composables/useTeach.js'
 import { renderMd } from '../utils/renderMarkdown.js'
 import { renderMermaidIn } from '../composables/useMermaid.js'
@@ -619,6 +660,7 @@ const currentSession = computed(() => {
 })
 
 const contentTabs = computed(() => [
+  { key: 'source', label: '原始資料', icon: '📄', ready: !!(currentSession.value?.source_text || currentSession.value?.file_url) },
   { key: 'summary', label: '摘要', icon: '📋', ready: !!currentSession.value?.summary },
   { key: 'flashcards', label: 'Flashcards', icon: '🃏', ready: !!currentSession.value?.flashcards },
   { key: 'relation', label: '關聯分析', icon: '🔗', ready: !!currentSession.value?.relation },
@@ -811,6 +853,49 @@ async function regenOne(mode) {
   activeTab.value = mode
 }
 
+// === Source tab ===
+const editableSourceText = ref('')
+const savingSource = ref(false)
+const sourceToast = ref(null)
+let sourceToastTimer = null
+
+// Sync editable source text when session changes
+watch(() => currentSession.value?.source_text, (val) => {
+  editableSourceText.value = val || ''
+}, { immediate: true })
+
+async function saveSourceText() {
+  if (!currentSession.value) return
+  savingSource.value = true
+  try {
+    await updateDoc(doc(db, 'teach_sessions', selectedId.value), {
+      source_text: editableSourceText.value,
+      updated_at: serverTimestamp(),
+    })
+    sourceToast.value = '已儲存 ✓'
+    clearTimeout(sourceToastTimer)
+    sourceToastTimer = setTimeout(() => { sourceToast.value = null }, 2000)
+  } catch (e) {
+    console.error('Save source text error:', e)
+    sourceToast.value = '儲存失敗'
+  } finally {
+    savingSource.value = false
+  }
+}
+
+async function regenFromSource() {
+  if (!editableSourceText.value.trim() || !currentSession.value) return
+  // Save first
+  await saveSourceText()
+  // Then regenerate all using the edited text
+  await generate(selectedId.value, {
+    text: editableSourceText.value,
+    fileUrl: null, // Use text, not PDF
+    mode: 'all',
+  })
+  activeTab.value = 'summary'
+}
+
 // === PPT ===
 const parsedPptSlides = computed(() => {
   const raw = currentSession.value?.ppt
@@ -886,13 +971,34 @@ watch(() => currentSession.value?.summary, () => nextTick(() => renderMermaidIn(
 watch(() => currentSession.value?.relation, () => nextTick(() => renderMermaidIn(relationEl.value)))
 
 // 從其他頁面帶文字過來 → 自動開新 session 填入
+// 或帶 sessionId → 選取該 session 並進入編輯模式
 onMounted(() => {
   const incoming = route.query.text
+  const incomingSessionId = route.query.sessionId
+
   if (incoming) {
     startNewSession()
     sourceText.value = incoming
     sessionTitle.value = generateTitle(incoming)
-    // 清掉 query，避免重新整理重複填入
+    router.replace({ path: '/teach', query: {} })
+  } else if (incomingSessionId) {
+    // Select the session and show source tab for review
+    selectedId.value = incomingSessionId
+    isNewSession.value = true // Show input area so user can review/edit and re-generate
+    // Wait for sessions to load, then populate fields
+    const stopWatch = watch(sessions, (list) => {
+      const found = list.find((s) => s.id === incomingSessionId)
+      if (found) {
+        sourceText.value = found.source_text || ''
+        sessionTitle.value = found.title || ''
+        if (found.file_url) {
+          inputMode.value = 'file'
+          fileUrl.value = found.file_url
+          uploadedFile.value = found.file_name ? { name: found.file_name, size: '' } : null
+        }
+        stopWatch()
+      }
+    }, { immediate: true })
     router.replace({ path: '/teach', query: {} })
   }
 })

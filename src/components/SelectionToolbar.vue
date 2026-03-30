@@ -20,9 +20,9 @@
       </button>
       <button
         class="flex items-center gap-1.5 text-xs font-medium text-orange-600 hover:bg-orange-50 px-2.5 py-1.5 rounded-lg transition-colors"
-        @mousedown.prevent="sendToTeach"
+        @mousedown.prevent="showTeachPicker = true"
       >
-        🎓 加到 Teach 產生
+        🎓 加到 Teach
       </button>
 
       <!-- Note list dropdown -->
@@ -51,6 +51,16 @@
     >
       {{ toast }}
     </div>
+
+    <!-- Teach Picker Modal -->
+    <TeachPickerModal
+      :visible="showTeachPicker"
+      :sessions="teachSessions"
+      :loading="teachSessionsLoading"
+      @close="showTeachPicker = false"
+      @create-new="handleTeachNew"
+      @select-session="handleTeachAppend"
+    />
   </Teleport>
 </template>
 
@@ -71,6 +81,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 import { useAuth } from '../composables/useAuth.js'
+import TeachPickerModal from './TeachPickerModal.vue'
 
 const router = useRouter()
 const { uid } = useAuth()
@@ -223,12 +234,65 @@ async function appendToNote(noteId) {
   }
 }
 
-// === 加到 Teach 產生 ===
-function sendToTeach() {
-  if (!selectedText.value) return
+// === 加到 Teach ===
+const showTeachPicker = ref(false)
+const teachSessions = ref([])
+const teachSessionsLoading = ref(false)
+
+async function loadRecentTeachSessions() {
+  if (!uid.value) return
+  try {
+    teachSessionsLoading.value = true
+    const q = query(
+      collection(db, 'teach_sessions'),
+      where('userId', '==', uid.value),
+      orderBy('updated_at', 'desc'),
+      limit(10)
+    )
+    const snap = await getDocs(q)
+    teachSessions.value = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  } catch (e) {
+    console.error('Load teach sessions error:', e)
+  } finally {
+    teachSessionsLoading.value = false
+  }
+}
+
+function handleTeachNew() {
+  showTeachPicker.value = false
   visible.value = false
   window.getSelection()?.removeAllRanges()
   router.push({ path: '/teach', query: { text: selectedText.value } })
+}
+
+async function handleTeachAppend(sessionId) {
+  if (!selectedText.value) return
+  showTeachPicker.value = false
+
+  const session = teachSessions.value.find((s) => s.id === sessionId)
+  if (!session) return
+
+  try {
+    const separator = '\n\n---\n\n'
+    const timestamp = new Date().toLocaleString('zh-TW')
+    const sourceLabel = { insight: '論文摘錄', consult: '問答摘錄', teach: '教材摘錄', assist: '臨床輔助摘錄' }[props.sourceType] || '摘錄'
+    const appendedText = `${session.source_text || ''}${separator}> 📎 ${sourceLabel} (${timestamp})\n\n${selectedText.value}`
+
+    await updateDoc(doc(db, 'teach_sessions', sessionId), {
+      source_text: appendedText,
+      updated_at: serverTimestamp(),
+    })
+
+    showToast(`已加入「${session.title}」✓`)
+    visible.value = false
+    window.getSelection()?.removeAllRanges()
+
+    // Navigate to teach page with this session selected
+    router.push({ path: '/teach', query: { sessionId } })
+  } catch (e) {
+    console.error('Append to teach error:', e)
+    showToast('加入失敗')
+  }
 }
 
 // === 輔助：從選取文字生成標題 ===
@@ -270,6 +334,7 @@ onMounted(() => {
   document.addEventListener('mouseup', handleMouseUp)
   document.addEventListener('mousedown', handleMouseDown)
   loadRecentNotes()
+  loadRecentTeachSessions()
 })
 
 onUnmounted(() => {

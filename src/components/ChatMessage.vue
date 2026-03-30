@@ -54,7 +54,7 @@
           class="text-slate-300 hover:text-orange-500 transition-colors"
           @click="$emit('sendToTeach', msg.content)"
         >
-          🎓 加入 Teach
+          🎓 加到 Teach
         </button>
       </div>
     </div>
