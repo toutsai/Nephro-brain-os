@@ -1243,6 +1243,17 @@ def teach_generate():
     result = {}
 
     try:
+        # If PDF, extract text so user can view/edit later
+        if file_url and contents:
+            try:
+                extract_prompt = "請完整提取這份 PDF 的所有文字內容，保持原始結構和段落格式。只輸出文字內容，不要加任何說明或標記。"
+                extracted = _teach_call(contents, extract_prompt, "teach_extract_text")
+                if extracted and len(extracted.strip()) > 50:
+                    result['extracted_text'] = extracted.strip()
+                    print(f"  📝 提取文字：{len(result['extracted_text'])} 字")
+            except Exception as e:
+                print(f"⚠️ PDF 文字提取失敗（不影響生成）: {e}")
+
         if mode in ('summary', 'all'):
             result['summary'] = _teach_call(contents, TEACH_PROMPT_SUMMARY, "teach_summary")
 

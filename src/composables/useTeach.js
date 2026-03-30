@@ -110,6 +110,10 @@ export function useTeach() {
         updates[mode] = data[mode] || data.result || null
       }
       if (data.ppt_theme) updates.ppt_theme = data.ppt_theme
+      // If backend extracted text from PDF, store it
+      if (data.extracted_text) {
+        updates.source_text = data.extracted_text
+      }
 
       await updateDoc(doc(db, 'teach_sessions', sessionId), updates)
       return data
