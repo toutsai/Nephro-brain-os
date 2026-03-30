@@ -47,9 +47,16 @@
     <!-- Toast notification -->
     <div
       v-if="toast"
-      class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-purple-600 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg animate-fade-in"
+      class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg animate-fade-in"
     >
-      {{ toast }}
+      <span>{{ toast.msg }}</span>
+      <button
+        v-if="toast.sessionId"
+        class="text-orange-300 hover:text-orange-100 text-xs font-medium whitespace-nowrap"
+        @click="router.push({ path: '/teach', query: { sessionId: toast.sessionId } }); toast = null"
+      >
+        前往 Teach →
+      </button>
     </div>
 
     <!-- Teach Picker Modal -->
@@ -106,10 +113,10 @@ const toast = ref(null)
 
 let toastTimer = null
 
-function showToast(msg) {
-  toast.value = msg
+function showToast(msg, sessionId = null) {
+  toast.value = { msg, sessionId }
   clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value = null }, 2000)
+  toastTimer = setTimeout(() => { toast.value = null }, sessionId ? 4000 : 2000)
 }
 
 // 監聽選取事件
@@ -246,7 +253,7 @@ async function loadRecentTeachSessions() {
     const q = query(
       collection(db, 'teach_sessions'),
       where('userId', '==', uid.value),
-      orderBy('updated_at', 'desc'),
+      orderBy('created_at', 'desc'),
       limit(10)
     )
     const snap = await getDocs(q)
@@ -258,11 +265,34 @@ async function loadRecentTeachSessions() {
   }
 }
 
-function handleTeachNew() {
+async function handleTeachNew() {
   showTeachPicker.value = false
   visible.value = false
+  const text = selectedText.value
   window.getSelection()?.removeAllRanges()
-  router.push({ path: '/teach', query: { text: selectedText.value } })
+
+  try {
+    const title = generateTitle(text)
+    const docRef = await addDoc(collection(db, 'teach_sessions'), {
+      title,
+      source_text: text,
+      file_url: null,
+      file_name: null,
+      summary: null,
+      flashcards: null,
+      relation: null,
+      mindmap: null,
+      ppt: null,
+      userId: uid.value,
+      created_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+    })
+    showToast(`已建立「${title}」✓`, docRef.id)
+    loadRecentTeachSessions()
+  } catch (e) {
+    console.error('Create teach session error:', e)
+    showToast('建立失敗')
+  }
 }
 
 async function handleTeachAppend(sessionId) {
@@ -275,7 +305,7 @@ async function handleTeachAppend(sessionId) {
   try {
     const separator = '\n\n---\n\n'
     const timestamp = new Date().toLocaleString('zh-TW')
-    const sourceLabel = { insight: '論文摘錄', consult: '問答摘錄', teach: '教材摘錄', assist: '臨床輔助摘錄' }[props.sourceType] || '摘錄'
+    const sourceLabel = { insight: '論文摘錄', consult: '問答摘錄', teach: '教材摘錄', notes: '筆記摘錄', assist: '臨床輔助摘錄' }[props.sourceType] || '摘錄'
     const appendedText = `${session.source_text || ''}${separator}> 📎 ${sourceLabel} (${timestamp})\n\n${selectedText.value}`
 
     await updateDoc(doc(db, 'teach_sessions', sessionId), {
@@ -283,12 +313,10 @@ async function handleTeachAppend(sessionId) {
       updated_at: serverTimestamp(),
     })
 
-    showToast(`已加入「${session.title}」✓`)
+    showToast(`已加入「${session.title}」✓`, sessionId)
     visible.value = false
     window.getSelection()?.removeAllRanges()
-
-    // Navigate to teach page with this session selected
-    router.push({ path: '/teach', query: { sessionId } })
+    loadRecentTeachSessions()
   } catch (e) {
     console.error('Append to teach error:', e)
     showToast('加入失敗')

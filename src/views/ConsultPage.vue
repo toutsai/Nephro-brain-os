@@ -361,6 +361,23 @@
       @create-new="handleTeachNew"
       @select-session="handleTeachAppend"
     />
+
+    <!-- Teach toast -->
+    <Teleport to="body">
+      <div
+        v-if="teachToast"
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg"
+      >
+        <span>{{ teachToast.msg }}</span>
+        <button
+          v-if="teachToast.sessionId"
+          class="text-orange-300 hover:text-orange-100 text-xs font-medium whitespace-nowrap"
+          @click="router.push({ path: '/teach', query: { sessionId: teachToast.sessionId } }); teachToast = null"
+        >
+          前往 Teach →
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -549,6 +566,15 @@ const teachPickerText = ref('')
 const teachSessions = ref([])
 const teachSessionsLoading = ref(false)
 
+const teachToast = ref(null)
+let teachToastTimer = null
+
+function showTeachToast(msg, sessionId = null) {
+  teachToast.value = { msg, sessionId }
+  clearTimeout(teachToastTimer)
+  teachToastTimer = setTimeout(() => { teachToast.value = null }, sessionId ? 4000 : 2000)
+}
+
 async function loadTeachSessions() {
   if (!uid.value) return
   try {
@@ -556,7 +582,7 @@ async function loadTeachSessions() {
     const q = query(
       collection(db, 'teach_sessions'),
       where('userId', '==', uid.value),
-      orderBy('updated_at', 'desc'),
+      orderBy('created_at', 'desc'),
       limit(10)
     )
     const snap = await getDocs(q)
@@ -574,9 +600,32 @@ function sendToTeach(content) {
   showTeachPicker.value = true
 }
 
-function handleTeachNew() {
+async function handleTeachNew() {
   showTeachPicker.value = false
-  router.push({ path: '/teach', query: { text: teachPickerText.value } })
+  const text = teachPickerText.value
+
+  try {
+    const firstLine = text.split('\n')[0].replace(/[#*_`>]/g, '').trim()
+    const title = firstLine.length <= 30 ? firstLine : firstLine.slice(0, 30) + '…'
+    const docRef = await addDoc(collection(db, 'teach_sessions'), {
+      title,
+      source_text: text,
+      file_url: null,
+      file_name: null,
+      summary: null,
+      flashcards: null,
+      relation: null,
+      mindmap: null,
+      ppt: null,
+      userId: uid.value,
+      created_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+    })
+    showTeachToast(`已建立「${title}」✓`, docRef.id)
+  } catch (e) {
+    console.error('Create teach session error:', e)
+    showTeachToast('建立失敗')
+  }
 }
 
 async function handleTeachAppend(sessionId) {
@@ -594,9 +643,10 @@ async function handleTeachAppend(sessionId) {
       updated_at: serverTimestamp(),
     })
 
-    router.push({ path: '/teach', query: { sessionId } })
+    showTeachToast(`已加入「${session.title}」✓`, sessionId)
   } catch (e) {
     console.error('Append to teach error:', e)
+    showTeachToast('加入失敗')
   }
 }
 
