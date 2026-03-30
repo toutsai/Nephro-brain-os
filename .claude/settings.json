@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f .claude/SESSION_LOG.md ]; then cat .claude/SESSION_LOG.md; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
