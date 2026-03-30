@@ -25,6 +25,14 @@
       ]
     },
     {
+      "collectionGroup": "teach_sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "updated_at", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "assist_history",
       "queryScope": "COLLECTION",
       "fields": [

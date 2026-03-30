@@ -90,6 +90,7 @@
           @select="selectedId = $event.id"
           @add-link="addLink"
           @remove-link="removeLink"
+          @send-to-teach="handleSendToTeach"
         />
       </main>
     </div>
@@ -125,6 +126,7 @@
             @select="selectedId = $event.id"
             @add-link="addLink"
             @remove-link="removeLink"
+            @send-to-teach="handleSendToTeach"
           />
         </div>
       </div>
@@ -193,14 +195,53 @@
         </div>
       </div>
     </template>
+
+    <!-- Selection Toolbar (text selection → Notes / Teach) -->
+    <SelectionToolbar source-type="notes" :source-meta="{ noteId: selectedId }" />
+
+    <!-- Teach Picker Modal -->
+    <TeachPickerModal
+      :visible="showTeachPicker"
+      :sessions="teachSessions"
+      :loading="teachSessionsLoading"
+      @close="showTeachPicker = false"
+      @create-new="handleTeachNew"
+      @select-session="handleTeachAppend"
+    />
+
+    <!-- Teach toast -->
+    <Teleport to="body">
+      <div
+        v-if="teachToast"
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg"
+      >
+        <span>{{ teachToast.msg }}</span>
+        <button
+          v-if="teachToast.sessionId"
+          class="text-orange-300 hover:text-orange-100 text-xs font-medium whitespace-nowrap"
+          @click="router.push({ path: '/teach', query: { sessionId: teachToast.sessionId } }); teachToast = null"
+        >
+          前往 Teach →
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { db } from '../firebase.js'
+import { collection, doc, addDoc, updateDoc, query, where, orderBy, limit, getDocs, serverTimestamp } from 'firebase/firestore'
 import { useNotes } from '../composables/useNotes.js'
+import { useAuth } from '../composables/useAuth.js'
 import NoteCard from '../components/NoteCard.vue'
 import NoteEditor from '../components/NoteEditor.vue'
+import SelectionToolbar from '../components/SelectionToolbar.vue'
+import TeachPickerModal from '../components/TeachPickerModal.vue'
+
+const router = useRouter()
+const { uid } = useAuth()
 
 const {
   notes,
@@ -257,5 +298,94 @@ function handleDeleteMobile(noteId) {
   if (!confirm('確定要刪除這則筆記？')) return
   deleteNote(noteId)
   if (selectedId.value === noteId) selectedId.value = null
+}
+
+// === Teach 整合 ===
+const showTeachPicker = ref(false)
+const teachPickerText = ref('')
+const teachSessions = ref([])
+const teachSessionsLoading = ref(false)
+const teachToast = ref(null)
+let teachToastTimer = null
+
+function showTeachToast(msg, sessionId = null) {
+  teachToast.value = { msg, sessionId }
+  clearTimeout(teachToastTimer)
+  teachToastTimer = setTimeout(() => { teachToast.value = null }, sessionId ? 4000 : 2000)
+}
+
+async function loadTeachSessions() {
+  if (!uid.value) return
+  try {
+    teachSessionsLoading.value = true
+    const q = query(
+      collection(db, 'teach_sessions'),
+      where('userId', '==', uid.value),
+      orderBy('created_at', 'desc'),
+      limit(10)
+    )
+    const snap = await getDocs(q)
+    teachSessions.value = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  } catch (e) {
+    console.error('Load teach sessions error:', e)
+  } finally {
+    teachSessionsLoading.value = false
+  }
+}
+
+function handleSendToTeach(content) {
+  teachPickerText.value = content
+  loadTeachSessions()
+  showTeachPicker.value = true
+}
+
+async function handleTeachNew() {
+  showTeachPicker.value = false
+  const text = teachPickerText.value
+
+  try {
+    const firstLine = text.split('\n')[0].replace(/[#*_`>]/g, '').trim()
+    const title = firstLine.length <= 30 ? firstLine : firstLine.slice(0, 30) + '…'
+    const docRef = await addDoc(collection(db, 'teach_sessions'), {
+      title,
+      source_text: text,
+      file_url: null,
+      file_name: null,
+      summary: null,
+      flashcards: null,
+      relation: null,
+      mindmap: null,
+      ppt: null,
+      userId: uid.value,
+      created_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+    })
+    showTeachToast(`已建立「${title}」✓`, docRef.id)
+  } catch (e) {
+    console.error('Create teach session error:', e)
+    showTeachToast('建立失敗')
+  }
+}
+
+async function handleTeachAppend(sessionId) {
+  const session = teachSessions.value.find((s) => s.id === sessionId)
+  if (!session) return
+  showTeachPicker.value = false
+
+  try {
+    const separator = '\n\n---\n\n'
+    const timestamp = new Date().toLocaleString('zh-TW')
+    const appendedText = `${session.source_text || ''}${separator}> 📎 筆記摘錄 (${timestamp})\n\n${teachPickerText.value}`
+
+    await updateDoc(doc(db, 'teach_sessions', sessionId), {
+      source_text: appendedText,
+      updated_at: serverTimestamp(),
+    })
+
+    showTeachToast(`已加入「${session.title}」✓`, sessionId)
+  } catch (e) {
+    console.error('Append to teach error:', e)
+    showTeachToast('加入失敗')
+  }
 }
 </script>

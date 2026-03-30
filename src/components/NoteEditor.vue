@@ -76,6 +76,12 @@
         >
           🔗 連結 ({{ (note.links || []).length }})
         </button>
+        <button
+          class="text-xs px-2.5 py-1.5 rounded text-orange-500 hover:bg-orange-50 transition-colors"
+          @click="$emit('sendToTeach', note.content)"
+        >
+          🎓 Teach
+        </button>
         <div class="flex-1" />
         <span v-if="saving" class="text-[10px] text-slate-300">儲存中...</span>
         <span v-else class="text-[10px] text-emerald-400">已儲存</span>
@@ -184,7 +190,7 @@ const props = defineProps({
   linkedNotes: { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['update', 'delete', 'select', 'addLink', 'removeLink'])
+const emit = defineEmits(['update', 'delete', 'select', 'addLink', 'removeLink', 'sendToTeach'])
 
 const editMode = ref('write') // 'write' | 'preview' | 'links'
 const previewEl = ref(null)
