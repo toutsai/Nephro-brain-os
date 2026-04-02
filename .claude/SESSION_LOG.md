@@ -1,32 +1,38 @@
 # Session Log
 
 ## 最近一次更新
-- **日期**：2026-04-02
+- **日期**：2026-04-02（第二次更新）
 - **完成事項**：
-  1. 跨模組連動優化 — 補齊所有缺失的模組間連結：
-     - Notes → Consult：筆記加「🔍 問答」按鈕
-     - Insight → Teach：文章加「🎓 加到 Teach」按鈕
-     - Assist → Consult + Teach：結果加「🔍 深入問答」和「🎓 加到 Teach」按鈕
-     - Teach → Consult：教材加「🔍 深入問答」按鈕
-  2. 抽取 `useTeachPicker.js` composable，消除 ConsultPage 和 NotesPage 中 ~80 行重複代碼
-  3. 生成 PWA icon 檔案（icon-192.png、icon-512.png、apple-touch-icon.png）
-  4. 設定 vite-plugin-pwa（Service Worker 離線快取 + API NetworkFirst + Google Fonts CacheFirst）
-  5. 撰寫 `crawlers/retag_articles.py` 批次重新分類文章主題腳本（支援 --dry-run）
+  1. **Insight 新文章 badge**：側邊欄主題旁顯示紅底白字新文章數量
+  2. **Insight 本日快訊**：側邊欄頂部摺疊區塊，摘要今日新增文章（點擊跳轉）
+  3. **Consult 精選問答區**：新 tab，所有登入使用者可新增 Q&A（Markdown 回答、分類篩選、只能刪除自己的）
+  4. **Teach PPT 選項擴充**：頁數 4 檔（精簡 5-9 / 中等 10-14 / 完整 15-20 / 自動）+ 配色新增「自動推薦」
+  5. **Assist 圖片貼上**：ImageUploader 支援 Ctrl+V 剪貼簿貼上 + 拖曳圖片 + 視覺回饋
+  6. （延續上次）跨模組連動優化、PWA icons、Service Worker、re-tagging 腳本
 - **未完成**：
-  - re-tagging 腳本尚未實際執行（需要 Firebase credentials）
-  - Consult → Insight 相關文獻推薦（延後，UX 設計複雜）
-  - LandingPage dashboard（延後，維護成本高）
+  - re-tagging 腳本尚未實際執行
+  - Consult → Insight 相關文獻推薦（延後）
+  - LandingPage dashboard（延後）
+  - 精選問答的管理員 pin/排序功能（未來可加）
 - **下次待辦**：
-  - 執行 retag_articles.py --dry-run 確認結果正確後再正式執行
-  - 考慮 Consult → Insight 文獻推薦功能
-  - 行動版實機測試 PWA 安裝體驗
+  - 執行 retag_articles.py
+  - 精選問答初始資料填入
+  - 行動版實機測試所有新功能
+  - 部署 firestore.rules 更新（需手動 firebase deploy --only firestore:rules）
+  - 部署 backend 更新（PPT prompt 變更）
 - **重要決策**：
-  - Teach picker 邏輯抽成共用 composable 而非繼續複製
-  - PWA icon 用 SVG → PNG 方式自動生成（深色底 + NB 文字）
-  - vite-plugin-pwa 使用 manifest: false 沿用既有 public/manifest.json
-  - re-tagging 腳本複製 detect_topics() 而非 import（避免 crawler_v2.py 的副作用）
+  - 精選問答改為「所有使用者可新增」（非僅 admin），自己只能刪除自己的
+  - PPT 自動配色由 AI 在 JSON 中回傳 recommended_theme
+  - ImageUploader 加入 document-level paste 監聽（在非 input 聚焦時全域生效）
+  - 本日快訊預設摺疊，避免佔用太多側邊欄空間
 
 ## 歷史紀錄
+
+### 2026-04-02（第一次更新）
+- 跨模組連動優化（Notes→Consult、Insight→Teach、Assist→Consult/Teach、Teach→Consult）
+- 抽取 useTeachPicker composable
+- PWA icon 生成 + vite-plugin-pwa 設定
+- 文章 re-tagging 腳本
 
 ### 2026-03-30
 - Insight 搜尋主題從 7 個擴充到 13 個
@@ -34,5 +40,5 @@
 - Insight 改為三欄式佈局
 - 手機版改用下拉選單取代橫向 tab
 - 五個頁面統一高度、統一全寬佈局
-- 行動版全面優化：100dvh、觸控目標增大、文字放大、PWA manifest
+- 行動版全面優化
 - 建立 Claude Code 工作流程自動化設定
