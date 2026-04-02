@@ -12,6 +12,29 @@
         </div>
       </div>
 
+      <!-- 手機版：本日快訊 -->
+      <div v-if="isMobile && todayArticles.length" class="px-4 py-2 bg-emerald-50 border-b border-emerald-100 lg:hidden">
+        <button
+          class="w-full flex items-center justify-between text-xs font-semibold text-emerald-700"
+          @click="showDailyBrief = !showDailyBrief"
+        >
+          <span>📰 本日快訊 ({{ todayArticles.length }})</span>
+          <span class="text-[10px]">{{ showDailyBrief ? '▲' : '▼' }}</span>
+        </button>
+        <div v-if="showDailyBrief" class="space-y-1.5 mt-2 max-h-40 overflow-y-auto">
+          <div
+            v-for="a in todayArticles.slice(0, 5)"
+            :key="'m-brief-' + a.id"
+            class="p-2 bg-white rounded-lg"
+            @click="activeTab = a.topics?.[0] || 'CKD'; selectedArticle = a"
+          >
+            <p class="text-[11px] font-medium text-slate-800 line-clamp-1">
+              {{ a.title_zh || a.title }}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <!-- 手機版：橫向 Tab bar (下拉選單) -->
       <div class="lg:hidden px-4 pb-2">
         <select
@@ -42,6 +65,37 @@
 
         <!-- 左側 Sidebar -->
         <aside class="border-r border-slate-200 bg-white overflow-y-auto py-2">
+          <!-- 本日快訊 -->
+          <div v-if="todayArticles.length" class="px-3 pb-2 mb-2 border-b border-slate-100">
+            <button
+              class="w-full flex items-center justify-between py-1.5 text-xs font-semibold text-emerald-700"
+              @click="showDailyBrief = !showDailyBrief"
+            >
+              <span>📰 本日快訊 ({{ todayArticles.length }})</span>
+              <span class="text-[10px]">{{ showDailyBrief ? '▲' : '▼' }}</span>
+            </button>
+            <div v-if="showDailyBrief" class="space-y-1.5 mt-1 max-h-60 overflow-y-auto">
+              <div
+                v-for="a in todayArticles.slice(0, 10)"
+                :key="'brief-' + a.id"
+                class="p-2 bg-emerald-50 rounded-lg cursor-pointer hover:bg-emerald-100 transition-colors"
+                @click="activeTab = a.topics?.[0] || 'CKD'; selectedArticle = a"
+              >
+                <p class="text-[11px] font-medium text-slate-800 line-clamp-2">
+                  {{ a.title_zh || a.title }}
+                </p>
+                <div class="flex items-center gap-1 mt-1">
+                  <span class="text-[9px] px-1 py-0.5 rounded bg-slate-200 text-slate-500">
+                    {{ a.topics?.[0] }}
+                  </span>
+                  <span v-if="a.evidence_level" class="text-[9px] text-slate-400">
+                    {{ a.evidence_level }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="px-2 mb-1">
             <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2 py-1">主題分類</p>
           </div>
@@ -58,15 +112,23 @@
             @click="activeTab = tab.key; selectedArticle = null"
           >
             <span class="truncate">{{ tab.label }}</span>
-            <span
-              class="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full"
-              :class="
-                activeTab === tab.key
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'bg-slate-100 text-slate-500'
-              "
-            >
-              {{ tab.count }}
+            <span class="flex items-center gap-1">
+              <span
+                v-if="tab.newCount"
+                class="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500 text-white font-bold"
+              >
+                {{ tab.newCount }}
+              </span>
+              <span
+                class="text-[10px] px-1.5 py-0.5 rounded-full"
+                :class="
+                  activeTab === tab.key
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-slate-100 text-slate-500'
+                "
+              >
+                {{ tab.count }}
+              </span>
             </span>
           </button>
 
@@ -88,15 +150,23 @@
             @click="activeTab = tab.key; selectedArticle = null"
           >
             <span class="truncate">{{ tab.label }}</span>
-            <span
-              class="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full"
-              :class="
-                activeTab === tab.key
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'bg-slate-100 text-slate-500'
-              "
-            >
-              {{ tab.count }}
+            <span class="flex items-center gap-1">
+              <span
+                v-if="tab.newCount"
+                class="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500 text-white font-bold"
+              >
+                {{ tab.newCount }}
+              </span>
+              <span
+                class="text-[10px] px-1.5 py-0.5 rounded-full"
+                :class="
+                  activeTab === tab.key
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-slate-100 text-slate-500'
+                "
+              >
+                {{ tab.count }}
+              </span>
             </span>
           </button>
         </aside>
@@ -293,6 +363,8 @@ const {
   stoneArticles,
   oncoNephroArticles,
   journalArticles,
+  todayArticles,
+  newCountByTopic,
   loading,
   isToday,
   unsubscribe: unsubArticles,
@@ -308,6 +380,7 @@ const {
 // UI state
 const activeTab = ref('ESRD/HD')
 const selectedArticle = ref(null)
+const showDailyBrief = ref(false)
 
 // Mobile detection
 const isMobile = ref(false)
@@ -326,24 +399,24 @@ onUnmounted(() => {
 
 // Tabs config — 分為主題與特殊分類
 const topicTabs = computed(() => [
-  { key: 'ESRD/HD', label: 'ESRD / HD', count: esrdArticles.value.length },
-  { key: 'AKI', label: 'AKI', count: akiArticles.value.length },
-  { key: 'CKD', label: 'CKD', count: ckdArticles.value.length },
-  { key: 'GN', label: 'GN', count: gnArticles.value.length },
-  { key: 'Transplant', label: 'Transplant', count: transplantArticles.value.length },
-  { key: 'Electrolyte', label: 'Electrolyte', count: electrolyteArticles.value.length },
-  { key: 'PD', label: 'PD', count: pdArticles.value.length },
-  { key: 'CKM', label: '心腎代謝', count: ckmArticles.value.length },
-  { key: 'HTN', label: '高血壓腎病', count: htnArticles.value.length },
-  { key: 'PKD', label: '遺傳腎病', count: pkdArticles.value.length },
-  { key: 'CKD-MBD', label: '骨礦代謝', count: ckdMbdArticles.value.length },
-  { key: 'Stone', label: '腎結石', count: stoneArticles.value.length },
-  { key: 'Onco-Nephro', label: '腫瘤腎臟', count: oncoNephroArticles.value.length },
+  { key: 'ESRD/HD', label: 'ESRD / HD', count: esrdArticles.value.length, newCount: newCountByTopic.value['ESRD/HD'] || 0 },
+  { key: 'AKI', label: 'AKI', count: akiArticles.value.length, newCount: newCountByTopic.value['AKI'] || 0 },
+  { key: 'CKD', label: 'CKD', count: ckdArticles.value.length, newCount: newCountByTopic.value['CKD'] || 0 },
+  { key: 'GN', label: 'GN', count: gnArticles.value.length, newCount: newCountByTopic.value['GN'] || 0 },
+  { key: 'Transplant', label: 'Transplant', count: transplantArticles.value.length, newCount: newCountByTopic.value['Transplant'] || 0 },
+  { key: 'Electrolyte', label: 'Electrolyte', count: electrolyteArticles.value.length, newCount: newCountByTopic.value['Electrolyte'] || 0 },
+  { key: 'PD', label: 'PD', count: pdArticles.value.length, newCount: newCountByTopic.value['PD'] || 0 },
+  { key: 'CKM', label: '心腎代謝', count: ckmArticles.value.length, newCount: newCountByTopic.value['CKM'] || 0 },
+  { key: 'HTN', label: '高血壓腎病', count: htnArticles.value.length, newCount: newCountByTopic.value['HTN'] || 0 },
+  { key: 'PKD', label: '遺傳腎病', count: pkdArticles.value.length, newCount: newCountByTopic.value['PKD'] || 0 },
+  { key: 'CKD-MBD', label: '骨礦代謝', count: ckdMbdArticles.value.length, newCount: newCountByTopic.value['CKD-MBD'] || 0 },
+  { key: 'Stone', label: '腎結石', count: stoneArticles.value.length, newCount: newCountByTopic.value['Stone'] || 0 },
+  { key: 'Onco-Nephro', label: '腫瘤腎臟', count: oncoNephroArticles.value.length, newCount: newCountByTopic.value['Onco-Nephro'] || 0 },
 ])
 
 const specialTabs = computed(() => [
-  { key: 'journal', label: '📰 期刊', count: journalArticles.value.length },
-  { key: 'collection', label: '✅ 收藏庫', count: savedArticles.value.length },
+  { key: 'journal', label: '📰 期刊', count: journalArticles.value.length, newCount: newCountByTopic.value['journal'] || 0 },
+  { key: 'collection', label: '✅ 收藏庫', count: savedArticles.value.length, newCount: 0 },
 ])
 
 // 合併所有 tabs（手機版 select 使用）

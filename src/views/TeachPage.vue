@@ -507,7 +507,7 @@
             <!-- 頁數 -->
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-2">頁數</label>
-              <div class="flex gap-2">
+              <div class="flex gap-2 flex-wrap">
                 <button
                   v-for="opt in pptLengthOptions"
                   :key="opt.value"
@@ -545,7 +545,10 @@
                   :class="pptOptions.theme === opt.value ? 'border-orange-400 bg-orange-50 text-orange-700 font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
                   @click="pptOptions.theme = opt.value"
                 >
-                  <span class="inline-block w-3 h-3 rounded-full flex-shrink-0" :style="{ backgroundColor: opt.dot }"></span>
+                  <template v-if="opt.dot">
+                    <span class="inline-block w-3 h-3 rounded-full flex-shrink-0" :style="{ backgroundColor: opt.dot }"></span>
+                  </template>
+                  <span v-else class="text-sm">✨</span>
                   {{ opt.label }}
                 </button>
               </div>
@@ -620,7 +623,7 @@ const showPptModal = ref(false)
 const pptOptions = reactive({
   language: 'zh-TW',
   audience: 'doctor',
-  length: 'standard',
+  length: 'medium',
   style: 'balanced',
   theme: 'orange',
 })
@@ -635,8 +638,10 @@ const pptAudienceOptions = [
   { value: 'doctor', label: '醫師（學術報告）' },
 ]
 const pptLengthOptions = [
-  { value: 'brief', label: '精簡版 5-8 頁' },
-  { value: 'standard', label: '完整版 10-15 頁' },
+  { value: 'brief', label: '精簡 5-9 頁' },
+  { value: 'medium', label: '中等 10-14 頁' },
+  { value: 'full', label: '完整 15-20 頁' },
+  { value: 'auto', label: '依內容自動' },
 ]
 const pptStyleOptions = [
   { value: 'chart-heavy', label: '圖表為主' },
@@ -648,6 +653,7 @@ const pptThemeOptions = [
   { value: 'blue', label: '淺藍', dot: '#3B82F6' },
   { value: 'green', label: '淺綠', dot: '#10B981' },
   { value: 'bw', label: '黑白', dot: '#1E293B' },
+  { value: 'auto', label: '自動推薦', dot: null },
 ]
 
 // File upload state

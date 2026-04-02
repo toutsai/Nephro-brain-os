@@ -101,6 +101,22 @@ export function useArticles() {
     return date.toDateString() === new Date().toDateString()
   }
 
+  // 今日文章
+  const todayArticles = computed(() =>
+    articles.value.filter(a => isToday(a.created_at))
+  )
+
+  // 各主題今日新文章數
+  const newCountByTopic = computed(() => {
+    const counts = {}
+    const topicKeys = ['ESRD/HD','AKI','CKD','GN','Transplant','Electrolyte','PD','CKM','HTN','PKD','CKD-MBD','Stone','Onco-Nephro']
+    for (const key of topicKeys) {
+      counts[key] = articles.value.filter(a => a.topics?.includes(key) && isToday(a.created_at)).length
+    }
+    counts['journal'] = journalArticles.value.filter(a => isToday(a.created_at)).length
+    return counts
+  })
+
   return {
     articles,
     esrdArticles,
@@ -119,6 +135,8 @@ export function useArticles() {
     journalArticles,
     loading,
     error,
+    todayArticles,
+    newCountByTopic,
     isToday,
     unsubscribe,
   }

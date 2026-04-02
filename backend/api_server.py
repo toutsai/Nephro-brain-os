@@ -1272,11 +1272,19 @@ def teach_generate():
 
         if mode == 'ppt':
             ppt_options = data.get('ppt_options', {})
+            theme = ppt_options.get('theme', 'orange')
+            if theme == 'auto':
+                ppt_options['_auto_theme'] = True
             prompt = build_ppt_prompt(ppt_options)
             raw = _teach_call(contents, prompt, "teach_ppt")
             parsed = _extract_json(raw)
             result['ppt'] = json.dumps(parsed, ensure_ascii=False)
-            result['ppt_theme'] = ppt_options.get('theme', 'orange')
+            # Resolve auto theme from AI response
+            if theme == 'auto':
+                theme = parsed.get('recommended_theme', 'blue')
+                if theme not in ('orange', 'blue', 'green', 'bw'):
+                    theme = 'blue'
+            result['ppt_theme'] = theme
 
         return jsonify(result)
 
@@ -1460,8 +1468,11 @@ def build_ppt_prompt(options):
 
     # 頁數設定
     length_map = {
-        'brief': '投影片總數 5-8 頁（精簡版）。',
-        'standard': '投影片總數 10-15 頁（完整版）。',
+        'brief': '投影片總數 5-9 頁（精簡版）。',
+        'medium': '投影片總數 10-14 頁（中等版）。',
+        'standard': '投影片總數 10-14 頁（中等版）。',  # backward compat
+        'full': '投影片總數 15-20 頁（完整版）。',
+        'auto': '根據素材的豐富程度與複雜度，自行決定最適合的投影片頁數（5-20 頁範圍內）。',
     }
     length_instruction = length_map.get(length, length_map['standard'])
 
@@ -1473,7 +1484,7 @@ def build_ppt_prompt(options):
     }
     style_instruction = style_map.get(style, style_map['balanced'])
 
-    return f"""你是一位醫學簡報設計專家。請根據上面的學習素材，製作一份專業的投影片簡報。
+    prompt = f"""你是一位醫學簡報設計專家。請根據上面的學習素材，製作一份專業的投影片簡報。
 
 【簡報設定】
 - {lang_instruction}
@@ -1540,6 +1551,14 @@ def build_ppt_prompt(options):
 7. 根據素材內容選擇最適合的 layout 類型組合
 8. 表格用於比較、分類、藥物劑量等結構化資訊
 9. **重要文字高亮**：在 bullets 文字中，對關鍵術語、重要數值、藥物名稱、診斷標準、關鍵結論等使用 **粗體** markdown 標記（用 **雙星號** 包起來）。例如："eGFR **< 60 mL/min** 持續 **3 個月**以上即可診斷為 **CKD**"。每條 bullet 中標記 1-3 個最重要的詞彙或數值即可，不要過度標記。"""
+
+    # Auto theme instruction
+    auto_theme = options.get('_auto_theme', False)
+    theme_instruction = ''
+    if auto_theme:
+        theme_instruction = '\n10. 在 JSON 最外層加入 "recommended_theme" 欄位，根據簡報內容主題推薦最適合的配色（只能選 "orange"、"blue"、"green"、"bw" 其中一個）。學術/嚴謹主題推薦 blue 或 bw，臨床/衛教主題推薦 orange 或 green。'
+
+    return prompt + theme_instruction
 
 
 # === NB Assist 端點（加在 api_server.py 的 teach 端點後面）===
