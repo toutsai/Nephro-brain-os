@@ -394,6 +394,18 @@ Dapagliflozin 10mg
               >
                 📝 收進 Notes
               </button>
+              <button
+                class="text-xs text-blue-500 hover:text-blue-700 transition-colors"
+                @click="deepConsult"
+              >
+                🔍 深入問答
+              </button>
+              <button
+                class="text-xs text-orange-500 hover:text-orange-700 transition-colors"
+                @click="assistSendToTeach"
+              >
+                🎓 加到 Teach
+              </button>
             </div>
           </div>
         </div>
@@ -405,16 +417,46 @@ Dapagliflozin 10mg
       source-type="assist"
       :source-meta="{ mode: activeMode }"
     />
+
+    <!-- Teach Picker Modal -->
+    <TeachPickerModal
+      :visible="showTeachPicker"
+      :sessions="teachSessions"
+      :loading="teachSessionsLoading"
+      @close="showTeachPicker = false"
+      @create-new="handleTeachNew"
+      @select-session="handleTeachAppend"
+    />
+
+    <!-- Teach toast -->
+    <Teleport to="body">
+      <div
+        v-if="teachToast"
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg"
+      >
+        <span>{{ teachToast.msg }}</span>
+        <button
+          v-if="teachToast.sessionId"
+          class="text-orange-300 hover:text-orange-100 text-xs font-medium whitespace-nowrap"
+          @click="router.push({ path: '/teach', query: { sessionId: teachToast.sessionId } }); teachToast = null"
+        >
+          前往 Teach →
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { useAssist } from '../composables/useAssist.js'
+import { useTeachPicker } from '../composables/useTeachPicker.js'
 import ImageUploader from '../components/ImageUploader.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
+import TeachPickerModal from '../components/TeachPickerModal.vue'
 import GuestLock from '../components/GuestLock.vue'
 import { useAuth } from '../composables/useAuth.js'
 import AssistCalculator from '../components/assist/AssistCalculator.vue'
@@ -426,6 +468,12 @@ import { renderMd } from '../utils/renderMarkdown.js'
 import { renderMermaidIn } from '../composables/useMermaid.js'
 
 const { isLoggedIn, uid } = useAuth()
+const router = useRouter()
+
+const {
+  showTeachPicker, teachSessions, teachSessionsLoading, teachToast,
+  sendToTeach: triggerTeachPicker, handleTeachNew, handleTeachAppend,
+} = useTeachPicker(uid, { sourceLabel: 'Assist 摘錄' })
 
 const {
   history,
@@ -602,6 +650,17 @@ function getCurrentInput() {
   if (activeMode.value === 'nhi') return { query: nhiInput.value }
   if (activeMode.value === 'interaction') return { drugs: interactionInput.value }
   return {}
+}
+
+function deepConsult() {
+  if (!currentResult.value) return
+  const snippet = currentResult.value.replace(/<[^>]*>/g, '').slice(0, 200)
+  router.push({ path: '/consult', query: { q: snippet } })
+}
+
+function assistSendToTeach() {
+  if (!currentResult.value) return
+  triggerTeachPicker(currentResult.value)
 }
 
 async function saveToNotes() {
