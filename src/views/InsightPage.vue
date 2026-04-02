@@ -145,6 +145,7 @@
             @toggle-save="toggleSave"
             @deep-consult="handleDeepConsult"
             @save-to-notes="handleSaveToNotes"
+            @send-to-teach="handleSendToTeach"
           />
         </div>
       </div>
@@ -210,6 +211,9 @@
             :article="selectedArticle"
             :is-saved="isSaved(selectedArticle.id)"
             @toggle-save="toggleSave"
+            @deep-consult="handleDeepConsult"
+            @save-to-notes="handleSaveToNotes"
+            @send-to-teach="handleSendToTeach"
           />
         </div>
       </div>
@@ -220,6 +224,33 @@
       source-type="insight"
       :source-meta="selectedArticle ? { title: selectedArticle.title, pmid: selectedArticle.pmid } : {}"
     />
+
+    <!-- Teach Picker Modal -->
+    <TeachPickerModal
+      :visible="showTeachPicker"
+      :sessions="teachSessions"
+      :loading="teachSessionsLoading"
+      @close="showTeachPicker = false"
+      @create-new="handleTeachNew"
+      @select-session="handleTeachAppend"
+    />
+
+    <!-- Teach toast -->
+    <Teleport to="body">
+      <div
+        v-if="teachToast"
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg"
+      >
+        <span>{{ teachToast.msg }}</span>
+        <button
+          v-if="teachToast.sessionId"
+          class="text-orange-300 hover:text-orange-100 text-xs font-medium whitespace-nowrap"
+          @click="router.push({ path: '/teach', query: { sessionId: teachToast.sessionId } }); teachToast = null"
+        >
+          前往 Teach →
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -229,12 +260,21 @@ import { useRouter } from 'vue-router'
 import { useArticles } from '../composables/useArticles.js'
 import { useCollection } from '../composables/useCollection.js'
 import { useNotes } from '../composables/useNotes.js'
+import { useAuth } from '../composables/useAuth.js'
+import { useTeachPicker } from '../composables/useTeachPicker.js'
 import ArticleCard from '../components/ArticleCard.vue'
 import ArticleDetail from '../components/ArticleDetail.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
+import TeachPickerModal from '../components/TeachPickerModal.vue'
 
 const router = useRouter()
+const { uid } = useAuth()
 const { saveFromModule } = useNotes()
+
+const {
+  showTeachPicker, teachSessions, teachSessionsLoading, teachToast,
+  sendToTeach: triggerTeachPicker, handleTeachNew, handleTeachAppend,
+} = useTeachPicker(uid, { sourceLabel: '論文摘錄' })
 
 // Data
 const {
@@ -336,6 +376,21 @@ function showToast(msg) {
   el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:50;background:#7c3aed;color:white;padding:8px 16px;border-radius:12px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.15)'
   document.body.appendChild(el)
   setTimeout(() => el.remove(), 2000)
+}
+
+function handleSendToTeach(article) {
+  const title = article.title_zh || article.title || ''
+  const content = [
+    `# ${title}`,
+    '',
+    article.journal ? `**Journal:** ${article.journal}` : '',
+    article.pubdate ? `**Date:** ${article.pubdate}` : '',
+    '',
+    article.abstract || '',
+    '',
+    article.clinical_takeaways?.length ? '## Clinical Takeaways\n' + article.clinical_takeaways.map(t => `- ${t}`).join('\n') : '',
+  ].filter(Boolean).join('\n')
+  triggerTeachPicker(content)
 }
 
 function handleDeepConsult(article) {

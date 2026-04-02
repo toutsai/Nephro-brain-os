@@ -127,6 +127,12 @@
         >
           📝 存入筆記
         </button>
+        <button
+          class="flex-1 py-2 rounded-lg text-xs font-medium bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
+          @click="$emit('sendToTeach', article)"
+        >
+          🎓 加到 Teach
+        </button>
       </div>
     </div>
   </div>
@@ -147,7 +153,7 @@ const props = defineProps({
   isSaved: { type: Boolean, default: false },
 })
 
-defineEmits(['toggleSave', 'deepConsult', 'saveToNotes'])
+defineEmits(['toggleSave', 'deepConsult', 'saveToNotes', 'sendToTeach'])
 
 const levelBadgeClass = computed(() => {
   const lv = props.article?.evidence_level

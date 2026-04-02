@@ -249,12 +249,20 @@
             <!-- Re-generate button -->
             <div class="flex items-center justify-between mb-4">
               <h2 class="text-lg font-bold text-slate-800">{{ currentSession.title }}</h2>
-              <button
-                class="text-xs text-slate-400 hover:text-orange-500 transition-colors"
-                @click="isNewSession = true; sourceText = currentSession.source_text || ''; fileUrl = currentSession.file_url || null; uploadedFile = currentSession.file_name ? { name: currentSession.file_name, size: '' } : null; inputMode = currentSession.file_url ? 'file' : 'text'"
-              >
-                重新生成
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  class="text-xs px-2.5 py-1.5 rounded text-blue-500 hover:bg-blue-50 transition-colors"
+                  @click="deepConsultFromTeach"
+                >
+                  🔍 深入問答
+                </button>
+                <button
+                  class="text-xs text-slate-400 hover:text-orange-500 transition-colors"
+                  @click="isNewSession = true; sourceText = currentSession.source_text || ''; fileUrl = currentSession.file_url || null; uploadedFile = currentSession.file_name ? { name: currentSession.file_name, size: '' } : null; inputMode = currentSession.file_url ? 'file' : 'text'"
+                >
+                  重新生成
+                </button>
+              </div>
             </div>
 
             <!-- Tab nav -->
@@ -961,6 +969,13 @@ function handleDelete(sid) {
   if (!confirm('確定要刪除？')) return
   deleteSession(sid)
   if (selectedId.value === sid) selectedId.value = null
+}
+
+function deepConsultFromTeach() {
+  const session = currentSession.value
+  if (!session) return
+  const text = (session.source_text || session.title || '').slice(0, 200)
+  router.push({ path: '/consult', query: { q: text } })
 }
 
 // 換卡片時重設 index
