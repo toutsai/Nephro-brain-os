@@ -267,6 +267,121 @@
       </div>
     </template>
 
+    <!-- ===================== Featured QnA View ===================== -->
+    <template v-if="activeTab === 'featured'">
+      <main class="flex-1 overflow-y-auto w-full px-4 py-6">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <h2 class="text-sm font-bold text-slate-800">精選問答</h2>
+            <span class="text-[10px] text-slate-400">{{ filteredQnas.length }} 則</span>
+          </div>
+          <button
+            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors"
+            @click="showCreateQnaModal = true"
+          >
+            + 新增問答
+          </button>
+        </div>
+
+        <!-- Category filter -->
+        <div v-if="featuredCategories.length" class="flex gap-2 flex-wrap mb-4">
+          <button
+            class="px-2.5 py-1 text-xs rounded-lg border transition-colors"
+            :class="!featuredFilter ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
+            @click="featuredFilter = ''"
+          >
+            全部
+          </button>
+          <button
+            v-for="cat in featuredCategories"
+            :key="cat"
+            class="px-2.5 py-1 text-xs rounded-lg border transition-colors"
+            :class="featuredFilter === cat ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
+            @click="featuredFilter = cat"
+          >
+            {{ cat }}
+          </button>
+        </div>
+
+        <!-- QnA list -->
+        <div v-if="featuredLoading" class="text-center py-12 text-slate-400 text-sm">
+          載入中...
+        </div>
+        <div v-else-if="!filteredQnas.length" class="text-center py-12 text-slate-400">
+          <div class="text-4xl mb-3">⭐</div>
+          <p class="text-sm">還沒有精選問答</p>
+          <p class="text-xs mt-1">點擊「+ 新增問答」分享你的知識！</p>
+        </div>
+        <div v-else class="space-y-3">
+          <FeaturedQnaCard
+            v-for="q in filteredQnas"
+            :key="q.id"
+            :qna="q"
+            :is-owner="q.authorId === uid"
+            @ask-in-consult="askFromFeatured"
+            @delete="handleDeleteQna"
+          />
+        </div>
+      </main>
+
+      <!-- Create QnA Modal -->
+      <div v-if="showCreateQnaModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showCreateQnaModal = false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h3 class="text-base font-bold text-slate-800">新增精選問答</h3>
+            <button class="text-slate-400 hover:text-slate-600" @click="showCreateQnaModal = false">✕</button>
+          </div>
+          <div class="px-6 py-5 space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">問題</label>
+              <input
+                v-model="newQna.question"
+                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400"
+                placeholder="輸入問題..."
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">回答 (支援 Markdown)</label>
+              <textarea
+                v-model="newQna.answer"
+                rows="8"
+                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 resize-y"
+                placeholder="輸入回答（支援 Markdown 格式）..."
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">分類</label>
+              <input
+                v-model="newQna.category"
+                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400"
+                placeholder="例如：CKD 管理、透析處方、移植..."
+                list="qna-categories"
+              />
+              <datalist id="qna-categories">
+                <option v-for="cat in featuredCategories" :key="cat" :value="cat" />
+              </datalist>
+            </div>
+          </div>
+          <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
+            <button
+              class="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 transition-colors"
+              @click="showCreateQnaModal = false"
+            >
+              取消
+            </button>
+            <button
+              class="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+              :disabled="!newQna.question.trim() || !newQna.answer.trim()"
+              @click="handleCreateQna"
+            >
+              發布
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
+
     <!-- ===================== Library View ===================== -->
     <template v-if="activeTab === 'library'">
       <main class="flex-1 overflow-y-auto w-full px-4 py-6">
@@ -382,7 +497,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
@@ -390,8 +505,10 @@ import { db, storage } from '../firebase.js'
 import { useConsultChat } from '../composables/useConsultChat.js'
 import { useBooks } from '../composables/useBooks.js'
 import { useTeachPicker } from '../composables/useTeachPicker.js'
+import { useFeaturedQna } from '../composables/useFeaturedQna.js'
 import ChatMessage from '../components/ChatMessage.vue'
 import BookCard from '../components/BookCard.vue'
+import FeaturedQnaCard from '../components/FeaturedQnaCard.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
 import TeachPickerModal from '../components/TeachPickerModal.vue'
 import GuestLock from '../components/GuestLock.vue'
@@ -447,8 +564,46 @@ const streamingProseEl = ref(null)
 
 const mainTabs = [
   { key: 'chat', label: '問答', icon: '💬' },
+  { key: 'featured', label: '精選問答', icon: '⭐' },
   { key: 'library', label: '教科書', icon: '📚' },
 ]
+
+// === Featured QnA ===
+const {
+  qnas: featuredQnas,
+  loading: featuredLoading,
+  categories: featuredCategories,
+  createQna,
+  deleteQna,
+  unsubscribe: unsubFeatured,
+} = useFeaturedQna(uid)
+
+const featuredFilter = ref('')
+const showCreateQnaModal = ref(false)
+const newQna = ref({ question: '', answer: '', category: '' })
+
+const filteredQnas = computed(() => {
+  if (!featuredFilter.value) return featuredQnas.value
+  return featuredQnas.value.filter((q) => q.category === featuredFilter.value)
+})
+
+async function handleCreateQna() {
+  if (!newQna.value.question.trim() || !newQna.value.answer.trim()) return
+  await createQna(newQna.value)
+  newQna.value = { question: '', answer: '', category: '' }
+  showCreateQnaModal.value = false
+}
+
+function handleDeleteQna(id) {
+  if (!confirm('確定要刪除這則精選問答？')) return
+  deleteQna(id)
+}
+
+function askFromFeatured(question) {
+  activeTab.value = 'chat'
+  inputText.value = question
+  nextTick(() => { if (inputEl.value) inputEl.value.focus() })
+}
 
 const sampleQuestions = [
   'SGLT2 inhibitor 在 CKD 的適應症？',
@@ -636,6 +791,7 @@ onMounted(() => {
 onUnmounted(() => {
   cleanupChat()
   unsubBooks()
+  unsubFeatured()
 })
 </script>
 
