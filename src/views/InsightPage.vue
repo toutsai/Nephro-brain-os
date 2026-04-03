@@ -12,27 +12,15 @@
         </div>
       </div>
 
-      <!-- 手機版：本日快訊 -->
-      <div v-if="isMobile && todayArticles.length" class="px-4 py-2 bg-emerald-50 border-b border-emerald-100 lg:hidden">
+      <!-- 手機版：本日快訊按鈕 -->
+      <div v-if="isMobile && todayArticles.length" class="px-4 py-1.5 bg-emerald-50 border-b border-emerald-100 lg:hidden">
         <button
           class="w-full flex items-center justify-between text-xs font-semibold text-emerald-700"
-          @click="showDailyBrief = !showDailyBrief"
+          @click="showDailyBrief = true"
         >
           <span>📰 本日快訊 ({{ todayArticles.length }})</span>
-          <span class="text-[10px]">{{ showDailyBrief ? '▲' : '▼' }}</span>
+          <span class="text-[10px]">→</span>
         </button>
-        <div v-if="showDailyBrief" class="space-y-1.5 mt-2 max-h-40 overflow-y-auto">
-          <div
-            v-for="a in todayArticles.slice(0, 5)"
-            :key="'m-brief-' + a.id"
-            class="p-2 bg-white rounded-lg"
-            @click="activeTab = a.topics?.[0] || 'CKD'; selectedArticle = a"
-          >
-            <p class="text-[11px] font-medium text-slate-800 line-clamp-1">
-              {{ a.title_zh || a.title }}
-            </p>
-          </div>
-        </div>
       </div>
 
       <!-- 手機版：橫向 Tab bar (下拉選單) -->
@@ -65,35 +53,15 @@
 
         <!-- 左側 Sidebar -->
         <aside class="border-r border-slate-200 bg-white overflow-y-auto py-2">
-          <!-- 本日快訊 -->
+          <!-- 本日快訊按鈕 -->
           <div v-if="todayArticles.length" class="px-3 pb-2 mb-2 border-b border-slate-100">
             <button
-              class="w-full flex items-center justify-between py-1.5 text-xs font-semibold text-emerald-700"
-              @click="showDailyBrief = !showDailyBrief"
+              class="w-full flex items-center justify-between py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 rounded-lg px-1 transition-colors"
+              @click="showDailyBrief = true"
             >
               <span>📰 本日快訊 ({{ todayArticles.length }})</span>
-              <span class="text-[10px]">{{ showDailyBrief ? '▲' : '▼' }}</span>
+              <span class="text-[10px]">→</span>
             </button>
-            <div v-if="showDailyBrief" class="space-y-1.5 mt-1 max-h-60 overflow-y-auto">
-              <div
-                v-for="a in todayArticles.slice(0, 10)"
-                :key="'brief-' + a.id"
-                class="p-2 bg-emerald-50 rounded-lg cursor-pointer hover:bg-emerald-100 transition-colors"
-                @click="activeTab = a.topics?.[0] || 'CKD'; selectedArticle = a"
-              >
-                <p class="text-[11px] font-medium text-slate-800 line-clamp-2">
-                  {{ a.title_zh || a.title }}
-                </p>
-                <div class="flex items-center gap-1 mt-1">
-                  <span class="text-[9px] px-1 py-0.5 rounded bg-slate-200 text-slate-500">
-                    {{ a.topics?.[0] }}
-                  </span>
-                  <span v-if="a.evidence_level" class="text-[9px] text-slate-400">
-                    {{ a.evidence_level }}
-                  </span>
-                </div>
-              </div>
-            </div>
           </div>
 
           <div class="px-2 mb-1">
@@ -319,6 +287,48 @@
         >
           前往 Teach →
         </button>
+      </div>
+    </Teleport>
+
+    <!-- 本日快訊 Popup -->
+    <Teleport to="body">
+      <div
+        v-if="showDailyBrief"
+        class="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 bg-black/30"
+        @click.self="showDailyBrief = false"
+      >
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-in">
+          <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-emerald-50">
+            <h3 class="text-sm font-bold text-emerald-800">📰 本日快訊</h3>
+            <button class="text-slate-400 hover:text-slate-600 text-lg" @click="showDailyBrief = false">✕</button>
+          </div>
+          <div class="max-h-[60vh] overflow-y-auto p-3 space-y-2">
+            <div v-if="!todayArticles.length" class="text-center py-8 text-slate-400 text-sm">
+              今日暫無新文章
+            </div>
+            <div
+              v-for="a in todayArticles.slice(0, 20)"
+              :key="'popup-' + a.id"
+              class="p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-emerald-50 transition-colors"
+              @click="activeTab = a.topics?.[0] || 'CKD'; selectedArticle = a; showDailyBrief = false"
+            >
+              <p class="text-sm font-medium text-slate-800 leading-snug">
+                {{ a.title_zh || a.title }}
+              </p>
+              <div class="flex items-center gap-2 mt-1.5">
+                <span
+                  v-for="t in (a.topics || []).slice(0, 2)"
+                  :key="t"
+                  class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700"
+                >
+                  {{ t }}
+                </span>
+                <span v-if="a.evidence_level" class="text-[10px] text-slate-400">{{ a.evidence_level }}</span>
+                <span v-if="a.journal" class="text-[10px] text-slate-400 truncate">{{ a.journal }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </Teleport>
   </div>
