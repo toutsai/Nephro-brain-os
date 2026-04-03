@@ -1225,12 +1225,9 @@ def teach_generate():
             pdf_bytes = pdf_resp.content
             print(f"  📄 PDF 大小：{len(pdf_bytes) / 1024:.0f} KB")
 
-            contents.append({
-                "inline_data": {
-                    "mime_type": "application/pdf",
-                    "data": base64.b64encode(pdf_bytes).decode("utf-8")
-                }
-            })
+            contents.append(
+                types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
+            )
         except Exception as e:
             print(f"❌ PDF 下載失敗: {e}")
             return jsonify({"error": f"PDF 下載失敗: {e}"}), 500
