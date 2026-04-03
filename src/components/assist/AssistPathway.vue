@@ -155,7 +155,10 @@ async function loadPathway(id) {
 
 function renderMermaid() {
   if (!mermaidEl.value || !selectedPathway.value?.mermaid) return
-  mermaidEl.value.innerHTML = `<pre class="mermaid">${selectedPathway.value.mermaid}</pre>`
+  // Use mermaid-block class to match renderMermaidIn() selector
+  const escaped = selectedPathway.value.mermaid
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  mermaidEl.value.innerHTML = `<div class="mermaid-block">${escaped}</div>`
   renderMermaidIn(mermaidEl.value)
 }
 
