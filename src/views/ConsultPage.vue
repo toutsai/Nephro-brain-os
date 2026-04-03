@@ -416,34 +416,56 @@
     <Teleport to="body">
       <div
         v-if="showFeaturedPanel"
-        class="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 bg-black/30"
+        class="fixed inset-0 z-50 flex items-start justify-center pt-12 sm:pt-20 bg-black/30"
         @click.self="showFeaturedPanel = false"
       >
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
           <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-amber-50">
             <h3 class="text-sm font-bold text-amber-800">⭐ 精選問答</h3>
             <button class="text-slate-400 hover:text-slate-600 text-lg" @click="showFeaturedPanel = false">✕</button>
           </div>
-          <div class="max-h-[60vh] overflow-y-auto p-3 space-y-2">
+          <div class="max-h-[65vh] overflow-y-auto p-3 space-y-2">
             <div v-if="!featuredQnas.length" class="text-center py-8 text-slate-400 text-sm">
-              尚無精選問答
+              尚無精選問答<br>
+              <span class="text-[10px]">在問答中點擊「⭐ 加入精選」即可新增</span>
             </div>
             <div
               v-for="q in featuredQnas"
               :key="'popup-' + q.id"
-              class="p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-amber-50 transition-colors group"
-              @click="askFromFeatured(q.question); showFeaturedPanel = false"
+              class="bg-slate-50 rounded-xl overflow-hidden"
             >
-              <p class="text-sm font-medium text-slate-800 leading-snug">{{ q.question }}</p>
-              <div class="flex items-center justify-between mt-1.5">
-                <span v-if="q.category" class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">{{ q.category }}</span>
-                <button
-                  v-if="q.authorId === uid"
-                  class="text-[10px] text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                  @click.stop="handleDeleteQna(q.id)"
-                >
-                  刪除
-                </button>
+              <!-- Question header (click to toggle answer) -->
+              <div
+                class="p-3 cursor-pointer hover:bg-amber-50 transition-colors flex items-start gap-2"
+                @click="expandedQnaId = expandedQnaId === q.id ? null : q.id"
+              >
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium text-slate-800 leading-snug">{{ q.question }}</p>
+                  <div class="flex items-center gap-2 mt-1">
+                    <span v-if="q.category" class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">{{ q.category }}</span>
+                    <span class="text-[10px] text-slate-400">{{ formatQnaDate(q.created_at) }}</span>
+                  </div>
+                </div>
+                <span class="shrink-0 text-slate-400 text-xs mt-1">{{ expandedQnaId === q.id ? '▲' : '▼' }}</span>
+              </div>
+              <!-- Answer (expanded) -->
+              <div v-if="expandedQnaId === q.id" class="px-3 pb-3 border-t border-slate-200">
+                <div class="mt-2 prose-chat text-sm text-slate-700 leading-relaxed" v-html="renderMd(q.answer || '（無回答內容）')" />
+                <div class="flex items-center gap-2 mt-3 pt-2 border-t border-slate-100">
+                  <button
+                    class="text-[11px] text-blue-500 hover:text-blue-700 transition-colors"
+                    @click="askFromFeatured(q.question); showFeaturedPanel = false"
+                  >
+                    🔍 重新在 Consult 提問
+                  </button>
+                  <button
+                    v-if="q.authorId === uid"
+                    class="text-[11px] text-red-400 hover:text-red-600 transition-colors"
+                    @click.stop="handleDeleteQna(q.id)"
+                  >
+                    刪除
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -532,6 +554,7 @@ const {
 } = useFeaturedQna(uid)
 
 const showFeaturedPanel = ref(false)
+const expandedQnaId = ref(null)
 const featuredToast = ref(null)
 let featuredToastTimer = null
 
@@ -544,6 +567,12 @@ function showFeaturedToast(msg) {
 function handleDeleteQna(id) {
   if (!confirm('確定要刪除這則精選問答？')) return
   deleteQna(id)
+}
+
+function formatQnaDate(ts) {
+  if (!ts) return ''
+  const d = ts.toDate ? ts.toDate() : new Date(ts)
+  return d.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })
 }
 
 function askFromFeatured(question) {
