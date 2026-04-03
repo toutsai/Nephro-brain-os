@@ -68,35 +68,15 @@
             </button>
           </div>
 
-          <!-- Featured QnA panel -->
-          <div v-if="featuredQnas.length" class="border-b border-slate-100">
+          <!-- Featured QnA button -->
+          <div v-if="featuredQnas.length" class="px-3 py-2 border-b border-slate-100">
             <button
-              class="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50/50 transition-colors"
-              @click="showFeaturedPanel = !showFeaturedPanel"
+              class="w-full flex items-center justify-between text-xs font-semibold text-amber-700 hover:bg-amber-50 rounded-lg px-1 py-1 transition-colors"
+              @click="showFeaturedPanel = true"
             >
               <span>⭐ 精選問答 ({{ featuredQnas.length }})</span>
-              <span class="text-[10px]">{{ showFeaturedPanel ? '▲' : '▼' }}</span>
+              <span class="text-[10px]">→</span>
             </button>
-            <div v-if="showFeaturedPanel" class="max-h-64 overflow-y-auto px-2 pb-2 space-y-1.5">
-              <div
-                v-for="q in featuredQnas.slice(0, 15)"
-                :key="q.id"
-                class="p-2 bg-amber-50 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors group"
-                @click="askFromFeatured(q.question)"
-              >
-                <p class="text-[11px] font-medium text-slate-800 line-clamp-2">{{ q.question }}</p>
-                <div class="flex items-center justify-between mt-1">
-                  <span v-if="q.category" class="text-[9px] px-1 py-0.5 rounded bg-amber-200/60 text-amber-700">{{ q.category }}</span>
-                  <button
-                    v-if="q.authorId === uid"
-                    class="text-[9px] text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                    @click.stop="handleDeleteQna(q.id)"
-                  >
-                    刪除
-                  </button>
-                </div>
-              </div>
-            </div>
           </div>
 
           <div class="flex-1 overflow-y-auto">
@@ -170,25 +150,15 @@
             </select>
           </div>
 
-          <!-- Mobile: Featured QnA -->
-          <div v-if="featuredQnas.length" class="lg:hidden border-b border-slate-100">
+          <!-- Mobile: Featured QnA button -->
+          <div v-if="featuredQnas.length" class="lg:hidden px-4 py-1.5 bg-amber-50 border-b border-amber-100">
             <button
-              class="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-amber-700"
-              @click="showFeaturedPanel = !showFeaturedPanel"
+              class="w-full flex items-center justify-between text-xs font-semibold text-amber-700"
+              @click="showFeaturedPanel = true"
             >
               <span>⭐ 精選問答 ({{ featuredQnas.length }})</span>
-              <span class="text-[10px]">{{ showFeaturedPanel ? '▲' : '▼' }}</span>
+              <span class="text-[10px]">→</span>
             </button>
-            <div v-if="showFeaturedPanel" class="max-h-40 overflow-y-auto px-3 pb-2 space-y-1">
-              <div
-                v-for="q in featuredQnas.slice(0, 8)"
-                :key="'m-' + q.id"
-                class="p-2 bg-amber-50 rounded-lg text-[11px] font-medium text-slate-800 line-clamp-1"
-                @click="askFromFeatured(q.question)"
-              >
-                {{ q.question }}
-              </div>
-            </div>
           </div>
 
           <!-- Messages -->
@@ -439,6 +409,45 @@
         class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg"
       >
         {{ featuredToast }}
+      </div>
+    </Teleport>
+
+    <!-- Featured QnA Popup -->
+    <Teleport to="body">
+      <div
+        v-if="showFeaturedPanel"
+        class="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 bg-black/30"
+        @click.self="showFeaturedPanel = false"
+      >
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+          <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-amber-50">
+            <h3 class="text-sm font-bold text-amber-800">⭐ 精選問答</h3>
+            <button class="text-slate-400 hover:text-slate-600 text-lg" @click="showFeaturedPanel = false">✕</button>
+          </div>
+          <div class="max-h-[60vh] overflow-y-auto p-3 space-y-2">
+            <div v-if="!featuredQnas.length" class="text-center py-8 text-slate-400 text-sm">
+              尚無精選問答
+            </div>
+            <div
+              v-for="q in featuredQnas"
+              :key="'popup-' + q.id"
+              class="p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-amber-50 transition-colors group"
+              @click="askFromFeatured(q.question); showFeaturedPanel = false"
+            >
+              <p class="text-sm font-medium text-slate-800 leading-snug">{{ q.question }}</p>
+              <div class="flex items-center justify-between mt-1.5">
+                <span v-if="q.category" class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">{{ q.category }}</span>
+                <button
+                  v-if="q.authorId === uid"
+                  class="text-[10px] text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                  @click.stop="handleDeleteQna(q.id)"
+                >
+                  刪除
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </Teleport>
   </div>
