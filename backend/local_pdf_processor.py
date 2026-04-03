@@ -786,8 +786,9 @@ def main():
         doc = db.collection("books").document(args.book_id).get()
         if doc.exists:
             data = doc.to_dict()
+            is_guideline = args.guideline or data.get('type') == 'guideline'
             process_pdf(doc.id, data.get('title', 'Unknown'), data.get('url'),
-                        args.deep, guideline_mode=args.guideline)
+                        args.deep, guideline_mode=is_guideline)
         else:
             print(f"❌ 找不到書籍 ID: {args.book_id}")
     else:
@@ -823,8 +824,10 @@ def main():
 
         print(f"\n開始處理...")
         for book in pending_books:
+            # 自動根據 type 欄位決定是否用 guideline 模式（命令列 --guideline 可覆蓋）
+            is_guideline = args.guideline or book.get('type') == 'guideline'
             process_pdf(book['id'], book['title'], book['url'],
-                        args.deep, guideline_mode=args.guideline)
+                        args.deep, guideline_mode=is_guideline)
 
     print("\n" + "="*60)
     print("🎉 全部完成！")
