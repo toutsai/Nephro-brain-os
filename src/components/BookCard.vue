@@ -1,55 +1,42 @@
 <template>
   <div
-    class="rounded-xl border p-4 transition-all"
+    class="rounded-xl border p-3 flex flex-col items-center text-center transition-all hover:shadow-md cursor-default"
     :class="statusClass"
   >
-    <div class="flex items-start gap-3">
-      <!-- Book icon -->
-      <div
-        class="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-lg"
-        :class="iconClass"
-      >
-        {{ statusIcon }}
-      </div>
-
-      <div class="min-w-0 flex-1">
-        <!-- Title -->
-        <h4 class="text-sm font-bold text-slate-800 truncate">
-          {{ book.title || book.filename || '未命名書籍' }}
-        </h4>
-
-        <!-- Meta -->
-        <div class="flex items-center gap-3 mt-1 text-[10px] text-slate-400">
-          <span v-if="book.pages_count">{{ book.pages_count }} 頁</span>
-          <span v-if="book.chunks_count">{{ book.chunks_count }} 片段</span>
-          <span v-if="book.uploaded_at">
-            {{ formatDate(book.uploaded_at) }}
-          </span>
-        </div>
-
-        <!-- Status badge -->
-        <div class="mt-2">
-          <span
-            class="text-[10px] font-bold px-2 py-0.5 rounded-full"
-            :class="badgeClass"
-          >
-            {{ statusLabel }}
-          </span>
-          <span
-            v-if="book.status === 'processing'"
-            class="text-[10px] text-slate-400 ml-2"
-          >
-            處理中...
-          </span>
-          <span
-            v-if="book.error_message"
-            class="text-[10px] text-red-400 ml-2"
-          >
-            {{ book.error_message }}
-          </span>
-        </div>
-      </div>
+    <!-- Book spine icon -->
+    <div
+      class="w-12 h-16 rounded-md flex items-center justify-center text-xl mb-2 shadow-sm"
+      :class="iconClass"
+    >
+      {{ statusIcon }}
     </div>
+
+    <!-- Title -->
+    <h4 class="text-[11px] font-bold text-slate-800 leading-tight line-clamp-2 w-full min-h-[2.5em]">
+      {{ book.title || book.filename || '未命名' }}
+    </h4>
+
+    <!-- Type badge -->
+    <span
+      v-if="book.type"
+      class="text-[9px] px-1.5 py-0.5 rounded-full mt-1"
+      :class="book.type === 'guideline' ? 'bg-violet-100 text-violet-600' : 'bg-slate-100 text-slate-500'"
+    >
+      {{ book.type === 'guideline' ? '指引' : '教科書' }}
+    </span>
+
+    <!-- Status -->
+    <span
+      class="text-[9px] font-bold px-2 py-0.5 rounded-full mt-1.5"
+      :class="badgeClass"
+    >
+      {{ statusLabel }}
+    </span>
+
+    <!-- Chunks count -->
+    <span v-if="book.chunks_count" class="text-[9px] text-slate-400 mt-1">
+      {{ book.chunks_count }} 片段
+    </span>
   </div>
 </template>
 
@@ -61,6 +48,15 @@ const props = defineProps({
 })
 
 const statusIcon = computed(() => {
+  if (props.book.type === 'guideline') {
+    switch (props.book.status) {
+      case 'ready': return '📋'
+      case 'processing': return '⏳'
+      case 'pending': return '📤'
+      case 'error': return '❌'
+      default: return '📋'
+    }
+  }
   switch (props.book.status) {
     case 'ready': return '📗'
     case 'processing': return '⏳'
@@ -75,7 +71,7 @@ const statusLabel = computed(() => {
     case 'ready': return '已就緒'
     case 'processing': return '處理中'
     case 'pending': return '等待處理'
-    case 'error': return '處理失敗'
+    case 'error': return '失敗'
     default: return props.book.status || '未知'
   }
 })
@@ -109,14 +105,4 @@ const badgeClass = computed(() => {
     default: return 'bg-slate-100 text-slate-600'
   }
 })
-
-function formatDate(timestamp) {
-  if (!timestamp) return ''
-  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
-  return date.toLocaleDateString('zh-TW', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
 </script>

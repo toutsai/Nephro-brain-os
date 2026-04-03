@@ -376,15 +376,17 @@
           <p class="text-xs mt-1">使用 local_pdf_processor.py 開始上傳</p>
         </div>
 
-        <div v-else class="space-y-3">
-          <h3 class="text-sm font-bold text-slate-600">
+        <div v-else>
+          <h3 class="text-sm font-bold text-slate-600 mb-3">
             教科書列表 ({{ books.length }})
           </h3>
-          <BookCard
-            v-for="book in books"
-            :key="book.id"
-            :book="book"
-          />
+          <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+            <BookCard
+              v-for="book in books"
+              :key="book.id"
+              :book="book"
+            />
+          </div>
         </div>
       </main>
     </template>
