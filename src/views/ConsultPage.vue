@@ -317,7 +317,7 @@
         <!-- Upload section -->
         <div class="bg-white border border-slate-200 rounded-xl p-4 mb-6">
           <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-bold text-slate-700">📤 上傳教科書 PDF</h3>
+            <h3 class="text-sm font-bold text-slate-700">📤 上傳 PDF</h3>
             <label
               class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors"
               :class="uploading ? 'opacity-50 cursor-not-allowed' : ''"
@@ -331,6 +331,20 @@
                 @change="handleUpload"
               />
             </label>
+          </div>
+
+          <!-- Type selector -->
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-xs text-slate-500">類型：</span>
+            <button
+              v-for="opt in bookTypeOptions"
+              :key="opt.value"
+              class="px-3 py-1 text-xs rounded-lg border transition-colors"
+              :class="uploadBookType === opt.value ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
+              @click="uploadBookType = opt.value"
+            >
+              {{ opt.icon }} {{ opt.label }}
+            </button>
           </div>
 
           <!-- Upload progress -->
@@ -347,7 +361,7 @@
           <p class="text-xs text-slate-400 leading-relaxed">
             PDF 上傳後狀態為「等待處理」。需在本地執行
             <code class="bg-slate-100 px-1 py-0.5 rounded text-[11px]">python local_pdf_processor.py</code>
-            進行切片與向量化。處理完成後 Cloud Run 重啟會自動載入新知識。
+            進行切片與向量化。處理器會根據類型自動選擇切分模式（教科書：段落切分 / 指引：章節智慧切片）。
           </p>
         </div>
 
@@ -537,6 +551,11 @@ const textareaHeight = ref('40px')
 const messagesContainer = ref(null)
 const inputEl = ref(null)
 const uploading = ref(false)
+const uploadBookType = ref('textbook')
+const bookTypeOptions = [
+  { value: 'textbook', label: '教科書', icon: '📘' },
+  { value: 'guideline', label: '臨床指引', icon: '📋' },
+]
 const uploadProgress = ref(0)
 const streamingProseEl = ref(null)
 
@@ -666,6 +685,7 @@ async function handleUpload(e) {
           url: downloadURL,
           storagePath: path,
           size: sizeMb,
+          type: uploadBookType.value,
           status: 'pending',
           uploadedAt: serverTimestamp(),
         })
