@@ -297,7 +297,7 @@
         class="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 bg-black/30"
         @click.self="showDailyBrief = false"
       >
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-in">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-4 overflow-hidden animate-in">
           <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-emerald-50">
             <h3 class="text-sm font-bold text-emerald-800">📰 本日快訊</h3>
             <button class="text-slate-400 hover:text-slate-600 text-lg" @click="showDailyBrief = false">✕</button>
