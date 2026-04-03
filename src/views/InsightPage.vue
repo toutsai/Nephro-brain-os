@@ -83,7 +83,7 @@
             <span class="flex items-center gap-1">
               <span
                 v-if="tab.newCount"
-                class="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500 text-white font-bold"
+                class="text-[10px] w-5 h-5 flex items-center justify-center rounded-full bg-red-500 text-white font-bold"
               >
                 {{ tab.newCount }}
               </span>
@@ -121,7 +121,7 @@
             <span class="flex items-center gap-1">
               <span
                 v-if="tab.newCount"
-                class="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500 text-white font-bold"
+                class="text-[10px] w-5 h-5 flex items-center justify-center rounded-full bg-red-500 text-white font-bold"
               >
                 {{ tab.newCount }}
               </span>
