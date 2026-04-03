@@ -16,10 +16,11 @@ async function getMermaid() {
       flowchart: {
         htmlLabels: true,
         curve: 'basis',
-        padding: 16,
-        nodeSpacing: 30,
-        rankSpacing: 50,
-        useMaxWidth: true,
+        padding: 24,
+        nodeSpacing: 50,
+        rankSpacing: 60,
+        useMaxWidth: false,
+        wrappingWidth: 200,
       },
       themeVariables: {
         primaryColor: '#dbeafe',
@@ -323,14 +324,14 @@ function buildFlowchartSvg(parsed) {
 
   const FONT = 13
   const LABEL_FONT = 11
-  const NODE_H = 44
-  const GAP_X = 32
-  const GAP_Y = 56
+  const NODE_H = 52
+  const GAP_X = 40
+  const GAP_Y = 64
   const PAD_X = 24
   const PAD_Y = 20
-  const MIN_NODE_W = 100
-  const MAX_NODE_W = 220
-  const DIAMOND_R = 34 // half-diagonal of diamond
+  const MIN_NODE_W = 120
+  const MAX_NODE_W = 300
+  const DIAMOND_R = 48 // half-diagonal of diamond
 
   // Calculate node widths based on label length
   const nodeWidths = new Map()
@@ -372,7 +373,7 @@ function buildFlowchartSvg(parsed) {
 
   // Build SVG
   const parts = []
-  parts.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW} ${svgH}" class="flowchart-svg" style="font-family:-apple-system,'Noto Sans TC',system-ui,sans-serif">`)
+  parts.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW} ${svgH}" class="flowchart-svg" style="overflow:visible;font-family:-apple-system,'Noto Sans TC',system-ui,sans-serif">`)
 
   // Defs: arrow marker + shadow filter
   parts.push(`<defs>
