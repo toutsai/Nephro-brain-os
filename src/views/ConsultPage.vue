@@ -419,12 +419,12 @@
         class="fixed inset-0 z-50 flex items-start justify-center pt-12 sm:pt-20 bg-black/30"
         @click.self="showFeaturedPanel = false"
       >
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-4 overflow-hidden">
           <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-amber-50">
             <h3 class="text-sm font-bold text-amber-800">⭐ 精選問答</h3>
             <button class="text-slate-400 hover:text-slate-600 text-lg" @click="showFeaturedPanel = false">✕</button>
           </div>
-          <div class="max-h-[65vh] overflow-y-auto p-3 space-y-2">
+          <div class="max-h-[75vh] overflow-y-auto p-3 space-y-2">
             <div v-if="!featuredQnas.length" class="text-center py-8 text-slate-400 text-sm">
               尚無精選問答<br>
               <span class="text-[10px]">在問答中點擊「⭐ 加入精選」即可新增</span>
@@ -437,7 +437,7 @@
               <!-- Question header (click to toggle answer) -->
               <div
                 class="p-3 cursor-pointer hover:bg-amber-50 transition-colors flex items-start gap-2"
-                @click="expandedQnaId = expandedQnaId === q.id ? null : q.id"
+                @click="toggleQna(q.id)"
               >
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-medium text-slate-800 leading-snug">{{ q.question }}</p>
@@ -449,7 +449,7 @@
                 <span class="shrink-0 text-slate-400 text-xs mt-1">{{ expandedQnaId === q.id ? '▲' : '▼' }}</span>
               </div>
               <!-- Answer (expanded) -->
-              <div v-if="expandedQnaId === q.id" class="px-3 pb-3 border-t border-slate-200">
+              <div v-if="expandedQnaId === q.id" :ref="el => { if (el) qnaAnswerRefs[q.id] = el }" class="px-3 pb-3 border-t border-slate-200">
                 <div class="mt-2 prose-chat text-sm text-slate-700 leading-relaxed" v-html="renderMd(q.answer || '（無回答內容）')" />
                 <div class="flex items-center gap-2 mt-3 pt-2 border-t border-slate-100">
                   <button
@@ -555,6 +555,7 @@ const {
 
 const showFeaturedPanel = ref(false)
 const expandedQnaId = ref(null)
+const qnaAnswerRefs = {}
 const featuredToast = ref(null)
 let featuredToastTimer = null
 
@@ -567,6 +568,16 @@ function showFeaturedToast(msg) {
 function handleDeleteQna(id) {
   if (!confirm('確定要刪除這則精選問答？')) return
   deleteQna(id)
+}
+
+function toggleQna(id) {
+  expandedQnaId.value = expandedQnaId.value === id ? null : id
+  if (expandedQnaId.value === id) {
+    nextTick(() => {
+      const el = qnaAnswerRefs[id]
+      if (el) renderMermaidIn(el)
+    })
+  }
 }
 
 function formatQnaDate(ts) {
