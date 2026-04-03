@@ -17,6 +17,7 @@ import faiss
 import numpy as np
 import requests
 import os
+import io
 import time
 import pickle
 import threading
@@ -1217,6 +1218,7 @@ def teach_generate():
 
     # 準備 Gemini 內容
     contents = []
+    uploaded_file = None  # Track for cleanup
     if file_url:
         try:
             print(f"🎓 下載 PDF: {file_url[:80]}...")
@@ -1225,12 +1227,19 @@ def teach_generate():
             pdf_bytes = pdf_resp.content
             print(f"  📄 PDF 大小：{len(pdf_bytes) / 1024:.0f} KB")
 
-            contents.append(
-                types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
+            # 使用 Gemini File API 上傳（比 inline_data 更穩定，不限大小）
+            uploaded_file = gemini_client.files.upload(
+                file=io.BytesIO(pdf_bytes),
+                config=types.UploadFileConfig(
+                    mime_type="application/pdf",
+                    display_name="teach_upload.pdf"
+                )
             )
+            print(f"  ☁️ 已上傳至 Gemini File API: {uploaded_file.name}")
+            contents.append(uploaded_file)
         except Exception as e:
-            print(f"❌ PDF 下載失敗: {e}")
-            return jsonify({"error": f"PDF 下載失敗: {e}"}), 500
+            print(f"❌ PDF 處理失敗: {e}")
+            return jsonify({"error": f"PDF 處理失敗: {e}"}), 500
     else:
         text = text[:15000]
         contents.append(text)
@@ -1288,6 +1297,15 @@ def teach_generate():
     except Exception as e:
         print(f"❌ Teach generate error: {e}")
         return jsonify({"error": str(e)}), 500
+
+    finally:
+        # 清理 Gemini File API 上傳的暫存檔
+        if uploaded_file:
+            try:
+                gemini_client.files.delete(name=uploaded_file.name)
+                print(f"  🗑️ 已清理 Gemini 暫存檔: {uploaded_file.name}")
+            except Exception:
+                pass
 
 
 def _extract_json(raw):
