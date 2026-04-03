@@ -95,9 +95,10 @@ async function handleDrop(e) {
 
 // Also listen for paste on the document level when component is present
 function globalPaste(e) {
-  // Only process if no other input is focused
-  const active = document.activeElement
-  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return
+  // Check if clipboard contains image data
+  const hasImage = Array.from(e.clipboardData?.items || []).some(i => i.type.startsWith('image/'))
+  if (!hasImage) return
+  // If an input/textarea is focused but clipboard is an image (not text), still handle it
   handlePaste(e)
 }
 
