@@ -68,6 +68,37 @@
             </button>
           </div>
 
+          <!-- Featured QnA panel -->
+          <div v-if="featuredQnas.length" class="border-b border-slate-100">
+            <button
+              class="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50/50 transition-colors"
+              @click="showFeaturedPanel = !showFeaturedPanel"
+            >
+              <span>⭐ 精選問答 ({{ featuredQnas.length }})</span>
+              <span class="text-[10px]">{{ showFeaturedPanel ? '▲' : '▼' }}</span>
+            </button>
+            <div v-if="showFeaturedPanel" class="max-h-64 overflow-y-auto px-2 pb-2 space-y-1.5">
+              <div
+                v-for="q in featuredQnas.slice(0, 15)"
+                :key="q.id"
+                class="p-2 bg-amber-50 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors group"
+                @click="askFromFeatured(q.question)"
+              >
+                <p class="text-[11px] font-medium text-slate-800 line-clamp-2">{{ q.question }}</p>
+                <div class="flex items-center justify-between mt-1">
+                  <span v-if="q.category" class="text-[9px] px-1 py-0.5 rounded bg-amber-200/60 text-amber-700">{{ q.category }}</span>
+                  <button
+                    v-if="q.authorId === uid"
+                    class="text-[9px] text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                    @click.stop="handleDeleteQna(q.id)"
+                  >
+                    刪除
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="flex-1 overflow-y-auto">
             <div
               v-if="chatsLoading"
@@ -139,6 +170,27 @@
             </select>
           </div>
 
+          <!-- Mobile: Featured QnA -->
+          <div v-if="featuredQnas.length" class="lg:hidden border-b border-slate-100">
+            <button
+              class="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-amber-700"
+              @click="showFeaturedPanel = !showFeaturedPanel"
+            >
+              <span>⭐ 精選問答 ({{ featuredQnas.length }})</span>
+              <span class="text-[10px]">{{ showFeaturedPanel ? '▲' : '▼' }}</span>
+            </button>
+            <div v-if="showFeaturedPanel" class="max-h-40 overflow-y-auto px-3 pb-2 space-y-1">
+              <div
+                v-for="q in featuredQnas.slice(0, 8)"
+                :key="'m-' + q.id"
+                class="p-2 bg-amber-50 rounded-lg text-[11px] font-medium text-slate-800 line-clamp-1"
+                @click="askFromFeatured(q.question)"
+              >
+                {{ q.question }}
+              </div>
+            </div>
+          </div>
+
           <!-- Messages -->
           <div
             ref="messagesContainer"
@@ -174,6 +226,7 @@
               :msg="msg"
               @save-to-notes="saveFullReplyToNotes"
               @send-to-teach="sendToTeach"
+              @add-to-featured="addReplyToFeatured"
             />
 
             <!-- Selection toolbar for text selection -->
@@ -262,121 +315,6 @@
             <p v-if="role === 'pro'" class="text-center text-[10px] text-slate-300 mt-1.5">
               問答引擎結合教科書 FAISS 向量搜尋 + PubMed + Google Search + Gemini 2.5 Flash
             </p>
-          </div>
-        </div>
-      </div>
-    </template>
-
-    <!-- ===================== Featured QnA View ===================== -->
-    <template v-if="activeTab === 'featured'">
-      <main class="flex-1 overflow-y-auto w-full px-4 py-6">
-        <!-- Header -->
-        <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center gap-3">
-            <h2 class="text-sm font-bold text-slate-800">精選問答</h2>
-            <span class="text-[10px] text-slate-400">{{ filteredQnas.length }} 則</span>
-          </div>
-          <button
-            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors"
-            @click="showCreateQnaModal = true"
-          >
-            + 新增問答
-          </button>
-        </div>
-
-        <!-- Category filter -->
-        <div v-if="featuredCategories.length" class="flex gap-2 flex-wrap mb-4">
-          <button
-            class="px-2.5 py-1 text-xs rounded-lg border transition-colors"
-            :class="!featuredFilter ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
-            @click="featuredFilter = ''"
-          >
-            全部
-          </button>
-          <button
-            v-for="cat in featuredCategories"
-            :key="cat"
-            class="px-2.5 py-1 text-xs rounded-lg border transition-colors"
-            :class="featuredFilter === cat ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
-            @click="featuredFilter = cat"
-          >
-            {{ cat }}
-          </button>
-        </div>
-
-        <!-- QnA list -->
-        <div v-if="featuredLoading" class="text-center py-12 text-slate-400 text-sm">
-          載入中...
-        </div>
-        <div v-else-if="!filteredQnas.length" class="text-center py-12 text-slate-400">
-          <div class="text-4xl mb-3">⭐</div>
-          <p class="text-sm">還沒有精選問答</p>
-          <p class="text-xs mt-1">點擊「+ 新增問答」分享你的知識！</p>
-        </div>
-        <div v-else class="space-y-3">
-          <FeaturedQnaCard
-            v-for="q in filteredQnas"
-            :key="q.id"
-            :qna="q"
-            :is-owner="q.authorId === uid"
-            @ask-in-consult="askFromFeatured"
-            @delete="handleDeleteQna"
-          />
-        </div>
-      </main>
-
-      <!-- Create QnA Modal -->
-      <div v-if="showCreateQnaModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showCreateQnaModal = false">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 overflow-hidden">
-          <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h3 class="text-base font-bold text-slate-800">新增精選問答</h3>
-            <button class="text-slate-400 hover:text-slate-600" @click="showCreateQnaModal = false">✕</button>
-          </div>
-          <div class="px-6 py-5 space-y-4">
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">問題</label>
-              <input
-                v-model="newQna.question"
-                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400"
-                placeholder="輸入問題..."
-              />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">回答 (支援 Markdown)</label>
-              <textarea
-                v-model="newQna.answer"
-                rows="8"
-                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 resize-y"
-                placeholder="輸入回答（支援 Markdown 格式）..."
-              />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">分類</label>
-              <input
-                v-model="newQna.category"
-                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400"
-                placeholder="例如：CKD 管理、透析處方、移植..."
-                list="qna-categories"
-              />
-              <datalist id="qna-categories">
-                <option v-for="cat in featuredCategories" :key="cat" :value="cat" />
-              </datalist>
-            </div>
-          </div>
-          <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
-            <button
-              class="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 transition-colors"
-              @click="showCreateQnaModal = false"
-            >
-              取消
-            </button>
-            <button
-              class="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
-              :disabled="!newQna.question.trim() || !newQna.answer.trim()"
-              @click="handleCreateQna"
-            >
-              發布
-            </button>
           </div>
         </div>
       </div>
@@ -493,11 +431,21 @@
         </button>
       </div>
     </Teleport>
+
+    <!-- Featured QnA toast -->
+    <Teleport to="body">
+      <div
+        v-if="featuredToast"
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg"
+      >
+        {{ featuredToast }}
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
@@ -508,7 +456,6 @@ import { useTeachPicker } from '../composables/useTeachPicker.js'
 import { useFeaturedQna } from '../composables/useFeaturedQna.js'
 import ChatMessage from '../components/ChatMessage.vue'
 import BookCard from '../components/BookCard.vue'
-import FeaturedQnaCard from '../components/FeaturedQnaCard.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
 import TeachPickerModal from '../components/TeachPickerModal.vue'
 import GuestLock from '../components/GuestLock.vue'
@@ -564,34 +511,25 @@ const streamingProseEl = ref(null)
 
 const mainTabs = [
   { key: 'chat', label: '問答', icon: '💬' },
-  { key: 'featured', label: '精選問答', icon: '⭐' },
   { key: 'library', label: '教科書', icon: '📚' },
 ]
 
 // === Featured QnA ===
 const {
   qnas: featuredQnas,
-  loading: featuredLoading,
-  categories: featuredCategories,
   createQna,
   deleteQna,
   unsubscribe: unsubFeatured,
 } = useFeaturedQna(uid)
 
-const featuredFilter = ref('')
-const showCreateQnaModal = ref(false)
-const newQna = ref({ question: '', answer: '', category: '' })
+const showFeaturedPanel = ref(false)
+const featuredToast = ref(null)
+let featuredToastTimer = null
 
-const filteredQnas = computed(() => {
-  if (!featuredFilter.value) return featuredQnas.value
-  return featuredQnas.value.filter((q) => q.category === featuredFilter.value)
-})
-
-async function handleCreateQna() {
-  if (!newQna.value.question.trim() || !newQna.value.answer.trim()) return
-  await createQna(newQna.value)
-  newQna.value = { question: '', answer: '', category: '' }
-  showCreateQnaModal.value = false
+function showFeaturedToast(msg) {
+  featuredToast.value = msg
+  clearTimeout(featuredToastTimer)
+  featuredToastTimer = setTimeout(() => { featuredToast.value = null }, 2000)
 }
 
 function handleDeleteQna(id) {
@@ -600,9 +538,27 @@ function handleDeleteQna(id) {
 }
 
 function askFromFeatured(question) {
-  activeTab.value = 'chat'
   inputText.value = question
   nextTick(() => { if (inputEl.value) inputEl.value.focus() })
+}
+
+async function addReplyToFeatured(answerContent) {
+  // Find the user question that precedes this answer
+  const idx = messages.value.findIndex((m) => m.role === 'assistant' && m.content === answerContent)
+  let question = ''
+  if (idx > 0) {
+    // Look backwards for the user message
+    for (let i = idx - 1; i >= 0; i--) {
+      if (messages.value[i].role === 'user') {
+        question = messages.value[i].content
+        break
+      }
+    }
+  }
+  if (!question) question = '（未找到原始問題）'
+
+  await createQna({ question, answer: answerContent, category: '' })
+  showFeaturedToast('已加入精選問答 ⭐')
 }
 
 const sampleQuestions = [

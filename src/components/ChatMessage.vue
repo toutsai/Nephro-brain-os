@@ -56,6 +56,13 @@
         >
           🎓 加到 Teach
         </button>
+        <button
+          v-if="msg.role === 'assistant' && !msg.is_error"
+          class="text-slate-300 hover:text-amber-500 transition-colors"
+          @click="$emit('addToFeatured', msg.content)"
+        >
+          ⭐ 加入精選
+        </button>
       </div>
     </div>
   </div>
@@ -70,7 +77,7 @@ const props = defineProps({
   msg: { type: Object, required: true },
 })
 
-defineEmits(['saveToNotes', 'sendToTeach'])
+defineEmits(['saveToNotes', 'sendToTeach', 'addToFeatured'])
 
 const proseEl = ref(null)
 
