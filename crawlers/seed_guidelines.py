@@ -188,7 +188,7 @@ GUIDELINES = [
         "title": "ANCA-Associated Vasculitis",
         "title_zh": "ANCA 相關血管炎",
         "year": 2024,
-        "url": "https://kdigo.org/guidelines/anca-associated-vasculitis/",
+        "url": "https://kdigo.org/guidelines/antineutrophilic-cytoplasmic-antibody-anca-associated-vasculitis-aav/",
         "status": "current",
         "summary_zh": "AAV 的診斷、誘導治療（Rituximab vs Cyclophosphamide）、維持治療、Avacopan。",
         "key_topics": ["ANCA 血管炎", "Rituximab", "Cyclophosphamide", "Avacopan", "血漿置換"],
@@ -200,7 +200,7 @@ GUIDELINES = [
         "title": "Autosomal Dominant Polycystic Kidney Disease (ADPKD)",
         "title_zh": "體染色體顯性多囊腎病",
         "year": 2025,
-        "url": "https://kdigo.org/guidelines/adpkd/",
+        "url": "https://kdigo.org/guidelines/autosomal-dominant-polycystic-kidney-disease-adpkd/",
         "status": "current",
         "summary_zh": "ADPKD 的診斷、風險預測（Mayo 分類）、Tolvaptan 使用、併發症管理。",
         "key_topics": ["ADPKD", "Tolvaptan", "Mayo 分類", "囊腫感染", "TKV"],
@@ -236,7 +236,7 @@ GUIDELINES = [
         "title": "IgA Nephropathy (IgAN) / IgA Vasculitis (IgAV)",
         "title_zh": "IgA 腎病 / IgA 血管炎",
         "year": 2024,
-        "url": "https://kdigo.org/guidelines/igan-igav/",
+        "url": "https://kdigo.org/guidelines/iga-nephropathy/",
         "status": "current",
         "summary_zh": "IgAN 的支持性治療、免疫抑制決策、新藥（Sparsentan、Budesonide）。",
         "key_topics": ["IgA 腎病", "Sparsentan", "Budesonide", "RAS 阻斷", "蛋白尿控制"],
@@ -386,8 +386,62 @@ def seed(dry_run: bool = False) -> None:
     logger.info("完成！共 %d 筆指引。", len(GUIDELINES))
 
 
+def update(dry_run: bool = False) -> None:
+    """以 title 為 key，更新已存在的 guidelines 文件（僅更新有差異的欄位）。"""
+    logger.info("開始更新 guidelines collection...")
+    collection_ref = db.collection("guidelines")
+
+    # 讀取所有現有文件，以 title 為 key
+    existing = {}
+    for doc in collection_ref.stream():
+        data = doc.to_dict()
+        existing[data.get("title", "")] = (doc.id, data)
+
+    updated = 0
+    skipped = 0
+
+    for i, g in enumerate(GUIDELINES, 1):
+        title = g["title"]
+        if title not in existing:
+            logger.info("  [%d] %s — 不在 Firestore 中，跳過（請用 seed 模式新增）", i, title)
+            skipped += 1
+            continue
+
+        doc_id, old_data = existing[title]
+        # 比對需更新的欄位
+        changes = {}
+        for key in ["url", "title_zh", "year", "status", "summary_zh", "key_topics", "org", "topic", "rag_status"]:
+            if key in g and g[key] != old_data.get(key):
+                changes[key] = g[key]
+
+        if not changes:
+            logger.info("  [%d] %s — 無變更", i, title)
+            skipped += 1
+            continue
+
+        changes["updated_at"] = firestore.SERVER_TIMESTAMP
+
+        if dry_run:
+            logger.info("  [%d] %s — 需更新: %s [DRY-RUN]", i, title, list(changes.keys()))
+        else:
+            try:
+                collection_ref.document(doc_id).update(changes)
+                logger.info("  [%d] %s — 已更新: %s", i, title, list(changes.keys()))
+            except Exception as exc:
+                logger.error("  [%d] 更新失敗: %s", i, exc)
+
+        updated += 1
+
+    logger.info("完成！更新 %d 筆，跳過 %d 筆。", updated, skipped)
+
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="寫入 KDIGO/KDOQI 指引 metadata 到 Firestore")
-    parser.add_argument("--dry-run", action="store_true", help="只顯示，不寫入")
+    parser = argparse.ArgumentParser(description="寫入/更新 KDIGO/KDOQI 指引 metadata 到 Firestore")
+    parser.add_argument("--dry-run", action="store_true", help="只顯示差異，不寫入")
+    parser.add_argument("--update", action="store_true", help="更新模式：以 title 為 key 更新已存在的文件")
     args = parser.parse_args()
-    seed(dry_run=args.dry_run)
+
+    if args.update:
+        update(dry_run=args.dry_run)
+    else:
+        seed(dry_run=args.dry_run)
