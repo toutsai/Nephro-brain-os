@@ -239,6 +239,13 @@
                 <p class="text-[10px] text-slate-400 mt-1">搜尋教科書、PubMed 和網路中...</p>
               </div>
             </div>
+
+            <!-- Related articles from Insight -->
+            <RelatedArticles
+              v-if="!answering && relatedArticles.length"
+              :articles="relatedArticles"
+              @navigate="handleNavigateArticle"
+            />
           </div>
 
           <!-- Error banner -->
@@ -494,17 +501,19 @@
 <script setup>
 import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, addDoc, serverTimestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { db, storage } from '../firebase.js'
 import { useConsultChat } from '../composables/useConsultChat.js'
 import { useBooks } from '../composables/useBooks.js'
 import { useTeachPicker } from '../composables/useTeachPicker.js'
 import { useFeaturedQna } from '../composables/useFeaturedQna.js'
+import { useRelatedArticles } from '../composables/useRelatedArticles.js'
 import ChatMessage from '../components/ChatMessage.vue'
 import BookCard from '../components/BookCard.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
 import TeachPickerModal from '../components/TeachPickerModal.vue'
+import RelatedArticles from '../components/RelatedArticles.vue'
 import GuestLock from '../components/GuestLock.vue'
 import { useAuth } from '../composables/useAuth.js'
 import { renderMd } from '../utils/renderMarkdown.js'
@@ -512,6 +521,35 @@ import { renderMermaidIn } from '../composables/useMermaid.js'
 
 const { isLoggedIn, uid } = useAuth()
 const router = useRouter()
+
+// === Related Articles ===
+const { findRelated } = useRelatedArticles()
+const relatedArticles = ref([])
+const insightArticles = ref([])
+let lastQuestionText = ''
+
+async function loadInsightArticles() {
+  if (insightArticles.value.length) return
+  try {
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    const q = query(
+      collection(db, 'articles_v2'),
+      where('process_status', '==', 'completed'),
+      where('created_at', '>=', thirtyDaysAgo),
+      orderBy('created_at', 'desc'),
+      limit(300)
+    )
+    const snapshot = await getDocs(q)
+    insightArticles.value = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+  } catch (e) {
+    console.warn('Failed to load insight articles for recommendations:', e)
+  }
+}
+
+function handleNavigateArticle(article) {
+  router.push({ path: '/insight', query: { article: article.id } })
+}
 
 // === Chat ===
 const {
@@ -708,6 +746,8 @@ async function handleSend() {
   if (!text || answering.value) return
   inputText.value = ''
   textareaHeight.value = '40px'
+  lastQuestionText = text
+  relatedArticles.value = []
   // 優先使用 SSE streaming，失敗會自動 fallback
   await sendQuestionStream(text)
 }
@@ -789,13 +829,20 @@ watch(
   }
 )
 
-// Render mermaid blocks when streaming completes
+// Render mermaid blocks and find related articles when streaming completes
 watch(
   () => answering.value,
   async (newVal, oldVal) => {
-    if (oldVal === true && newVal === false && streamingProseEl.value) {
-      await nextTick()
-      renderMermaidIn(streamingProseEl.value)
+    if (oldVal === true && newVal === false) {
+      if (streamingProseEl.value) {
+        await nextTick()
+        renderMermaidIn(streamingProseEl.value)
+      }
+      // Find related Insight articles
+      if (lastQuestionText) {
+        await loadInsightArticles()
+        relatedArticles.value = findRelated(lastQuestionText, insightArticles.value)
+      }
     }
   }
 )

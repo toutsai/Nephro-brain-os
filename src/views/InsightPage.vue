@@ -157,6 +157,33 @@
               @toggle-save="toggleSave"
             />
           </template>
+          <template v-else-if="activeTab === 'guidelines'">
+            <!-- Guideline org filter -->
+            <div class="flex items-center gap-1.5 mb-3 sticky top-0 bg-slate-50 z-10 py-1">
+              <button
+                v-for="opt in [{key:'all',label:'全部'},{key:'KDIGO',label:'KDIGO'},{key:'KDOQI',label:'KDOQI'}]"
+                :key="opt.key"
+                class="px-3 py-1.5 text-xs rounded-lg border transition-colors"
+                :class="guidelineOrgFilter === opt.key ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
+                @click="guidelineOrgFilter = opt.key"
+              >
+                {{ opt.label }}
+              </button>
+              <span class="text-[10px] text-slate-400 ml-auto">{{ filteredGuidelines.length }} 部指引</span>
+            </div>
+            <div v-if="guidelinesLoading" class="text-center py-16 text-slate-400 text-sm">載入指引中...</div>
+            <div v-else-if="!filteredGuidelines.length" class="text-center py-16 text-slate-400">
+              <div class="text-4xl mb-3">📋</div>
+              <p class="text-sm">尚無指引資料</p>
+            </div>
+            <GuidelineCard
+              v-for="g in filteredGuidelines"
+              :key="g.id"
+              :guideline="g"
+              :selected="selectedGuideline?.id === g.id"
+              @select="selectedGuideline = $event; selectedArticle = null"
+            />
+          </template>
           <template v-else>
             <div v-if="!currentArticles.length" class="text-center py-16 text-slate-400">
               <div class="text-4xl mb-3">📭</div>
@@ -175,9 +202,16 @@
           </template>
         </div>
 
-        <!-- 文章詳情 -->
+        <!-- 詳情面板 (文章 or 指引) -->
         <div class="overflow-y-auto p-3">
+          <GuidelineDetail
+            v-if="activeTab === 'guidelines'"
+            :guideline="selectedGuideline"
+            @deep-consult="handleGuidelineDeepConsult"
+            @save-to-notes="handleGuidelineSaveToNotes"
+          />
           <ArticleDetail
+            v-else
             :article="selectedArticle"
             :is-saved="selectedArticle ? isSaved(selectedArticle.id) : false"
             @toggle-save="toggleSave"
@@ -206,6 +240,31 @@
             @toggle-save="toggleSave"
           />
         </template>
+        <template v-else-if="activeTab === 'guidelines'">
+          <div class="flex items-center gap-1.5 mb-2">
+            <button
+              v-for="opt in [{key:'all',label:'全部'},{key:'KDIGO',label:'KDIGO'},{key:'KDOQI',label:'KDOQI'}]"
+              :key="opt.key"
+              class="px-3 py-1.5 text-xs rounded-lg border transition-colors"
+              :class="guidelineOrgFilter === opt.key ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
+              @click="guidelineOrgFilter = opt.key"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+          <div v-if="guidelinesLoading" class="text-center py-16 text-slate-400 text-sm">載入指引中...</div>
+          <div v-else-if="!filteredGuidelines.length" class="text-center py-16 text-slate-400">
+            <div class="text-4xl mb-3">📋</div>
+            <p class="text-sm">尚無指引資料</p>
+          </div>
+          <GuidelineCard
+            v-for="g in filteredGuidelines"
+            :key="g.id"
+            :guideline="g"
+            :selected="selectedGuideline?.id === g.id"
+            @select="selectedGuideline = $event"
+          />
+        </template>
         <template v-else>
           <div v-if="!currentArticles.length" class="text-center py-16 text-slate-400">
             <div class="text-4xl mb-3">📭</div>
@@ -225,7 +284,7 @@
       </div>
     </main>
 
-    <!-- 手機版：點擊文章後彈出詳細（所有 tab 共用） -->
+    <!-- 手機版：點擊文章後彈出詳細 -->
     <Teleport to="body">
       <div
         v-if="selectedArticle && isMobile"
@@ -252,6 +311,35 @@
             @deep-consult="handleDeepConsult"
             @save-to-notes="handleSaveToNotes"
             @send-to-teach="handleSendToTeach"
+          />
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 手機版：點擊指引後彈出詳細 -->
+    <Teleport to="body">
+      <div
+        v-if="selectedGuideline && isMobile"
+        class="fixed inset-0 bg-black/50 z-30 lg:hidden"
+        @click="selectedGuideline = null"
+      >
+        <div
+          class="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto bg-white rounded-t-2xl"
+          @click.stop
+        >
+          <div class="sticky top-0 bg-white p-3 border-b border-slate-100 flex justify-between items-center">
+            <span class="text-sm font-medium text-slate-600">指引詳情</span>
+            <button
+              class="text-slate-400 hover:text-slate-600 text-lg"
+              @click="selectedGuideline = null"
+            >
+              ✕
+            </button>
+          </div>
+          <GuidelineDetail
+            :guideline="selectedGuideline"
+            @deep-consult="handleGuidelineDeepConsult"
+            @save-to-notes="handleGuidelineSaveToNotes"
           />
         </div>
       </div>
@@ -339,11 +427,14 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useArticles } from '../composables/useArticles.js'
 import { useCollection } from '../composables/useCollection.js'
+import { useGuidelines } from '../composables/useGuidelines.js'
 import { useNotes } from '../composables/useNotes.js'
 import { useAuth } from '../composables/useAuth.js'
 import { useTeachPicker } from '../composables/useTeachPicker.js'
 import ArticleCard from '../components/ArticleCard.vue'
 import ArticleDetail from '../components/ArticleDetail.vue'
+import GuidelineCard from '../components/GuidelineCard.vue'
+import GuidelineDetail from '../components/GuidelineDetail.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
 import TeachPickerModal from '../components/TeachPickerModal.vue'
 
@@ -387,9 +478,20 @@ const {
   unsubscribe: unsubCollection,
 } = useCollection()
 
+// Guidelines
+const {
+  guidelines,
+  kdigoGuidelines,
+  kdoqiGuidelines,
+  loading: guidelinesLoading,
+  unsubscribe: unsubGuidelines,
+} = useGuidelines()
+
 // UI state
 const activeTab = ref('ESRD/HD')
 const selectedArticle = ref(null)
+const selectedGuideline = ref(null)
+const guidelineOrgFilter = ref('all') // 'all' | 'KDIGO' | 'KDOQI'
 const showDailyBrief = ref(false)
 
 // Mobile detection
@@ -405,6 +507,7 @@ onUnmounted(() => {
   window.removeEventListener('resize', checkMobile)
   unsubArticles()
   unsubCollection()
+  unsubGuidelines()
 })
 
 // Tabs config — 分為主題與特殊分類
@@ -426,6 +529,7 @@ const topicTabs = computed(() => [
 
 const specialTabs = computed(() => [
   { key: 'journal', label: '📰 期刊', count: journalArticles.value.length, newCount: newCountByTopic.value['journal'] || 0 },
+  { key: 'guidelines', label: '📋 臨床指引', count: guidelines.value.length, newCount: 0 },
   { key: 'collection', label: '✅ 收藏庫', count: savedArticles.value.length, newCount: 0 },
 ])
 
@@ -451,6 +555,39 @@ const currentArticles = computed(() => {
 })
 
 const articleCount = computed(() => articles.value.length)
+
+// Filtered guidelines by org
+const filteredGuidelines = computed(() => {
+  if (guidelineOrgFilter.value === 'KDIGO') return kdigoGuidelines.value
+  if (guidelineOrgFilter.value === 'KDOQI') return kdoqiGuidelines.value
+  return guidelines.value
+})
+
+function handleGuidelineDeepConsult(guideline) {
+  const question = guideline.title_zh || guideline.title || ''
+  router.push({ path: '/consult', query: { q: question } })
+}
+
+async function handleGuidelineSaveToNotes(guideline) {
+  try {
+    const content = [
+      `# ${guideline.title_zh || guideline.title}`,
+      '',
+      guideline.title_zh && guideline.title ? `**原文標題**: ${guideline.title}` : '',
+      `**組織**: ${guideline.org} · **年份**: ${guideline.year}${guideline.updated_year ? ` (更新 ${guideline.updated_year})` : ''}`,
+      guideline.url ? `**連結**: ${guideline.url}` : '',
+      '',
+      guideline.summary_zh ? `## 指引摘要\n${guideline.summary_zh}` : '',
+      guideline.key_topics?.length ? `## 涵蓋主題\n${guideline.key_topics.map(t => `- ${t}`).join('\n')}` : '',
+    ].filter(Boolean).join('\n')
+
+    await saveFromModule(content, 'NB Insight', guideline.title_zh || guideline.title)
+    showToast('已存入 Notes ✓')
+  } catch (e) {
+    console.error('Save guideline to notes error:', e)
+    showToast('儲存失敗')
+  }
+}
 
 // === 跨模組功能 ===
 function showToast(msg) {
