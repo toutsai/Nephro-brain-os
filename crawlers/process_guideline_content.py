@@ -41,6 +41,8 @@ logger = logging.getLogger(__name__)
 # Firebase init
 # ---------------------------------------------------------------------------
 load_dotenv()
+# fallback: 讀取 backend/.env
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", "backend", ".env"))
 
 FIREBASE_SERVICE_ACCOUNT_JSON = os.getenv(
     "FIREBASE_SERVICE_ACCOUNT_JSON", "serviceAccountKey.json"
