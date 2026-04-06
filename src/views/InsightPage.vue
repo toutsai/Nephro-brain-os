@@ -202,13 +202,19 @@
           </template>
         </div>
 
-        <!-- 詳情面板 (文章 or 指引) -->
+        <!-- 詳情面板 (文章 or 指引 or 章節瀏覽器) -->
         <div class="overflow-y-auto p-3">
+          <GuidelineContentViewer
+            v-if="activeTab === 'guidelines' && viewingChapters && selectedGuideline"
+            :guideline="selectedGuideline"
+            @back="handleBackFromChapters"
+          />
           <GuidelineDetail
-            v-if="activeTab === 'guidelines'"
+            v-else-if="activeTab === 'guidelines'"
             :guideline="selectedGuideline"
             @deep-consult="handleGuidelineDeepConsult"
             @save-to-notes="handleGuidelineSaveToNotes"
+            @view-chapters="handleViewChapters"
           />
           <ArticleDetail
             v-else
@@ -321,25 +327,34 @@
       <div
         v-if="selectedGuideline && isMobile"
         class="fixed inset-0 bg-black/50 z-30 lg:hidden"
-        @click="selectedGuideline = null"
+        @click="viewingChapters ? null : (selectedGuideline = null)"
       >
         <div
           class="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto bg-white rounded-t-2xl"
           @click.stop
         >
-          <div class="sticky top-0 bg-white p-3 border-b border-slate-100 flex justify-between items-center">
-            <span class="text-sm font-medium text-slate-600">指引詳情</span>
+          <div class="sticky top-0 bg-white p-3 border-b border-slate-100 flex justify-between items-center z-10">
+            <span class="text-sm font-medium text-slate-600">
+              {{ viewingChapters ? '章節內容' : '指引詳情' }}
+            </span>
             <button
               class="text-slate-400 hover:text-slate-600 text-lg"
-              @click="selectedGuideline = null"
+              @click="viewingChapters ? (viewingChapters = false) : (selectedGuideline = null)"
             >
-              ✕
+              {{ viewingChapters ? '← 返回' : '✕' }}
             </button>
           </div>
+          <GuidelineContentViewer
+            v-if="viewingChapters"
+            :guideline="selectedGuideline"
+            @back="viewingChapters = false"
+          />
           <GuidelineDetail
+            v-else
             :guideline="selectedGuideline"
             @deep-consult="handleGuidelineDeepConsult"
             @save-to-notes="handleGuidelineSaveToNotes"
+            @view-chapters="handleViewChapters"
           />
         </div>
       </div>
@@ -435,6 +450,7 @@ import ArticleCard from '../components/ArticleCard.vue'
 import ArticleDetail from '../components/ArticleDetail.vue'
 import GuidelineCard from '../components/GuidelineCard.vue'
 import GuidelineDetail from '../components/GuidelineDetail.vue'
+import GuidelineContentViewer from '../components/GuidelineContentViewer.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
 import TeachPickerModal from '../components/TeachPickerModal.vue'
 
@@ -491,6 +507,16 @@ const {
 const activeTab = ref('ESRD/HD')
 const selectedArticle = ref(null)
 const selectedGuideline = ref(null)
+const viewingChapters = ref(false)
+
+function handleViewChapters(guideline) {
+  selectedGuideline.value = guideline
+  viewingChapters.value = true
+}
+
+function handleBackFromChapters() {
+  viewingChapters.value = false
+}
 const guidelineOrgFilter = ref('all') // 'all' | 'KDIGO' | 'KDOQI'
 const showDailyBrief = ref(false)
 

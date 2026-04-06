@@ -1,36 +1,46 @@
 # Session Log
 
 ## 最近一次更新
-- **日期**：2026-04-06
+- **日期**：2026-04-06（第二次更新）
 - **完成事項**：
-  1. **Consult → Insight 相關文獻推薦**：問答完成後自動推薦相關 Insight 文章（純前端 keyword→topic 匹配，零後端修改）
-  2. **LandingPage Dashboard**：首頁改寫為即時統計儀表板（今日/30日文獻數、知識庫、AI 用量、模組入口 grid）
-  3. **Insight 臨床指引區（KDIGO & KDOQI）**：
-     - 新增 `guidelines` Firestore collection + `useGuidelines` composable
-     - GuidelineCard / GuidelineDetail 元件
-     - InsightPage 側邊欄新增「臨床指引」tab（含 KDIGO/KDOQI 篩選）
-     - 手機版完整支援（下拉選單 + 底部彈出詳情）
-  4. **種子資料腳本**：`crawlers/seed_guidelines.py`（18 KDIGO + 8 KDOQI = 26 部指引）
-  5. **Firestore rules 更新**：guidelines collection 公開讀取
+  1. **指引大腦 — 前端章節瀏覽器**：
+     - `GuidelineContentViewer.vue`: 富內容章節瀏覽（markdown 渲染 + Mermaid 流程圖 + 建議等級 badge）
+     - `GuidelineChapterNav.vue`: 章節側邊導航（桌面側欄 / 手機橫向 pills）
+     - `RecommendationBadge.vue`: 建議等級色碼 (1A=綠, 1B=藍, 2A=琥珀, 2B=灰)
+     - `useGuidelineChapters.js`: Firestore `guideline_chapters` 查詢 composable
+     - `GuidelineDetail.vue` 新增「查看章節內容」主按鈕
+     - `InsightPage.vue` 右欄條件渲染章節瀏覽器（桌面+手機版）
+  2. **指引大腦 — 後端處理腳本**：
+     - `process_guideline_content.py`: Gemini AI 逐章解析指引 PDF，生成繁中摘要、關鍵建議(含 grade)、治療流程圖(Mermaid)、版本差異分析
+     - `download_kdoqi.py`: 下載 5 部 KDOQI 指引 PDF 並上傳 Firebase Storage
+  3. **Firestore 配置**：
+     - `guideline_chapters` collection 公開讀取規則
+     - `(guideline_id, chapter_number)` 複合索引
 - **未完成**：
-  - 需手動執行 `python crawlers/seed_guidelines.py` 填入指引資料到 Firestore
-  - 需手動執行 `firebase deploy --only firestore:rules` 部署規則
-  - 指引區 Phase 2：版本更新差異分析（延後）
-  - 指引區 Phase 3：解析指引內容存入 Firestore 供 RAG 查詢（延後）
-  - 精選問答初始資料填入（延後自上次）
-  - 行動版實機測試所有新功能
+  - 需在本地跑 `python crawlers/process_guideline_content.py` 逐部解析指引（每部 5-15 分鐘，全部約 3-5 小時）
+  - 需在本地跑 `python crawlers/download_kdoqi.py` 下載 KDOQI 指引
+  - 3 部較舊的 KDOQI (2003-2006) 可能需手動找 PDF
+  - 版本差異分析（diff_from_previous）需有前版 PDF 才能比對
+  - 需部署 `firebase deploy --only firestore:rules,firestore:indexes`
 - **下次待辦**：
-  - 執行 seed_guidelines.py 寫入 26 部指引到 Firestore
-  - 部署 firestore.rules（firebase deploy --only firestore:rules）
-  - 部署 backend（如有需要）
-  - Phase 2：KDIGO/KDOQI 版本追蹤與更新差異分析
-  - Phase 3：指引內容解析 → RAG 整合
+  - 執行 process_guideline_content.py 開始解析（建議先跑 --limit 1 測試一部）
+  - 執行 download_kdoqi.py 下載 KDOQI 指引
+  - 觀察 Gemini 生成的 Mermaid 流程圖品質，必要時調整 prompt
+  - Phase 2: 版本差異分析（需上傳舊版 PDF）
 - **重要決策**：
-  - 相關文獻推薦採純前端方案（用一次性 getDocs 載入 articles_v2，避免重複 real-time listener）
-  - 指引區放在 InsightPage 側邊欄 specialTabs 中（而非獨立頁面），保持統一瀏覽體驗
-  - selectedGuideline 與 selectedArticle 分開管理，避免型別衝突
-  - LandingPage 統一呼叫所有 composables（不條件性呼叫），用 v-if 控制顯示
-  - KDIGO 指引 URL 使用 kdigo.org/guidelines/，KDOQI 使用 ajkd.org 或 kidney.org
+  - 章節內容存在獨立的 `guideline_chapters` collection（非 subcollection），方便查詢
+  - 每章發 3 次 Gemini 呼叫（content/recommendations/flowchart）而非 1 次大呼叫，提高穩定性
+  - 使用 Gemini File API 整份 PDF 上傳（非逐頁），效率更高
+  - 前端 GuidelineContentViewer 直接使用現有 renderMd + renderMermaidIn，零新增依賴
+  - KDOQI 較舊指引(2003-2006) URL 需手動確認，download_kdoqi.py 中已註解
+
+## 2026-04-06（第一次更新）
+- Consult → Insight 相關文獻推薦（純前端 keyword→topic 匹配）
+- LandingPage Dashboard（即時統計 + 模組入口 grid）
+- Insight 臨床指引區（KDIGO/KDOQI 目錄 + 篩選）
+- seed_guidelines.py（26 部指引種子資料）
+- 修正 3 筆 KDIGO URL 404（ANCA、ADPKD、IgAN）
+- seed_guidelines.py 新增 --update 模式
 
 ## 歷史紀錄
 
@@ -42,16 +52,14 @@
 - 跨模組連動優化、PWA icons、Service Worker、re-tagging 腳本
 
 ### 2026-04-02（第一次更新）
-- 跨模組連動優化（Notes→Consult、Insight→Teach、Assist→Consult/Teach、Teach→Consult）
+- 跨模組連動優化
 - 抽取 useTeachPicker composable
 - PWA icon 生成 + vite-plugin-pwa 設定
 - 文章 re-tagging 腳本
 
 ### 2026-03-30
 - Insight 搜尋主題從 7 個擴充到 13 個
-- 前端改用 30 天時間範圍 + limit(300)
-- Insight 改為三欄式佈局
-- 手機版改用下拉選單取代橫向 tab
+- Insight 三欄式佈局、手機版下拉選單
 - 五個頁面統一高度、統一全寬佈局
 - 行動版全面優化
-- 建立 Claude Code 工作流程自動化設定
+- Claude Code 工作流程自動化設定

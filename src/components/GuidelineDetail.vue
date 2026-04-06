@@ -58,7 +58,15 @@
         </div>
       </div>
 
-      <!-- 操作按鈕 -->
+      <!-- 查看章節內容 (主按鈕) -->
+      <button
+        class="w-full py-3 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-500 transition-colors"
+        @click="$emit('viewChapters', guideline)"
+      >
+        查看章節內容
+      </button>
+
+      <!-- 其他操作按鈕 -->
       <div class="flex items-center gap-3 pt-3 border-t border-slate-100 flex-wrap">
         <a
           v-if="guideline.url"
@@ -98,7 +106,7 @@ const props = defineProps({
   guideline: { type: Object, default: null },
 })
 
-defineEmits(['deepConsult', 'saveToNotes'])
+defineEmits(['deepConsult', 'saveToNotes', 'viewChapters'])
 
 const orgBadgeClass = computed(() => {
   const org = props.guideline?.org
