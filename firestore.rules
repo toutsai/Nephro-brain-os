@@ -67,5 +67,11 @@ service cloud.firestore {
     match /token_usage/{docId} {
       allow read: if true;
     }
+
+    // 臨床指引目錄 — 公開讀取
+    match /guidelines/{guidelineId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
   }
 }
