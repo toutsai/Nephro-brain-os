@@ -61,6 +61,7 @@ ABBREV_MAP = {
     "CKD": {"ckd", "chronic", "kidney"},
     "ADPKD": {"polycystic"},
     "ANCA": {"anca", "vasculitis"},
+    "LD": {"living", "donor"},
 }
 
 
