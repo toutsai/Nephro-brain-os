@@ -156,27 +156,45 @@ def extract_year(title: str) -> int | None:
 def find_guideline_doc(title: str):
     """Find matching guideline doc in guidelines collection by title similarity."""
     guidelines_ref = db.collection("guidelines")
-    docs = guidelines_ref.stream()
+    docs = list(guidelines_ref.stream())
+
+    # Normalize: split on - and spaces, lowercase, remove common filler words
+    STOP_WORDS = {"kdigo", "kdoqi", "guideline", "guidelines", "clinical", "practice",
+                  "for", "the", "and", "in", "of", "a", "an", "english", "final", "gl",
+                  "update", "2024", "2023", "2022", "2021", "2020", "2019", "2018",
+                  "2017", "2016", "2015", "2014", "2013", "2012", "2011", "2010",
+                  "2009", "2008", "2007", "2006", "2005", "2004", "2003", "2025"}
+
+    def normalize(s):
+        # Replace - with space, lowercase, split
+        words = re.sub(r'[^a-z0-9\s]', ' ', s.lower().replace('-', ' ')).split()
+        return set(w for w in words if w not in STOP_WORDS and len(w) > 1)
+
+    title_words = normalize(title)
 
     best_match = None
     best_score = 0
 
-    title_lower = title.lower()
     for doc in docs:
         data = doc.to_dict()
-        doc_title = data.get("title", "").lower()
-        # Simple substring matching
-        if doc_title in title_lower or title_lower in doc_title:
-            return doc.id, data
-        # Word overlap score
-        title_words = set(title_lower.split())
-        doc_words = set(doc_title.split())
+        doc_title = data.get("title", "")
+        doc_words = normalize(doc_title)
+
+        if not doc_words or not title_words:
+            continue
+
         overlap = len(title_words & doc_words)
-        if overlap > best_score:
-            best_score = overlap
+        # Also check abbreviations in title (e.g. "CKD", "AKI", "MBD")
+        title_upper = set(re.findall(r'[A-Z]{2,}', title))
+        doc_upper = set(re.findall(r'[A-Z]{2,}', doc_title))
+        abbrev_overlap = len(title_upper & doc_upper)
+
+        score = overlap + abbrev_overlap
+        if score > best_score:
+            best_score = score
             best_match = (doc.id, data)
 
-    if best_match and best_score >= 2:
+    if best_match and best_score >= 1:
         return best_match
     return None, None
 
@@ -385,8 +403,9 @@ def process_all(
     logger.info("=== 開始處理指引 PDF ===")
 
     # Query books with type=guideline and status=ready
+    from google.cloud.firestore_v1.base_query import FieldFilter
     books_ref = db.collection("books")
-    query = books_ref.where("type", "==", "guideline").where("status", "==", "ready")
+    query = books_ref.where(filter=FieldFilter("type", "==", "guideline")).where(filter=FieldFilter("status", "==", "ready"))
     books = list(query.stream())
 
     if not books:
