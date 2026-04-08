@@ -50,6 +50,19 @@ STOP_WORDS = {"kdigo", "kdoqi", "guideline", "guidelines", "clinical", "practice
               "2017", "2016", "2015", "2014", "2013", "2012", "2011", "2010",
               "2009", "2008", "2007", "2006", "2005", "2004", "2003", "2025"}
 
+# 縮寫 → 全稱關鍵字映射（處理 BP → Blood Pressure 等）
+ABBREV_MAP = {
+    "BP": {"blood", "pressure"},
+    "GD": {"glomerular", "diseases"},
+    "MBD": {"mineral", "bone"},
+    "LN": {"lupus", "nephritis"},
+    "AKI": {"acute", "kidney", "injury"},
+    "AKD": {"acute", "kidney", "disease"},
+    "CKD": {"ckd", "chronic", "kidney"},
+    "ADPKD": {"polycystic"},
+    "ANCA": {"anca", "vasculitis"},
+}
+
 
 def normalize(s):
     words = re.sub(r'[^a-z0-9\s]', ' ', s.lower().replace('-', ' ')).split()
@@ -89,13 +102,25 @@ def run(dry_run=False):
         best_doc = None
         best_score = 0
 
+        # Expand abbreviations to keywords for better matching
+        expanded_title_words = set(title_words)
+        for abbr in title_upper:
+            if abbr in ABBREV_MAP:
+                expanded_title_words |= ABBREV_MAP[abbr]
+
         for gdoc in guidelines:
             gdata = gdoc.to_dict()
             gtitle = gdata.get("title", "")
             doc_words = normalize(gtitle)
             doc_upper = set(re.findall(r'[A-Z]{2,}', gtitle))
 
-            overlap = len(title_words & doc_words)
+            # Expand doc abbreviations too
+            expanded_doc_words = set(doc_words)
+            for abbr in doc_upper:
+                if abbr in ABBREV_MAP:
+                    expanded_doc_words |= ABBREV_MAP[abbr]
+
+            overlap = len(expanded_title_words & expanded_doc_words)
             abbrev = len(title_upper & doc_upper)
             score = overlap + abbrev
 

@@ -153,24 +153,43 @@ def extract_year(title: str) -> int | None:
     return int(match.group()) if match else None
 
 
+STOP_WORDS = {"kdigo", "kdoqi", "guideline", "guidelines", "clinical", "practice",
+              "for", "the", "and", "in", "of", "a", "an", "english", "final", "gl",
+              "update", "2024", "2023", "2022", "2021", "2020", "2019", "2018",
+              "2017", "2016", "2015", "2014", "2013", "2012", "2011", "2010",
+              "2009", "2008", "2007", "2006", "2005", "2004", "2003", "2025"}
+
+ABBREV_MAP = {
+    "BP": {"blood", "pressure"},
+    "GD": {"glomerular", "diseases"},
+    "MBD": {"mineral", "bone"},
+    "LN": {"lupus", "nephritis"},
+    "AKI": {"acute", "kidney", "injury"},
+    "AKD": {"acute", "kidney", "disease"},
+    "CKD": {"ckd", "chronic", "kidney"},
+    "ADPKD": {"polycystic"},
+    "ANCA": {"anca", "vasculitis"},
+}
+
+
+def _normalize(s):
+    words = re.sub(r'[^a-z0-9\s]', ' ', s.lower().replace('-', ' ')).split()
+    return set(w for w in words if w not in STOP_WORDS and len(w) > 1)
+
+
 def find_guideline_doc(title: str):
     """Find matching guideline doc in guidelines collection by title similarity."""
     guidelines_ref = db.collection("guidelines")
     docs = list(guidelines_ref.stream())
 
-    # Normalize: split on - and spaces, lowercase, remove common filler words
-    STOP_WORDS = {"kdigo", "kdoqi", "guideline", "guidelines", "clinical", "practice",
-                  "for", "the", "and", "in", "of", "a", "an", "english", "final", "gl",
-                  "update", "2024", "2023", "2022", "2021", "2020", "2019", "2018",
-                  "2017", "2016", "2015", "2014", "2013", "2012", "2011", "2010",
-                  "2009", "2008", "2007", "2006", "2005", "2004", "2003", "2025"}
+    title_words = _normalize(title)
+    title_upper = set(re.findall(r'[A-Z]{2,}', title))
 
-    def normalize(s):
-        # Replace - with space, lowercase, split
-        words = re.sub(r'[^a-z0-9\s]', ' ', s.lower().replace('-', ' ')).split()
-        return set(w for w in words if w not in STOP_WORDS and len(w) > 1)
-
-    title_words = normalize(title)
+    # Expand abbreviations
+    expanded_title = set(title_words)
+    for abbr in title_upper:
+        if abbr in ABBREV_MAP:
+            expanded_title |= ABBREV_MAP[abbr]
 
     best_match = None
     best_score = 0
@@ -178,18 +197,21 @@ def find_guideline_doc(title: str):
     for doc in docs:
         data = doc.to_dict()
         doc_title = data.get("title", "")
-        doc_words = normalize(doc_title)
+        doc_words = _normalize(doc_title)
+        doc_upper = set(re.findall(r'[A-Z]{2,}', doc_title))
 
-        if not doc_words or not title_words:
+        expanded_doc = set(doc_words)
+        for abbr in doc_upper:
+            if abbr in ABBREV_MAP:
+                expanded_doc |= ABBREV_MAP[abbr]
+
+        if not expanded_doc or not expanded_title:
             continue
 
-        overlap = len(title_words & doc_words)
-        # Also check abbreviations in title (e.g. "CKD", "AKI", "MBD")
-        title_upper = set(re.findall(r'[A-Z]{2,}', title))
-        doc_upper = set(re.findall(r'[A-Z]{2,}', doc_title))
+        overlap = len(expanded_title & expanded_doc)
         abbrev_overlap = len(title_upper & doc_upper)
-
         score = overlap + abbrev_overlap
+
         if score > best_score:
             best_score = score
             best_match = (doc.id, data)
