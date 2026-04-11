@@ -347,6 +347,29 @@ Dapagliflozin 10mg
             />
           </div>
 
+          <!-- ============ Evidence (OpenEvidence) ============ -->
+          <div v-if="activeMode === 'evidence'">
+            <h2 class="text-lg font-bold text-slate-800 mb-1">OpenEvidence 實證查詢</h2>
+            <p class="text-xs text-slate-400 mb-4">輸入臨床問題，直接查詢 OpenEvidence 實證資料庫，回傳答案與引用文獻。</p>
+
+            <textarea
+              v-model="evidenceInput"
+              rows="4"
+              class="w-full text-sm border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none leading-relaxed"
+              placeholder="例如：What is the optimal BP target for CKD patients with proteinuria?"
+            />
+
+            <p class="text-[10px] text-slate-400 mt-1 mb-3">查詢約需 1-2 分鐘（OpenEvidence 處理時間）</p>
+
+            <button
+              :disabled="!evidenceInput.trim() || generating || !isLoggedIn"
+              class="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              @click="submitEvidence"
+            >
+              {{ generating ? '查詢中...' : '查詢 Evidence' }}
+            </button>
+          </div>
+
           <!-- ============ Calculator ============ -->
           <div v-if="activeMode === 'calculator'">
             <AssistCalculator />
@@ -509,6 +532,7 @@ const aiModes = [
   { key: 'interaction', icon: '⚡', label: '交互作用', desc: '藥物交互作用檢查' },
   { key: 'transplant', icon: '🫘', label: '移植諮詢', desc: '腎臟移植決策' },
   { key: 'pd', icon: '🔄', label: 'PD 諮詢', desc: '腹膜透析管理' },
+  { key: 'evidence', icon: '📖', label: 'Evidence', desc: 'OpenEvidence 實證查詢' },
 ]
 
 const toolModes = [
@@ -543,6 +567,7 @@ const nhiInput = ref('')
 const nhiImages = ref([])
 const interactionInput = ref('')
 const interactionImages = ref([])
+const evidenceInput = ref('')
 
 // === Submit (existing modes) ===
 async function submitClinical() {
@@ -596,6 +621,14 @@ async function submitInteraction() {
   if (res) currentResult.value = res.result
 }
 
+async function submitEvidence() {
+  const res = await queryAssist({
+    mode: 'evidence',
+    payload: { question: evidenceInput.value },
+  })
+  if (res) currentResult.value = res.result
+}
+
 // === Generic AI submit handler (for transplant, pd) ===
 async function handleAiSubmit({ mode, payload, images }) {
   const res = await queryAssist({ mode, payload, images })
@@ -612,6 +645,7 @@ function viewHistory(h) {
   if (h.mode === 'lab') { labInput.value = h.input?.lab_data || ''; labImages.value = [] }
   if (h.mode === 'nhi') { nhiInput.value = h.input?.query || ''; nhiImages.value = [] }
   if (h.mode === 'interaction') { interactionInput.value = h.input?.drugs || ''; interactionImages.value = [] }
+  if (h.mode === 'evidence') { evidenceInput.value = h.input?.question || '' }
   if (h.mode === 'transplant' || h.mode === 'pd') { /* sub-components handle their own state */ }
 }
 
@@ -631,6 +665,7 @@ function historyTitle(h) {
   if (h.mode === 'interaction') return (h.input?.drugs || '').slice(0, 30) || '交互作用'
   if (h.mode === 'transplant') return (h.input?.scenario || '').slice(0, 30) || '移植諮詢'
   if (h.mode === 'pd') return (h.input?.scenario || '').slice(0, 30) || 'PD 諮詢'
+  if (h.mode === 'evidence') return (h.input?.question || '').slice(0, 30) || 'Evidence 查詢'
   return '查詢'
 }
 

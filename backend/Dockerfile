@@ -11,6 +11,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY api_server.py .
+COPY openevidence_client.py .
 COPY scoring_calculators.py .
 COPY clinical_pathways.py .
 COPY drug_database.json .
