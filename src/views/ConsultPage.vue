@@ -222,7 +222,7 @@
               </div>
             </div>
 
-            <!-- Typing indicator (before streaming starts) -->
+            <!-- Typing indicator / Deep Research status (before streaming starts) -->
             <div
               v-else-if="answering"
               class="flex gap-3"
@@ -231,12 +231,32 @@
                 NB
               </div>
               <div class="bg-white border border-slate-200 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
-                <div class="flex items-center gap-1">
-                  <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0ms" />
-                  <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 150ms" />
-                  <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 300ms" />
-                </div>
-                <p class="text-[10px] text-slate-400 mt-1">搜尋教科書、PubMed 和網路中...</p>
+                <!-- Deep Research: progressive status list -->
+                <template v-if="statusMessages.length">
+                  <div class="space-y-1.5 mb-1">
+                    <div
+                      v-for="(s, i) in statusMessages"
+                      :key="i"
+                      class="flex items-center gap-2 text-xs"
+                      :class="i === statusMessages.length - 1 ? 'text-slate-600' : 'text-slate-400'"
+                    >
+                      <span
+                        class="w-2 h-2 rounded-full shrink-0"
+                        :class="i === statusMessages.length - 1 ? 'bg-indigo-500 animate-pulse' : 'bg-emerald-400'"
+                      />
+                      {{ s }}
+                    </div>
+                  </div>
+                </template>
+                <!-- Normal mode: bouncing dots -->
+                <template v-else>
+                  <div class="flex items-center gap-1">
+                    <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0ms" />
+                    <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 150ms" />
+                    <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 300ms" />
+                  </div>
+                  <p class="text-[10px] text-slate-400 mt-1">搜尋教科書、PubMed 和網路中...</p>
+                </template>
               </div>
             </div>
 
@@ -275,6 +295,17 @@
                 />
               </div>
               <button
+                :disabled="answering"
+                class="shrink-0 px-2.5 py-2 text-[11px] font-medium rounded-xl border transition-all whitespace-nowrap"
+                :class="deepResearch
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                  : 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-500'"
+                @click="deepResearch = !deepResearch"
+                title="Deep Research: 教科書 + PubMed + OpenEvidence + Google Search → Gemini Pro 綜合分析"
+              >
+                Deep Research
+              </button>
+              <button
                 :disabled="!inputText.trim() || answering"
                 class="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-colors"
                 :class="
@@ -290,7 +321,9 @@
               </button>
             </div>
             <p v-if="role === 'pro'" class="text-center text-[10px] text-slate-300 mt-1.5">
-              問答引擎結合教科書 FAISS 向量搜尋 + PubMed + Google Search + Gemini 2.5 Flash
+              {{ deepResearch
+                ? '深度研究模式：教科書 + PubMed + OpenEvidence + Google Search → Gemini 2.5 Pro 綜合分析'
+                : '問答引擎結合教科書 FAISS 向量搜尋 + PubMed + Google Search + Gemini 2.5 Flash' }}
             </p>
           </div>
         </div>
@@ -563,6 +596,7 @@ const {
   knowledgeStats,
   streamingContent,
   streamingSources,
+  statusMessages,
   subscribeChats,
   selectChat,
   createChat,
@@ -587,6 +621,7 @@ const {
 // === UI State ===
 const activeTab = ref('chat')
 const inputText = ref('')
+const deepResearch = ref(false)
 const textareaHeight = ref('40px')
 const messagesContainer = ref(null)
 const inputEl = ref(null)
@@ -749,7 +784,7 @@ async function handleSend() {
   lastQuestionText = text
   relatedArticles.value = []
   // 優先使用 SSE streaming，失敗會自動 fallback
-  await sendQuestionStream(text)
+  await sendQuestionStream(text, { deep_research: deepResearch.value })
 }
 
 // === 整則回覆收進 Notes ===
@@ -810,6 +845,17 @@ function formatDate(timestamp) {
 // Auto-scroll on new messages
 watch(
   () => messages.value.length,
+  async () => {
+    await nextTick()
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    }
+  }
+)
+
+// Auto-scroll during status updates (Deep Research)
+watch(
+  () => statusMessages.value.length,
   async () => {
     await nextTick()
     if (messagesContainer.value) {

@@ -70,6 +70,10 @@ if GOOGLE_API_KEY:
     gemini_client = genai.Client(api_key=GOOGLE_API_KEY)
     print(f"✅ Gemini API 已啟用 ({GEMINI_MODEL})")
 
+# --- OpenEvidence Client ---
+oe_client = None
+oe_cookie_mgr = None
+
 # ============================================================
 # Model Routing Configuration
 # ============================================================
@@ -105,6 +109,8 @@ MODEL_ROUTING = {
     "teach_ppt": "gemini-flash",
     "insight": "gemini-flash",
     "pathway_interactive": "gemini-flash",
+    "consult_deep_research": "gemini-pro",
+    "assist_evidence": "gemini-flash",
 }
 
 
@@ -250,6 +256,15 @@ try:
 
     db = firestore.client()
     print("✅ Firebase Firestore 已連線")
+
+    # Initialize OpenEvidence client (after Firestore is ready)
+    try:
+        from openevidence_client import OpenEvidenceClient, OpenEvidenceCookieManager
+        oe_cookie_mgr = OpenEvidenceCookieManager(db)
+        oe_client = OpenEvidenceClient(oe_cookie_mgr)
+        print("✅ OpenEvidence client 已初始化")
+    except Exception as oe_err:
+        print(f"⚠️ OpenEvidence client 未啟用: {oe_err}")
 
     try:
         storage_bucket_obj = storage.bucket()
@@ -947,12 +962,232 @@ def ask():
 # 5a. SSE Streaming 端點（節省 API 成本：避免重複呼叫）
 # ============================================================
 
+DEEP_RESEARCH_PROMPT = """你是一位崇尚實證醫學的腎臟科專家。我從多個來源為你蒐集了以下資訊，請整合為一篇完整的 Evidence Review。
+
+【教科書知識庫】
+{textbook_ctx}
+
+【PubMed 文獻摘要】
+{pubmed_ctx}
+
+【OpenEvidence 實證分析】
+{oe_answer}
+
+【OpenEvidence 引用文獻】
+{oe_citations}
+
+【問題】：{question}
+
+【整合要求】：
+請將以上所有來源整合為一篇完整的 Evidence Review，格式要求如下：
+
+■ 規則 1：摘要卡片（每次回答都必須有，放在第一行）
+:::summary
+- 完整結論句（含藥名中英文、臨床意義，30-60 字）
+- 完整結論句（含藥名中英文、臨床意義，30-60 字）
+- 完整結論句（含藥名中英文、臨床意義，30-60 字）
+- 完整結論句（如適用）
+- 完整結論句（如適用）
+:::
+每條結論應包含具體藥物或治療名稱（中文加英文）及其臨床定位。禁止使用「結論一」「結論二」等編號前綴。
+
+■ 規則 2：主文
+- 依主題分段，每段引用來源，使用編號引用如 [1], [2]
+- 交叉比對不同來源（教科書、PubMed、OpenEvidence）的觀點
+- 如果不同來源有矛盾，明確指出並分析哪個證據等級較高（RCT > 觀察性研究 > 專家意見）
+- 如果教科書和最新實證有差異，特別標註
+- 醫學術語用「中文 (English)」格式
+
+■ 規則 3：涉及比較必須用 Markdown 表格
+凡涉及藥物比較、治療方案優缺點、不同指引對比、劑量調整，必須用 Markdown 表格呈現。
+
+■ 規則 4：Mermaid 流程圖
+凡涉及診斷流程、治療決策樹、分級處理步驟，必須用 mermaid 語法畫流程圖。
+Mermaid 語法限制（務必遵守）：
+  - 第一行「只寫」 graph TD，不要在同一行加其他內容
+  - 每一個節點連接必須獨立一行
+  - 節點 ID 只用英文字母和數字（A, B, C1, D2）
+  - 方形節點標籤放在方括號內 A[標籤]，標籤簡短（10字以內）
+  - 菱形決策節點用雙大括號 B{{{{是否需要透析}}}}
+  - 連接線用 --> 或 -->|標籤|
+  - 標籤內禁止使用：( ) [ ] {{{{ }}}} # / \\\\ " ' ` ≥ ≤ ² ; :
+
+■ 規則 5：參考文獻列表
+回答末尾必須列出「參考文獻 (References)」，依序編號：
+  - 教科書來源標示 [教科書]
+  - PubMed 文獻：作者. 標題. *期刊*. 年份;卷(期):頁碼. [PubMed](https://pubmed.ncbi.nlm.nih.gov/PMID/)
+  - OpenEvidence 引用文獻附 DOI 或 PMID 連結
+  - Google Search 補充附 URL
+  依年份由新到舊排序。
+
+■ 規則 6：如果以上資料不足，使用 Google Search 搜尋補充。優先查詢 PubMed、Google Scholar、KDIGO/KDOQI 指引、UpToDate、Cochrane Library。
+
+■ 總原則：全程繁體中文。優先用視覺化方式呈現。這是一篇綜合多來源的深度分析，品質要求高於一般問答。"""
+
+
+def _generate_deep_research(question):
+    """Deep Research mode: gather from RAG + PubMed + OpenEvidence, then synthesize."""
+
+    def _sse(type_, content):
+        return f"data: {json.dumps({'type': type_, 'content': content}, ensure_ascii=False)}\n\n"
+
+    try:
+        yield _sse('status', '正在搜尋教科書知識庫...')
+
+        # Phase 1: Parallel gathering
+        oe_result_holder = [None]
+        oe_error_holder = [None]
+
+        def run_openevidence():
+            try:
+                if oe_client:
+                    oe_result_holder[0] = oe_client.get_formatted_result(question)
+            except Exception as e:
+                oe_error_holder[0] = e
+                print(f"⚠️ OE Deep Research error: {e}")
+
+        # Start OE in separate thread (long polling)
+        oe_thread = None
+        if oe_client:
+            oe_thread = threading.Thread(target=run_openevidence, daemon=True)
+            oe_thread.start()
+            yield _sse('status', '正在查詢 OpenEvidence 實證資料庫...')
+
+        # RAG + PubMed in ThreadPool
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            textbook_future = executor.submit(search_textbook, question)
+            pubmed_future = executor.submit(search_pubmed, question)
+
+            try:
+                textbook_ctx = textbook_future.result(timeout=20)
+            except Exception:
+                textbook_ctx = "無教科書資料（搜尋逾時）。"
+            yield _sse('status', '教科書搜尋完成')
+
+            try:
+                pubmed_ctx = pubmed_future.result(timeout=15) or "無 PubMed 結果。"
+            except Exception:
+                pubmed_ctx = "無 PubMed 結果（搜尋逾時）。"
+            yield _sse('status', 'PubMed 搜尋完成')
+
+        # Wait for OpenEvidence
+        oe_answer = ""
+        oe_citations = ""
+        if oe_thread:
+            yield _sse('status', '等待 OpenEvidence 分析完成（約需 1-2 分鐘）...')
+            oe_thread.join(timeout=180)
+            if oe_result_holder[0]:
+                oe_answer = oe_result_holder[0].get("answer", "")
+                oe_citations = oe_result_holder[0].get("citations", "")
+                yield _sse('status', 'OpenEvidence 分析已收到')
+            elif oe_error_holder[0]:
+                yield _sse('status', f'OpenEvidence 查詢失敗，將以其他來源繼續分析')
+            else:
+                yield _sse('status', 'OpenEvidence 逾時，將以其他來源繼續分析')
+
+        yield _sse('status', '所有來源收集完成，正在生成深度分析...')
+
+        # Phase 2: Synthesis with Gemini Pro
+        model = get_model_for_task("consult_deep_research")
+
+        prompt = DEEP_RESEARCH_PROMPT.format(
+            textbook_ctx=textbook_ctx,
+            pubmed_ctx=pubmed_ctx,
+            oe_answer=oe_answer or "（OpenEvidence 未回傳資料）",
+            oe_citations=oe_citations or "（無引用文獻）",
+            question=anonymize_text(question),
+        )
+
+        response = gemini_client.models.generate_content_stream(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+            )
+        )
+
+        # Phase 3: Stream the synthesized article
+        last_usage = None
+        grounding_meta = None
+        for chunk in response:
+            if chunk.text:
+                yield f"data: {json.dumps({'type': 'content', 'content': chunk.text}, ensure_ascii=False)}\n\n"
+            if hasattr(chunk, 'usage_metadata') and chunk.usage_metadata:
+                last_usage = chunk.usage_metadata
+            if hasattr(chunk, 'candidates') and chunk.candidates:
+                candidate = chunk.candidates[0]
+                if hasattr(candidate, 'grounding_metadata') and candidate.grounding_metadata:
+                    grounding_meta = candidate.grounding_metadata
+
+        # Send grounding sources (reuse existing logic)
+        if grounding_meta and hasattr(grounding_meta, 'grounding_chunks') and grounding_meta.grounding_chunks:
+            from urllib.parse import urlparse
+            ACADEMIC_DOMAINS = {
+                'pubmed.ncbi.nlm.nih.gov', 'ncbi.nlm.nih.gov', 'scholar.google.com',
+                'doi.org', 'nejm.org', 'thelancet.com', 'bmj.com', 'jamanetwork.com',
+                'nature.com', 'springer.com', 'wiley.com', 'elsevier.com', 'sciencedirect.com',
+                'cochranelibrary.com', 'uptodate.com', 'kidney-international.org',
+                'kdigo.org', 'kidney.org', 'asn-online.org', 'era-online.org',
+                'jasn.asnjournals.org', 'cjasn.asnjournals.org',
+                'academic.oup.com', 'journals.lww.com', 'karger.com',
+                'mdpi.com', 'frontiersin.org', 'hindawi.com', 'plos.org',
+                'annals.org', 'acpjournals.org', 'ahajournals.org',
+                'nih.gov', 'who.int', 'cdc.gov', 'tsn.org.tw', 'nephrology.org',
+            }
+            NON_ACADEMIC_DOMAINS = {
+                'wikipedia.org', 'reddit.com', 'quora.com', 'facebook.com',
+                'twitter.com', 'x.com', 'youtube.com', 'tiktok.com',
+                'healthline.com', 'webmd.com', 'mayoclinic.org',
+                'medicalnewstoday.com', 'verywellhealth.com',
+                'droracle.ai', 'zy91.com', 'dxy.cn',
+                'revivemobileivs.com', 'criticalcaretime.com',
+            }
+            sources = []
+            seen = set()
+            for gc in grounding_meta.grounding_chunks:
+                if hasattr(gc, 'web') and gc.web and gc.web.uri and gc.web.uri not in seen:
+                    seen.add(gc.web.uri)
+                    uri = gc.web.uri
+                    try:
+                        domain = urlparse(uri).hostname or ''
+                        domain_parts = domain.replace('www.', '').split('.')
+                        main_domain = '.'.join(domain_parts[-2:]) if len(domain_parts) >= 2 else domain
+                    except Exception:
+                        main_domain = ''
+                    if main_domain in NON_ACADEMIC_DOMAINS:
+                        continue
+                    sources.append({'title': gc.web.title or '', 'url': uri})
+
+            def _academic_priority(s):
+                try:
+                    d = urlparse(s['url']).hostname or ''
+                    d = d.replace('www.', '')
+                    for ad in ACADEMIC_DOMAINS:
+                        if d.endswith(ad):
+                            return 0
+                    return 1
+                except Exception:
+                    return 1
+            sources.sort(key=_academic_priority)
+            if sources:
+                yield f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
+
+        _log_token_usage(response, model, "deep_research", meta=last_usage)
+        yield "data: [DONE]\n\n"
+
+    except Exception as e:
+        print(f"❌ Deep Research error: {e}")
+        yield f"data: {json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False)}\n\n"
+        yield "data: [DONE]\n\n"
+
+
 @app.route('/ask-stream', methods=['POST'])
 @require_auth
 def ask_stream():
     """SSE streaming endpoint for NB Consult — 即時串流回答"""
     data = request.get_json()
     question = data.get('question', '')
+    deep_research = data.get('deep_research', False)
 
     if not question:
         return jsonify({"error": "請提供問題"}), 400
@@ -960,10 +1195,17 @@ def ask_stream():
     if not gemini_client:
         return jsonify({"error": "Gemini API 未設定"}), 500
 
-    print(f"💬 /ask-stream: {question[:60]}...")
+    mode_label = "🔬 Deep Research" if deep_research else "💬"
+    print(f"{mode_label} /ask-stream: {question[:60]}...")
 
     def generate():
         try:
+            # === Deep Research Mode ===
+            if deep_research:
+                yield from _generate_deep_research(question)
+                return
+
+            # === Normal Mode (unchanged) ===
             with ThreadPoolExecutor(max_workers=2) as executor:
                 textbook_future = executor.submit(search_textbook, question)
                 pubmed_future = executor.submit(search_pubmed, question)
@@ -1612,6 +1854,8 @@ def assist_query():
             result = _assist_transplant(data, images)
         elif mode == 'pd':
             result = _assist_pd(data, images)
+        elif mode == 'evidence':
+            result = _assist_evidence(data.get('question', ''))
         else:
             return jsonify({"error": f"不支援的模式: {mode}"}), 400
 
@@ -2596,6 +2840,117 @@ def pathway_interactive(pathway_id):
     except Exception as e:
         print(f"❌ Pathway interactive error: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
+# 6b. OpenEvidence — Assist 模式 & Admin 端點
+# ============================================================
+
+def _assist_evidence(question):
+    """OpenEvidence 實證查詢 — 直接回傳 OE 答案 + 引用文獻"""
+    if not question:
+        return "❌ 請提供醫學問題。"
+
+    if not oe_client:
+        return "❌ OpenEvidence 尚未設定。請先在 Settings 頁面上傳 cookie。"
+
+    try:
+        result = oe_client.get_formatted_result(question)
+
+        # Track usage
+        if db:
+            month_key = time.strftime("%Y-%m")
+            doc_ref = db.collection("token_usage").document(month_key)
+            doc_ref.set({"month": month_key}, merge=True)
+            doc_ref.update({
+                "by_feature.openevidence.calls": firestore.Increment(1),
+                "updated_at": firestore.SERVER_TIMESTAMP,
+            })
+
+        md = f"""## OpenEvidence 實證回答
+
+{result.get('answer', '（無回答）')}
+
+---
+
+## 參考文獻 (OpenEvidence Citations)
+
+{result.get('citations', '（無引用文獻）')}
+"""
+        return md + ASSIST_DISCLAIMER
+
+    except Exception as e:
+        print(f"❌ OE assist error: {e}")
+        return f"❌ OpenEvidence 查詢失敗：{str(e)}"
+
+
+@app.route('/admin/oe-status', methods=['GET'])
+@require_admin
+def get_oe_status():
+    """取得 OpenEvidence cookie 狀態"""
+    if not oe_cookie_mgr:
+        return jsonify({"valid": None, "has_cookies": False, "message": "OE client not initialized"})
+    return jsonify(oe_cookie_mgr.get_status())
+
+
+@app.route('/admin/oe-cookies', methods=['POST'])
+@require_admin
+def update_oe_cookies():
+    """上傳 OpenEvidence cookies"""
+    data = request.get_json()
+    token_info = verify_token(request)
+    uid = token_info['uid'] if token_info else 'admin'
+
+    if not oe_cookie_mgr:
+        return jsonify({"error": "OE client not initialized"}), 500
+
+    # Support both JSON object and raw string format
+    cookies_dict = data.get('cookies')
+    cookies_raw = data.get('cookies_raw', '')
+
+    if not cookies_dict and cookies_raw:
+        # Parse "name1=val1; name2=val2" format
+        cookies_dict = {}
+        for pair in cookies_raw.split(';'):
+            pair = pair.strip()
+            if '=' in pair:
+                k, v = pair.split('=', 1)
+                cookies_dict[k.strip()] = v.strip()
+
+    if not cookies_dict:
+        # Try parsing as JSON array (browser export format)
+        cookies_json = data.get('cookies_json')
+        if cookies_json:
+            if isinstance(cookies_json, list):
+                cookies_dict = {c['name']: c['value'] for c in cookies_json if 'name' in c and 'value' in c}
+            elif isinstance(cookies_json, str):
+                try:
+                    parsed = json.loads(cookies_json)
+                    if isinstance(parsed, list):
+                        cookies_dict = {c['name']: c['value'] for c in parsed if 'name' in c and 'value' in c}
+                    elif isinstance(parsed, dict) and 'cookies' in parsed:
+                        cookies_dict = {c['name']: c['value'] for c in parsed['cookies'] if 'name' in c and 'value' in c}
+                except json.JSONDecodeError:
+                    pass
+
+    if not cookies_dict:
+        return jsonify({"error": "無法解析 cookies，請提供 JSON object 或 name=value; 格式"}), 400
+
+    oe_cookie_mgr.save_cookies(cookies_dict, uid)
+
+    # Validate
+    valid = oe_cookie_mgr.validate()
+    return jsonify({"success": True, "valid": valid, "cookie_count": len(cookies_dict)})
+
+
+@app.route('/admin/oe-validate', methods=['POST'])
+@require_admin
+def validate_oe_cookies():
+    """驗證 OpenEvidence cookies 是否有效"""
+    if not oe_cookie_mgr:
+        return jsonify({"valid": False, "message": "OE client not initialized"})
+    valid = oe_cookie_mgr.validate()
+    return jsonify({"valid": valid})
 
 
 # ============================================================

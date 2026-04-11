@@ -214,6 +214,60 @@
           </button>
           <p v-if="migrateMsg" class="text-xs text-emerald-600 mt-2">{{ migrateMsg }}</p>
         </div>
+
+        <!-- OpenEvidence Cookie 管理 -->
+        <div class="bg-white rounded-xl border p-4">
+          <h3 class="text-sm font-semibold text-slate-700 mb-3">OpenEvidence Cookie 管理</h3>
+
+          <!-- Status indicator -->
+          <div class="flex items-center gap-2 mb-3">
+            <span
+              class="w-2.5 h-2.5 rounded-full shrink-0"
+              :class="oeStatus?.valid === true ? 'bg-emerald-500' : oeStatus?.valid === false ? 'bg-red-400' : 'bg-slate-300'"
+            />
+            <span class="text-xs" :class="oeStatus?.valid === true ? 'text-emerald-600' : oeStatus?.valid === false ? 'text-red-500' : 'text-slate-400'">
+              {{ oeStatus?.valid === true ? 'Cookie 有效' : oeStatus?.valid === false ? 'Cookie 已過期' : (oeStatus?.has_cookies ? '未驗證' : '未設定') }}
+            </span>
+            <span v-if="oeStatus?.user_email" class="text-[10px] text-slate-400">
+              ({{ oeStatus.user_email }})
+            </span>
+            <button
+              class="text-xs text-blue-500 hover:text-blue-700 ml-auto"
+              :disabled="oeValidating"
+              @click="validateOeCookies"
+            >
+              {{ oeValidating ? '驗證中...' : '重新驗證' }}
+            </button>
+          </div>
+
+          <!-- Cookie input -->
+          <div class="mb-3">
+            <label class="text-xs text-slate-500 mb-1 block">貼上 Cookie（支援 JSON array 或 name=value; 格式）</label>
+            <textarea
+              v-model="oeCookieInput"
+              rows="4"
+              class="w-full border border-slate-200 rounded-lg p-2.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+              placeholder='[{"name":"...", "value":"..."}, ...] 或 name1=value1; name2=value2'
+            />
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button
+              :disabled="!oeCookieInput.trim() || oeSaving"
+              class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg disabled:opacity-40 transition-colors"
+              @click="saveOeCookies"
+            >
+              {{ oeSaving ? '儲存中...' : '儲存 & 驗證' }}
+            </button>
+            <span v-if="oeMsg" class="text-xs" :class="oeMsg.includes('失敗') || oeMsg.includes('error') ? 'text-red-500' : 'text-emerald-600'">
+              {{ oeMsg }}
+            </span>
+          </div>
+
+          <p class="text-[10px] text-slate-400 mt-3 leading-relaxed">
+            從瀏覽器登入 OpenEvidence 後，使用 Cookie 匯出工具（如 Cookie-Editor 擴充套件）匯出 JSON，貼上後儲存即可。Cookie 過期後需重新匯出。
+          </p>
+        </div>
       </div>
     </template>
   </div>
@@ -297,8 +351,72 @@ async function migrateData() {
   finally { adminLoading.value = false }
 }
 
+// === OpenEvidence Cookie 管理 ===
+const oeStatus = ref(null)
+const oeCookieInput = ref('')
+const oeSaving = ref(false)
+const oeValidating = ref(false)
+const oeMsg = ref('')
+
+async function checkOeStatus() {
+  try {
+    const res = await authFetch(`${API_BASE}/admin/oe-status`)
+    if (res.ok) oeStatus.value = await res.json()
+  } catch { /* silent */ }
+}
+
+async function saveOeCookies() {
+  oeSaving.value = true
+  oeMsg.value = ''
+  try {
+    const raw = oeCookieInput.value.trim()
+    let body = {}
+
+    // Detect format: JSON array or raw string
+    if (raw.startsWith('[') || raw.startsWith('{')) {
+      body = { cookies_json: raw }
+    } else {
+      body = { cookies_raw: raw }
+    }
+
+    const res = await authFetch(`${API_BASE}/admin/oe-cookies`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      oeMsg.value = data.valid ? 'Cookie 儲存成功，驗證通過' : 'Cookie 已儲存，但驗證失敗'
+      oeCookieInput.value = ''
+      checkOeStatus()
+    } else {
+      oeMsg.value = data.error || '儲存失敗'
+    }
+  } catch (e) {
+    oeMsg.value = `錯誤：${e.message}`
+  } finally {
+    oeSaving.value = false
+  }
+}
+
+async function validateOeCookies() {
+  oeValidating.value = true
+  try {
+    const res = await authFetch(`${API_BASE}/admin/oe-validate`, { method: 'POST' })
+    const data = await res.json()
+    oeMsg.value = data.valid ? '驗證通過' : '驗證失敗，Cookie 可能已過期'
+    checkOeStatus()
+  } catch (e) {
+    oeMsg.value = `驗證錯誤：${e.message}`
+  } finally {
+    oeValidating.value = false
+  }
+}
+
 onMounted(() => {
-  if (isAdmin.value) fetchUsers()
+  if (isAdmin.value) {
+    fetchUsers()
+    checkOeStatus()
+  }
 })
 
 const pricingGroups = [
@@ -344,15 +462,19 @@ const pricingGroups = [
 
 const featureLabels = {
   consult: 'Consult 問答',
+  deep_research: 'Deep Research',
   teach: 'Teach 教學',
   assist: 'Assist 臨床輔助',
+  openevidence: 'OpenEvidence',
   other: '其他（爬蟲/摘要）',
 }
 
 const featureColors = {
   consult: 'bg-blue-500',
+  deep_research: 'bg-indigo-500',
   teach: 'bg-emerald-500',
   assist: 'bg-purple-500',
+  openevidence: 'bg-rose-500',
   other: 'bg-slate-400',
 }
 

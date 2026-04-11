@@ -157,8 +157,9 @@ export function useConsultChat() {
   // === SSE Streaming 發送問題 ===
   const streamingContent = ref('')
   const streamingSources = ref([])
+  const statusMessages = ref([])
 
-  async function sendQuestionStream(question) {
+  async function sendQuestionStream(question, options = {}) {
     if (!question.trim()) return
     error.value = null
 
@@ -181,11 +182,15 @@ export function useConsultChat() {
 
     answering.value = true
     streamingContent.value = ''
+    statusMessages.value = []
 
     try {
       const res = await authFetch(`${API_BASE}/consult/chat-stream`, {
         method: 'POST',
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({
+          question,
+          deep_research: options.deep_research || false,
+        }),
       })
 
       if (!res.ok) throw new Error(`API 回應 ${res.status}`)
@@ -212,6 +217,8 @@ export function useConsultChat() {
             const parsed = JSON.parse(payload)
             if (parsed.type === 'content') {
               streamingContent.value += parsed.content
+            } else if (parsed.type === 'status') {
+              statusMessages.value = [...statusMessages.value, parsed.content]
             } else if (parsed.type === 'sources') {
               streamingSources.value = parsed.sources || []
             } else if (parsed.type === 'error') {
@@ -235,12 +242,14 @@ export function useConsultChat() {
 
       streamingContent.value = ''
       streamingSources.value = []
+      statusMessages.value = []
       apiStatus.value = 'online'
     } catch (err) {
       console.error('Stream API error:', err)
       error.value = err.message
       streamingContent.value = ''
       streamingSources.value = []
+      statusMessages.value = []
 
       await addDoc(collection(db, 'chats', chatId, 'messages'), {
         role: 'assistant',
@@ -334,6 +343,7 @@ export function useConsultChat() {
     knowledgeStats,
     streamingContent,
     streamingSources,
+    statusMessages,
     subscribeChats,
     selectChat,
     createChat,
