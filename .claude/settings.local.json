@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "Bash(npx vite:*)",
+      "Bash(npm install:*)",
+      "Bash(gh pr create --title 'feat: 整合 OpenEvidence Deep Research 模式' --body ':*)",
+      "Bash(where gh:*)",
+      "Bash(python -c ':*)"
+    ]
+  }
+}
