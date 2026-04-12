@@ -63,6 +63,14 @@
         { "fieldPath": "guideline_id", "order": "ASCENDING" },
         { "fieldPath": "chapter_number", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "clinical_trials",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "process_status", "order": "ASCENDING" },
+        { "fieldPath": "updated_at", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -474,6 +474,16 @@ if os.path.exists(_drug_db_path):
 else:
     print("⚠️ drug_database.json 未找到，藥物劑量將使用 AI 生成")
 
+NHI_DB = {}
+_nhi_db_path = os.path.join(os.path.dirname(__file__), "nhi_database.json")
+if os.path.exists(_nhi_db_path):
+    with open(_nhi_db_path, "r", encoding="utf-8") as f:
+        _nhi_raw = json.load(f)
+        NHI_DB = {k: v for k, v in _nhi_raw.items() if k != "_metadata"}
+    print(f"✅ 健保給付資料庫已載入: {len(NHI_DB)} 項藥物")
+else:
+    print("⚠️ nhi_database.json 未找到，健保查詢將使用 AI 生成")
+
 
 def search_drug(query):
     """搜尋藥物資料庫（支援中英文模糊搜尋）"""
@@ -904,6 +914,43 @@ def drugs_detail(name):
             return jsonify(results[0])
         return jsonify({"error": f"找不到藥物: {name}"}), 404
     return jsonify(drug)
+
+
+# --- 健保給付資料庫 API（零 AI 成本，直接查表）---
+
+def search_nhi(query):
+    """搜尋健保給付資料庫（支援中英文模糊搜尋）"""
+    query_lower = query.lower().strip()
+    results = []
+    for key, nhi in NHI_DB.items():
+        if (query_lower in key.lower() or
+            query_lower in nhi.get("drug_name_en", "").lower() or
+            query_lower in nhi.get("drug_name_zh", "") or
+            any(query_lower in b.lower() for b in nhi.get("brand_names", []))):
+            results.append(nhi)
+    return results
+
+
+@app.route('/nhi/search', methods=['GET'])
+def nhi_search():
+    """搜尋健保給付規定（不呼叫 AI，零成本）"""
+    q = request.args.get('q', '')
+    if not q:
+        return jsonify({"drugs": list(NHI_DB.keys())})
+    results = search_nhi(q)
+    return jsonify({"drugs": results, "count": len(results)})
+
+
+@app.route('/nhi/<drug_name>', methods=['GET'])
+def nhi_detail(drug_name):
+    """取得單一藥物健保給付規定（不呼叫 AI，零成本）"""
+    nhi = NHI_DB.get(drug_name)
+    if not nhi:
+        results = search_nhi(drug_name)
+        if results:
+            return jsonify(results[0])
+        return jsonify({"error": f"找不到健保給付資料: {drug_name}"}), 404
+    return jsonify(nhi)
 
 
 @app.route('/health', methods=['GET'])
@@ -2093,10 +2140,56 @@ def _assist_lab(lab_data, images=None):
 
 
 def _assist_nhi(query_text, images=None):
-    """台灣健保給付規則查詢"""
+    """台灣健保給付規則查詢 — 先查結構化資料庫，找不到才用 AI"""
     if not query_text and not images:
         return "❌ 請提供要查詢的藥物或治療項目。"
 
+    # 先查結構化 NHI 資料庫（零 AI 成本）
+    if query_text and NHI_DB:
+        nhi_results = search_nhi(query_text)
+        if nhi_results:
+            nhi = nhi_results[0]
+            parts = [
+                f"## 🏛️ 健保給付查詢結果\n",
+                f"### 藥品基本資訊",
+                f"| 項目 | 內容 |",
+                f"|------|------|",
+                f"| 藥品名稱 | {nhi.get('drug_name_zh', '')} ({nhi.get('drug_name_en', '')}) |",
+                f"| 商品名 | {', '.join(nhi.get('brand_names', []))} |",
+                f"| 健保代碼 | {nhi.get('nhi_code', '—')} |",
+                f"| 給付分類 | {nhi.get('reimbursement_category', '—')} |",
+                f"\n### 📋 給付條件（適應症）",
+            ]
+            for ind in nhi.get("indications_nhi", []):
+                parts.append(f"- {ind}")
+
+            if nhi.get("prior_auth_required"):
+                parts.append(f"\n### ⚠️ 事前審查規定")
+                parts.append("**需要事前審查**")
+                for cond in nhi.get("prior_auth_conditions", []):
+                    parts.append(f"- {cond}")
+            else:
+                parts.append(f"\n### ⚠️ 事前審查")
+                parts.append("不需事前審查")
+
+            parts.append(f"\n### 💰 給付限制")
+            parts.append(f"- **用量限制**: {nhi.get('quantity_limit', '—')}")
+            parts.append(f"- **療程限制**: {nhi.get('course_limit', '—')}")
+
+            if nhi.get("exclusions"):
+                parts.append(f"\n### 🚫 排除條件")
+                for exc in nhi["exclusions"]:
+                    parts.append(f"- {exc}")
+
+            parts.append(f"\n### 📚 參考依據")
+            parts.append(f"- {nhi.get('reference', '—')}")
+            parts.append(f"- 生效日期: {nhi.get('effective_date', '—')}")
+            parts.append(f"- 資料驗證日期: {nhi.get('last_verified', '—')}")
+            parts.append(f"\n> 💡 以上資料來自 Nephro Brain OS 結構化健保資料庫，實際給付規定以健保署最新公告為準。")
+
+            return "\n".join(parts)
+
+    # 結構化資料庫找不到 → 使用 AI + Google Search
     prompt = """你是一位熟悉台灣全民健康保險制度的腎臟科專家。
 請根據以下查詢，提供台灣健保給付的相關規定。
 如果有圖片，請先判讀圖片內容。

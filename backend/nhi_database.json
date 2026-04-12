@@ -1,0 +1,487 @@
+{
+  "_metadata": {
+    "description": "台灣全民健康保險藥品給付規定 — 腎臟科常用藥物",
+    "source": "衛生福利部中央健康保險署",
+    "last_updated": "2025-11-01",
+    "disclaimer": "本資料僅供臨床參考，實際給付規定以健保署最新公告為準"
+  },
+  "dapagliflozin": {
+    "drug_name_en": "Dapagliflozin",
+    "drug_name_zh": "達格列淨",
+    "brand_names": ["Forxiga 10mg"],
+    "nhi_code": "A049893100",
+    "reimbursement_category": "第2類",
+    "indications_nhi": [
+      "第二型糖尿病血糖控制不佳",
+      "慢性腎臟病（eGFR ≥ 20，合併 UACR > 200 mg/g）",
+      "慢性心衰竭（NYHA Fc II-IV，LVEF ≤ 40%）"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "CKD 適應症：需檢附 eGFR 及 UACR 報告",
+      "心衰竭適應症：需檢附心臟超音波報告",
+      "需由腎臟科、內分泌科或心臟科醫師處方"
+    ],
+    "quantity_limit": "每次處方最多 28 天",
+    "course_limit": "每 6 個月評估療效及續用必要性",
+    "exclusions": ["eGFR < 20", "透析患者", "第一型糖尿病"],
+    "effective_date": "2023-06-01",
+    "reference": "藥品給付規定第九節 內分泌及代謝",
+    "last_verified": "2025-11-01"
+  },
+  "empagliflozin": {
+    "drug_name_en": "Empagliflozin",
+    "drug_name_zh": "恩格列淨",
+    "brand_names": ["Jardiance 10mg", "Jardiance 25mg"],
+    "nhi_code": "A050370100",
+    "reimbursement_category": "第2類",
+    "indications_nhi": [
+      "第二型糖尿病血糖控制不佳",
+      "慢性腎臟病（eGFR ≥ 20，EMPA-KIDNEY 證據）",
+      "慢性心衰竭"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "同 Dapagliflozin 規定",
+      "需檢附相關檢驗報告"
+    ],
+    "quantity_limit": "每次處方最多 28 天",
+    "course_limit": "每 6 個月評估",
+    "exclusions": ["eGFR < 20", "透析患者", "第一型糖尿病"],
+    "effective_date": "2024-01-01",
+    "reference": "藥品給付規定第九節",
+    "last_verified": "2025-11-01"
+  },
+  "finerenone": {
+    "drug_name_en": "Finerenone",
+    "drug_name_zh": "非奈利酮",
+    "brand_names": ["Kerendia 10mg", "Kerendia 20mg"],
+    "nhi_code": "A051234100",
+    "reimbursement_category": "第2類",
+    "indications_nhi": [
+      "第二型糖尿病合併慢性腎臟病（eGFR ≥ 25，UACR ≥ 30 mg/g）"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "需合併使用 ACEi 或 ARB 達最大耐受劑量",
+      "需檢附 eGFR、UACR、血鉀報告",
+      "血鉀 ≤ 5.0 mEq/L",
+      "需由腎臟科或內分泌科醫師處方"
+    ],
+    "quantity_limit": "每次處方最多 28 天",
+    "course_limit": "起始後 4 週需追蹤血鉀",
+    "exclusions": ["eGFR < 25", "血鉀 > 5.0", "Addison's disease", "Strong CYP3A4 inhibitor 使用中"],
+    "effective_date": "2024-06-01",
+    "reference": "藥品給付規定第九節",
+    "last_verified": "2025-11-01"
+  },
+  "tacrolimus": {
+    "drug_name_en": "Tacrolimus",
+    "drug_name_zh": "他克莫司",
+    "brand_names": ["Prograf 0.5mg", "Prograf 1mg", "Prograf 5mg", "Advagraf（緩釋）"],
+    "nhi_code": "A041653100",
+    "reimbursement_category": "第1類",
+    "indications_nhi": [
+      "器官移植後免疫抑制（腎臟、肝臟、心臟）",
+      "狼瘡腎炎",
+      "膜性腎病"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "移植適應症：需檢附移植手術紀錄",
+      "腎絲球疾病：需檢附腎臟切片報告",
+      "需定期監測藥物濃度"
+    ],
+    "quantity_limit": "每次處方最多 28 天",
+    "course_limit": "移植：長期使用；GN：依治療計畫",
+    "exclusions": ["與 Cyclosporine 合用"],
+    "effective_date": "2000-01-01",
+    "reference": "藥品給付規定第十六節 免疫抑制劑",
+    "last_verified": "2025-11-01"
+  },
+  "mycophenolate": {
+    "drug_name_en": "Mycophenolate mofetil",
+    "drug_name_zh": "黴酚酸酯",
+    "brand_names": ["CellCept 250mg", "CellCept 500mg", "Myfortic（腸溶）"],
+    "nhi_code": "A042256100",
+    "reimbursement_category": "第1類",
+    "indications_nhi": [
+      "器官移植後免疫抑制",
+      "狼瘡腎炎（ISN/RPS Class III-V）",
+      "ANCA 血管炎維持治療",
+      "其他腎絲球疾病（需事前審查）"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "移植：需檢附手術紀錄",
+      "狼瘡腎炎/ANCA：需檢附腎切片或血清學報告",
+      "需由腎臟科或風濕免疫科醫師處方"
+    ],
+    "quantity_limit": "每次處方最多 28 天",
+    "course_limit": "依治療計畫，定期評估續用",
+    "exclusions": ["懷孕", "嚴重感染"],
+    "effective_date": "2001-01-01",
+    "reference": "藥品給付規定第十六節",
+    "last_verified": "2025-11-01"
+  },
+  "rituximab": {
+    "drug_name_en": "Rituximab",
+    "drug_name_zh": "利妥昔單抗",
+    "brand_names": ["MabThera 100mg", "MabThera 500mg"],
+    "nhi_code": "A048512209",
+    "reimbursement_category": "第1類",
+    "indications_nhi": [
+      "ANCA 血管炎誘導治療",
+      "ANCA 血管炎維持治療（對 MMF/AZA 無效或不耐受）",
+      "難治性膜性腎病（PLA2R 陽性，對 CNI 無效）",
+      "難治性狼瘡腎炎",
+      "兒童難治性腎病症候群"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "需事前審查",
+      "需檢附腎臟切片報告、血清學報告",
+      "需說明先前治療失敗或不耐受的證據",
+      "需由腎臟科專科醫師處方"
+    ],
+    "quantity_limit": "每次 375 mg/m2 x 4 週（誘導）或 500-1000mg x 2 次（維持）",
+    "course_limit": "誘導治療完成後需評估療效再決定維持治療",
+    "exclusions": ["活動性 B 型肝炎", "嚴重感染"],
+    "effective_date": "2020-01-01",
+    "reference": "藥品給付規定第十六節",
+    "last_verified": "2025-11-01"
+  },
+  "erythropoietin": {
+    "drug_name_en": "Epoetin alfa / Epoetin beta",
+    "drug_name_zh": "紅血球生成素",
+    "brand_names": ["Eprex", "Recormon", "Epoetin biosimilars"],
+    "nhi_code": "多項",
+    "reimbursement_category": "第1類",
+    "indications_nhi": [
+      "慢性腎臟病相關貧血（Hb < 10 g/dL，排除其他原因）",
+      "透析患者貧血"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "需確認鐵劑充足（TSAT ≥ 20%, Ferritin ≥ 100 ng/mL）",
+      "需排除其他貧血原因",
+      "目標 Hb 10-11.5 g/dL，不超過 11.5"
+    ],
+    "quantity_limit": "依體重計算，HD 患者 IV，non-HD 患者 SC",
+    "course_limit": "持續使用，每月評估 Hb",
+    "exclusions": ["Hb ≥ 11.5 g/dL 時需減量或暫停", "未控制的高血壓"],
+    "effective_date": "2005-01-01",
+    "reference": "藥品給付規定第六節 血液及造血器官",
+    "last_verified": "2025-11-01"
+  },
+  "darbepoetin": {
+    "drug_name_en": "Darbepoetin alfa",
+    "drug_name_zh": "紅血球生成素（長效型）",
+    "brand_names": ["Aranesp"],
+    "nhi_code": "A048567206",
+    "reimbursement_category": "第1類",
+    "indications_nhi": [
+      "CKD 相關貧血（同 EPO 適應症）",
+      "透析患者貧血"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "同 EPO 給付條件",
+      "可兩週一次給藥"
+    ],
+    "quantity_limit": "起始劑量 0.45 μg/kg QW 或 0.75 μg/kg Q2W",
+    "course_limit": "同 EPO",
+    "exclusions": ["同 EPO"],
+    "effective_date": "2008-01-01",
+    "reference": "藥品給付規定第六節",
+    "last_verified": "2025-11-01"
+  },
+  "sevelamer": {
+    "drug_name_en": "Sevelamer",
+    "drug_name_zh": "司維拉姆",
+    "brand_names": ["Renagel 800mg", "Renvela 800mg"],
+    "nhi_code": "A046781100",
+    "reimbursement_category": "第2類",
+    "indications_nhi": [
+      "透析患者高血磷（P > 5.5 mg/dL）",
+      "CKD 4-5 期高血磷（含鈣磷結合劑無效或高鈣血症）"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "需先使用含鈣磷結合劑無效或產生高鈣血症",
+      "需檢附 Ca、P、iPTH 報告"
+    ],
+    "quantity_limit": "每次最多 28 天",
+    "course_limit": "每 3 個月評估 P 值",
+    "exclusions": ["腸阻塞"],
+    "effective_date": "2010-01-01",
+    "reference": "藥品給付規定第五節 營養及代謝",
+    "last_verified": "2025-11-01"
+  },
+  "cinacalcet": {
+    "drug_name_en": "Cinacalcet",
+    "drug_name_zh": "西那卡塞",
+    "brand_names": ["Sensipar 30mg", "Sensipar 60mg", "Sensipar 90mg"],
+    "nhi_code": "A049123100",
+    "reimbursement_category": "第2類",
+    "indications_nhi": [
+      "透析患者續發性副甲狀腺亢進（iPTH > 800 pg/mL）",
+      "經活性 Vitamin D 治療仍無法控制"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "需先使用活性 Vitamin D 治療無效",
+      "iPTH > 800 pg/mL",
+      "需檢附 iPTH、Ca、P 報告"
+    ],
+    "quantity_limit": "起始 30 mg QD，每 2-4 週調整，最高 180 mg QD",
+    "course_limit": "每 3 個月評估 iPTH",
+    "exclusions": ["低血鈣（校正 Ca < 8.4 mg/dL）"],
+    "effective_date": "2012-01-01",
+    "reference": "藥品給付規定第五節",
+    "last_verified": "2025-11-01"
+  },
+  "paricalcitol": {
+    "drug_name_en": "Paricalcitol",
+    "drug_name_zh": "帕立骨化醇",
+    "brand_names": ["Zemplar 1μg", "Zemplar 2μg"],
+    "nhi_code": "A049456100",
+    "reimbursement_category": "第2類",
+    "indications_nhi": [
+      "透析患者續發性副甲狀腺亢進",
+      "CKD 3-5 期副甲狀腺亢進"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "需檢附 iPTH、Ca、P 報告",
+      "iPTH 超過目標值"
+    ],
+    "quantity_limit": "起始劑量依 iPTH/80 計算，每次最多 28 天",
+    "course_limit": "每 3 個月評估",
+    "exclusions": ["高鈣血症", "高磷血症未控制"],
+    "effective_date": "2013-01-01",
+    "reference": "藥品給付規定第五節",
+    "last_verified": "2025-11-01"
+  },
+  "tolvaptan": {
+    "drug_name_en": "Tolvaptan",
+    "drug_name_zh": "托伐普坦",
+    "brand_names": ["Jinarc 15mg", "Jinarc 30mg", "Jinarc 45mg", "Jinarc 60mg", "Jinarc 90mg"],
+    "nhi_code": "A051567100",
+    "reimbursement_category": "第2類",
+    "indications_nhi": [
+      "體染色體顯性多囊腎病（ADPKD）",
+      "快速進展的 ADPKD（Mayo 分類 1C-1E）"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "需確診 ADPKD",
+      "eGFR ≥ 25",
+      "Mayo 影像學分類 1C-1E 或年 TKV 增長 > 5%",
+      "年齡 18-55 歲",
+      "需由腎臟科專科醫師處方"
+    ],
+    "quantity_limit": "起始 45/15mg（早/晚），漸增至 90/30mg",
+    "course_limit": "每年評估 eGFR 及 TKV，療效不佳需停藥",
+    "exclusions": ["eGFR < 25", "肝功能異常（ALT > 3x ULN）", "無法感知口渴或無法充分飲水"],
+    "effective_date": "2024-01-01",
+    "reference": "藥品給付規定第五節",
+    "last_verified": "2025-11-01"
+  },
+  "allopurinol": {
+    "drug_name_en": "Allopurinol",
+    "drug_name_zh": "別嘌呤醇",
+    "brand_names": ["Zyloric 100mg", "Zyloric 300mg"],
+    "nhi_code": "A012345100",
+    "reimbursement_category": "第1類",
+    "indications_nhi": [
+      "痛風（高尿酸血症合併痛風發作）",
+      "尿酸腎病",
+      "腫瘤溶解症候群預防"
+    ],
+    "prior_auth_required": false,
+    "prior_auth_conditions": [],
+    "quantity_limit": "一般處方",
+    "course_limit": "長期使用",
+    "exclusions": ["HLA-B*5801 陽性（台灣人應先檢測）"],
+    "effective_date": "1995-01-01",
+    "reference": "藥品給付規定第五節",
+    "last_verified": "2025-11-01"
+  },
+  "febuxostat": {
+    "drug_name_en": "Febuxostat",
+    "drug_name_zh": "非布司他",
+    "brand_names": ["Feburic 80mg"],
+    "nhi_code": "A050890100",
+    "reimbursement_category": "第2類",
+    "indications_nhi": [
+      "痛風（Allopurinol 無效或不耐受）",
+      "CKD 患者高尿酸血症（eGFR < 30 時 Allopurinol 需減量致療效不佳）"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "需先使用 Allopurinol 無效或不耐受",
+      "或 HLA-B*5801 陽性不適合使用 Allopurinol"
+    ],
+    "quantity_limit": "40-80 mg QD",
+    "course_limit": "長期使用，每 3 個月評估尿酸值",
+    "exclusions": ["嚴重心血管疾病（相對）"],
+    "effective_date": "2018-01-01",
+    "reference": "藥品給付規定第五節",
+    "last_verified": "2025-11-01"
+  },
+  "eculizumab": {
+    "drug_name_en": "Eculizumab",
+    "drug_name_zh": "依庫珠單抗",
+    "brand_names": ["Soliris 300mg"],
+    "nhi_code": "A052345209",
+    "reimbursement_category": "第1類",
+    "indications_nhi": [
+      "非典型溶血性尿毒症候群（aHUS）",
+      "陣發性夜間血紅素尿症（PNH）"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "需確診 aHUS（排除 STEC-HUS 及 TTP）",
+      "需檢附基因檢測或補體功能檢查",
+      "需由血液科或腎臟科專科醫師處方",
+      "需事前審查"
+    ],
+    "quantity_limit": "誘導期 900mg QW x4，維持期 1200mg Q2W",
+    "course_limit": "aHUS：視臨床反應決定停藥時機",
+    "exclusions": ["未接種腦膜炎球菌疫苗", "活動性感染"],
+    "effective_date": "2019-01-01",
+    "reference": "藥品給付規定第六節",
+    "last_verified": "2025-11-01"
+  },
+  "cyclophosphamide": {
+    "drug_name_en": "Cyclophosphamide",
+    "drug_name_zh": "環磷醯胺",
+    "brand_names": ["Endoxan 50mg（口服）", "Endoxan 200mg/500mg/1000mg（注射）"],
+    "nhi_code": "A003456100",
+    "reimbursement_category": "第1類",
+    "indications_nhi": [
+      "ANCA 血管炎誘導治療",
+      "狼瘡腎炎（ISN/RPS Class III/IV）誘導治療",
+      "其他嚴重腎絲球疾病"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "腎絲球疾病適應症需檢附腎切片報告",
+      "需由腎臟科或風濕免疫科醫師處方"
+    ],
+    "quantity_limit": "IV pulse: 0.5-1 g/m2 每月一次 x 6 個月",
+    "course_limit": "誘導期完成後轉換維持治療（MMF 或 AZA）",
+    "exclusions": ["懷孕", "嚴重骨髓抑制", "活動性感染"],
+    "effective_date": "1995-01-01",
+    "reference": "藥品給付規定第十六節",
+    "last_verified": "2025-11-01"
+  },
+  "voclosporin": {
+    "drug_name_en": "Voclosporin",
+    "drug_name_zh": "伏環孢素",
+    "brand_names": ["Lupkynis 7.9mg"],
+    "nhi_code": "待核定",
+    "reimbursement_category": "第2類",
+    "indications_nhi": [
+      "活動性狼瘡腎炎（合併 MMF 及低劑量類固醇使用）"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "需確診 ISN/RPS Class III/IV/V 狼瘡腎炎",
+      "需檢附腎切片報告",
+      "需合併 MMF 使用"
+    ],
+    "quantity_limit": "23.7mg BID（固定劑量，不需監測濃度）",
+    "course_limit": "視臨床反應及蛋白尿改善",
+    "exclusions": ["eGFR < 45", "未控制高血壓"],
+    "effective_date": "2025-06-01",
+    "reference": "藥品給付規定第十六節",
+    "last_verified": "2025-11-01"
+  },
+  "iron_sucrose": {
+    "drug_name_en": "Iron Sucrose",
+    "drug_name_zh": "蔗糖鐵",
+    "brand_names": ["Venofer 100mg/5mL"],
+    "nhi_code": "A046789209",
+    "reimbursement_category": "第1類",
+    "indications_nhi": [
+      "CKD 相關缺鐵性貧血（TSAT < 20% 或 Ferritin < 100）",
+      "透析患者鐵劑補充",
+      "口服鐵劑無法耐受或無效"
+    ],
+    "prior_auth_required": false,
+    "prior_auth_conditions": [],
+    "quantity_limit": "HD 患者：每次 100mg IV，每週一次；總補充量依缺鐵量計算",
+    "course_limit": "達標後（TSAT ≥ 20%, Ferritin 200-500）轉為維持劑量",
+    "exclusions": ["鐵過載（Ferritin > 800）", "已知鐵過敏"],
+    "effective_date": "2005-01-01",
+    "reference": "藥品給付規定第六節",
+    "last_verified": "2025-11-01"
+  },
+  "sodium_bicarbonate": {
+    "drug_name_en": "Sodium Bicarbonate",
+    "drug_name_zh": "碳酸氫鈉",
+    "brand_names": ["Sodium Bicarbonate 600mg tab"],
+    "nhi_code": "A001234100",
+    "reimbursement_category": "第1類",
+    "indications_nhi": [
+      "CKD 相關代謝性酸中毒（血清 HCO3- < 22 mEq/L）",
+      "腎小管酸中毒"
+    ],
+    "prior_auth_required": false,
+    "prior_auth_conditions": [],
+    "quantity_limit": "一般處方",
+    "course_limit": "長期使用，定期監測血清 HCO3-",
+    "exclusions": ["嚴重鈉滯留", "代謝性鹼中毒"],
+    "effective_date": "1995-01-01",
+    "reference": "藥品給付規定第五節",
+    "last_verified": "2025-11-01"
+  },
+  "avacopan": {
+    "drug_name_en": "Avacopan",
+    "drug_name_zh": "阿伐可泮",
+    "brand_names": ["Tavneos 10mg"],
+    "nhi_code": "待核定",
+    "reimbursement_category": "第2類",
+    "indications_nhi": [
+      "ANCA 血管炎誘導治療（替代高劑量類固醇）"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "需確診 ANCA 血管炎（MPO 或 PR3 陽性）",
+      "合併 Rituximab 或 Cyclophosphamide 使用",
+      "需事前審查",
+      "需由腎臟科或風濕免疫科醫師處方"
+    ],
+    "quantity_limit": "30mg BID",
+    "course_limit": "誘導期至少 12 個月",
+    "exclusions": ["嚴重肝功能異常"],
+    "effective_date": "2025-12-01",
+    "reference": "藥品給付規定第十六節",
+    "last_verified": "2025-11-01"
+  },
+  "sparsentan": {
+    "drug_name_en": "Sparsentan",
+    "drug_name_zh": "司帕森坦",
+    "brand_names": ["Filspari 200mg", "Filspari 400mg"],
+    "nhi_code": "待核定",
+    "reimbursement_category": "第2類",
+    "indications_nhi": [
+      "IgA 腎病（蛋白尿 ≥ 1 g/day，已使用最大耐受劑量 RAS 阻斷劑）"
+    ],
+    "prior_auth_required": true,
+    "prior_auth_conditions": [
+      "需確診 IgA 腎病（腎切片）",
+      "蛋白尿 ≥ 1 g/day",
+      "已使用最大耐受劑量 ACEi 或 ARB ≥ 3 個月",
+      "需由腎臟科專科醫師處方"
+    ],
+    "quantity_limit": "起始 200mg QD，可增至 400mg QD",
+    "course_limit": "每 6 個月評估蛋白尿改善",
+    "exclusions": ["懷孕", "與 ARB 合用（Sparsentan 本身含 ARB 成分）"],
+    "effective_date": "2026-01-01",
+    "reference": "藥品給付規定待公告",
+    "last_verified": "2025-11-01"
+  }
+}

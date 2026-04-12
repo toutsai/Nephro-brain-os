@@ -39,6 +39,14 @@ export function useGuidelines() {
     guidelines.value.filter((g) => g.org === 'KDOQI')
   )
 
+  const niceGuidelines = computed(() =>
+    guidelines.value.filter((g) => g.org === 'NICE')
+  )
+
+  const erbpGuidelines = computed(() =>
+    guidelines.value.filter((g) => g.org === 'ERBP')
+  )
+
   const guidelinesByTopic = computed(() => {
     const grouped = {}
     for (const g of guidelines.value) {
@@ -55,6 +63,8 @@ export function useGuidelines() {
     guidelines,
     kdigoGuidelines,
     kdoqiGuidelines,
+    niceGuidelines,
+    erbpGuidelines,
     guidelinesByTopic,
     loading,
     unsubscribe,

@@ -80,6 +80,11 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
 
+    // 臨床試驗 — 公開讀取
+    match /clinical_trials/{trialId} {
+      allow read: if true;
+    }
+
     // 系統設定（含 OE cookies）— 僅 admin 可讀寫
     match /system_config/{doc} {
       allow read, write: if request.auth != null
