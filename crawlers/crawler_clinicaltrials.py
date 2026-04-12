@@ -30,9 +30,26 @@ from crawler_utils import db, groq_client, GROQ_DELAY, detect_topics, log_crawle
 CLINICALTRIALS_API = "https://clinicaltrials.gov/api/v2/studies"
 
 SEARCH_COND = (
-    "kidney disease OR chronic kidney disease OR dialysis "
-    "OR renal OR nephrology OR glomerulonephritis OR kidney transplant"
+    "chronic kidney disease OR acute kidney injury OR dialysis "
+    "OR nephrology OR glomerulonephritis OR kidney transplant "
+    "OR nephrotic syndrome OR polycystic kidney OR IgA nephropathy "
+    "OR lupus nephritis OR ANCA vasculitis OR FSGS "
+    "OR diabetic kidney disease OR peritoneal dialysis "
+    "OR hemodialysis OR renal replacement therapy"
 )
+
+# 排除純腫瘤試驗的關鍵字（conditions 中包含這些且不含腎臟內科關鍵字時跳過）
+ONCO_EXCLUDE_KEYWORDS = [
+    "renal cell carcinoma", "kidney cancer", "bladder cancer",
+    "urothelial", "solid tumor", "advanced solid",
+    "metastatic cancer", "metastatic renal",
+]
+NEPHRO_INCLUDE_KEYWORDS = [
+    "kidney disease", "ckd", "akut", "aki", "dialysis", "nephro",
+    "glomerul", "nephrotic", "transplant", "lupus nephritis",
+    "vasculitis", "fsgs", "iga", "polycystic", "membranous",
+    "proteinuria", "renal insufficiency", "eskd", "esrd",
+]
 
 FIELDS = (
     "NCTId,BriefTitle,OfficialTitle,OverallStatus,BriefSummary,"
@@ -270,6 +287,15 @@ def run(dry_run: bool = False, limit_count: int = 100, status_filter: str = "REC
             continue
 
         logger.info("[%d/%d] %s — %s", i + 1, len(studies), nct_id, parsed["title"][:60])
+
+        # 過濾純腫瘤試驗（conditions 中只有癌症，沒有腎臟內科關鍵字）
+        all_text = f"{parsed['title']} {' '.join(parsed['conditions'])} {parsed.get('brief_summary', '')}".lower()
+        is_onco = any(kw in all_text for kw in ONCO_EXCLUDE_KEYWORDS)
+        is_nephro = any(kw in all_text for kw in NEPHRO_INCLUDE_KEYWORDS)
+        if is_onco and not is_nephro:
+            logger.info("  → 跳過（純腫瘤試驗）")
+            stats["skipped"] += 1
+            continue
 
         # 去重檢查
         existing = check_existing(nct_id)
