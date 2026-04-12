@@ -1,0 +1,30 @@
+name: SR / Meta-analysis Weekly Tracker
+
+on:
+  schedule:
+    - cron: '0 22 * * 0'  # UTC 22:00 Sunday = 台灣週一 06:00（在 daily crawler 之前跑）
+  workflow_dispatch:       # 手動觸發
+
+jobs:
+  crawl-sr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r crawlers/requirements_v2.txt
+
+      - name: Run SR Weekly crawler
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: python crawlers/crawler_sr_weekly.py --limit 30 --days 7

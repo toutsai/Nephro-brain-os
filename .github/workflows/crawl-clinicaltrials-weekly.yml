@@ -1,0 +1,29 @@
+name: ClinicalTrials.gov Weekly Crawler
+
+on:
+  schedule:
+    - cron: '30 23 * * 0'  # UTC 23:30 Sunday = 台灣週一 07:30
+  workflow_dispatch:       # 手動觸發
+
+jobs:
+  crawl-clinicaltrials:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r crawlers/requirements_v2.txt
+
+      - name: Run ClinicalTrials.gov crawler
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: python crawlers/crawler_clinicaltrials.py --limit 200
