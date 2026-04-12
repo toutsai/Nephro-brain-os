@@ -1,69 +1,73 @@
 # Session Log
 
 ## 最近一次更新
-- **日期**：2026-04-06（第三次更新）
+- **日期**：2026-04-13
 - **完成事項**：
-  1. **指引大腦 — 前端章節瀏覽器**（全部完成）：
-     - `GuidelineContentViewer.vue`: 富內容章節瀏覽（markdown 渲染 + Mermaid 流程圖 + 建議等級 badge）
-     - `GuidelineChapterNav.vue`: 章節側邊導航（桌面側欄 / 手機橫向 pills）
-     - `RecommendationBadge.vue`: 建議等級色碼 (1A=綠, 1B=藍, 2A=琥珀, 2B=灰)
-     - `useGuidelineChapters.js`: Firestore `guideline_chapters` 查詢 composable
-     - `GuidelineDetail.vue` 新增「查看章節內容」主按鈕
-     - `InsightPage.vue` 右欄條件渲染章節瀏覽器（桌面+手機版）
-  2. **指引大腦 — 後端處理腳本**（全部完成）：
-     - `process_guideline_content.py`: Gemini AI 逐章解析指引 PDF，生成繁中摘要、關鍵建議(含 grade)、治療流程圖(Mermaid)、版本差異分析
-     - `download_kdoqi.py`: 下載 5 部 KDOQI 指引 PDF 並上傳 Firebase Storage
-  3. **Firestore 配置**（全部完成）：
-     - `guideline_chapters` collection 公開讀取規則
-     - `(guideline_id, chapter_number)` 複合索引
-  4. **Bug fix**：crawlers 改為 fallback 讀取 `backend/.env`（因為 GOOGLE_API_KEY 放在那）
-- **目前狀態**：程式碼全部寫完並 push 到 `claude/review-project-code-mPLbL` branch，尚未 merge 到 main
-- **使用者尚未在本地執行的**：
-  - `firebase deploy --only firestore:rules,firestore:indexes`（部署 Firestore 規則+索引）
-  - `python crawlers/process_guideline_content.py --limit 1`（先測試一部指引）
-  - 確認 Gemini 輸出品質後 → `python crawlers/process_guideline_content.py --resume`（全部處理）
-  - `python crawlers/download_kdoqi.py`（下載 KDOQI 指引 PDF）
-- **下次待辦**：
-  - 使用者回報 `process_guideline_content.py --limit 1` 的執行結果
-  - 觀察 Gemini 生成的 Mermaid 流程圖品質，必要時調整 prompt
-  - 確認前端 GuidelineContentViewer 能正確顯示章節資料
-  - 需要 merge branch → main，讓 Vercel 部署前端
-  - Phase 2: 版本差異分析（diff_from_previous，需上傳舊版 PDF）
-  - 3 部較舊的 KDOQI (2003-2006) 可能需手動找 PDF
+  1. **知識庫全面擴充 — 三個 Phase 全部完成**：
+     - **Phase 1: 擴大現有管道**
+       - PubMed 期刊從 7 本擴充至 13 本（+AJT, Transplantation, NDT, AJKD, Kidney360, KI Reports）
+       - MAX_ARTICLES_PER_RUN 從 80 提高到 150
+       - 臨床指引從 26 部擴充至 40 部（+5 NICE + 9 ERBP/ERA-EDTA）
+       - 前端 InsightPage 新增 NICE / ERBP org 篩選按鈕
+       - 藥物資料庫從 20 種擴充至 72 種（+免疫抑制劑、透析藥物、CRRT 劑量、降壓藥、CKM 藥物、抗生素等）
+     - **Phase 2: 新增高實證爬蟲**
+       - `crawler_utils.py`：從 crawler_v2.py 抽取共用模組（Firebase init、PubMed API、AI 摘要、Firestore 儲存）
+       - `crawler_cochrane.py`：Cochrane 系統性回顧爬蟲（透過 PubMed 搜尋 Cochrane Journal，全部 Level 1）
+       - `crawler_clinicaltrials.py`：ClinicalTrials.gov REST API v2 爬蟲（含 `has_taiwan_site` 標記）
+       - `backfill_pubmed.py`：歷史 12 個月 Level 1-2 文獻回溯腳本（按月分批）
+       - `crawler_sr_weekly.py`：每週 SR/Meta-analysis 追蹤（不限期刊，全腎臟科）
+       - 前端：新增「臨床試驗」tab、TrialCard.vue、useClinicalTrials.js
+       - Firestore: clinical_trials collection + 公開讀取規則 + 複合索引
+     - **Phase 3: 進階知識工程**
+       - `nhi_database.json`：台灣健保給付結構化資料（21 項腎科常用藥物）
+       - NHI API endpoints（`/nhi/search`, `/nhi/<drug>`）零 AI 成本直接查表
+       - `_assist_nhi()` 改為結構化資料優先，找不到才 fallback Google Search + AI
+       - `mesh_topic_map.json`：MeSH 本體論映射（13 topics, 123 descriptors）
+       - `detect_topics()` 改為 MeSH-first 策略，keyword fallback
+- **目前狀態**：程式碼已 commit 並 push 到 `feature/knowledge-base-expansion` branch
+- **使用者需要做的**：
+  - 在 GitHub 建立 PR 並 merge: https://github.com/toutsai/Nephro-brain-os/pull/new/feature/knowledge-base-expansion
+  - `firebase deploy --only firestore:rules,firestore:indexes`（部署新的 Firestore 規則+索引）
+  - `python crawlers/seed_guidelines.py`（seed 新的 NICE/ERBP 指引到 Firestore）
+  - `python crawlers/crawler_cochrane.py --dry-run --limit 5`（測試 Cochrane 爬蟲）
+  - `python crawlers/crawler_clinicaltrials.py --dry-run --limit 5`（測試 ClinicalTrials 爬蟲）
+  - `python crawlers/backfill_pubmed.py --dry-run --limit 5 --months-back 1`（測試歷史回溯）
+  - 重新部署 backend（Cloud Run）以載入新的 drug_database.json 和 nhi_database.json
+- **月增 API 成本**：< $1 USD（PubMed/Cochrane/ClinicalTrials API 免費）
 - **重要決策**：
-  - 章節內容存在獨立的 `guideline_chapters` collection（非 subcollection），方便查詢
-  - 每章發 3 次 Gemini 呼叫（content/recommendations/flowchart）而非 1 次大呼叫，提高穩定性
-  - 使用 Gemini File API 整份 PDF 上傳（非逐頁），效率更高
-  - 前端 GuidelineContentViewer 直接使用現有 renderMd + renderMermaidIn，零新增依賴
-  - KDOQI 較舊指引(2003-2006) URL 需手動確認，download_kdoqi.py 中已註解
-  - crawlers 的 `.env` 讀取順序：根目錄 `.env` → `backend/.env`（fallback）
+  - Cochrane 爬蟲透過 PubMed 搜尋（無需 Cochrane 付費 API），存入 articles_v2 collection
+  - ClinicalTrials.gov 用獨立 collection（schema 差異大），AI 僅用 Groq 翻譯
+  - NHI 結構化資料優先於 AI 查詢（零成本 + 更準確）
+  - MeSH-first topic detection 提升分類準確度，keyword 作為 fallback
+  - crawler_utils.py 避免程式碼重複，所有新爬蟲共用
+
+## 2026-04-06（第三次更新）
+- 指引大腦 — 前端章節瀏覽器（全部完成）
+- 指引大腦 — 後端處理腳本（全部完成）
+- Firestore 配置（guideline_chapters）
+- Bug fix：crawlers fallback 讀取 backend/.env
 
 ## 2026-04-06（第一次更新）
-- Consult → Insight 相關文獻推薦（純前端 keyword→topic 匹配）
-- LandingPage Dashboard（即時統計 + 模組入口 grid）
-- Insight 臨床指引區（KDIGO/KDOQI 目錄 + 篩選）
-- seed_guidelines.py（26 部指引種子資料）
-- 修正 3 筆 KDIGO URL 404（ANCA、ADPKD、IgAN）
-- seed_guidelines.py 新增 --update 模式
+- Consult → Insight 相關文獻推薦
+- LandingPage Dashboard
+- Insight 臨床指引區（KDIGO/KDOQI）
+- seed_guidelines.py（26 部指引）
 
 ## 歷史紀錄
 
 ### 2026-04-02（第二次更新）
 - Insight 新文章 badge、本日快訊
 - Consult 精選問答區
-- Teach PPT 選項擴充（頁數 4 檔 + 自動配色）
-- Assist 圖片貼上（Ctrl+V + 拖曳）
-- 跨模組連動優化、PWA icons、Service Worker、re-tagging 腳本
+- Teach PPT 選項擴充
+- Assist 圖片貼上
+- 跨模組連動優化、PWA icons、Service Worker
 
 ### 2026-04-02（第一次更新）
 - 跨模組連動優化
 - 抽取 useTeachPicker composable
 - PWA icon 生成 + vite-plugin-pwa 設定
-- 文章 re-tagging 腳本
 
 ### 2026-03-30
-- Insight 搜尋主題從 7 個擴充到 13 個
-- Insight 三欄式佈局、手機版下拉選單
-- 五個頁面統一高度、統一全寬佈局
-- 行動版全面優化
+- Insight 搜尋主題擴充到 13 個
+- 三欄式佈局、手機版全面優化
 - Claude Code 工作流程自動化設定
