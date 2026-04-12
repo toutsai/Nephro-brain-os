@@ -2,6 +2,32 @@
 
 ## 最近一次更新
 - **日期**：2026-04-13
+
+- **完成事項**：
+  1. **OpenEvidence Deep Research 整合**（全部完成，PR #91 已 merge）：
+     - `backend/openevidence_client.py`: 新增 OE Cookie 管理（Firestore 儲存）+ API Client（cookie auth、polling、citation extraction）
+     - `backend/api_server.py`: Deep Research 分支（三路並行 RAG+PubMed+OE → Gemini Pro 綜合）、`_assist_evidence()` 模式、3 個 admin OE endpoints
+     - `backend/Dockerfile`: COPY openevidence_client.py
+     - `firestore.rules`: system_config collection admin-only 規則
+     - `src/composables/useConsultChat.js`: statusMessages ref、deep_research flag、SSE status 處理
+     - `src/views/ConsultPage.vue`: Deep Research toggle 按鈕、漸進式 status 顯示（逐行更新）
+     - `src/views/AssistPage.vue`: Evidence 查詢模式（直接查 OE）
+     - `src/views/SettingsPage.vue`: OE Cookie 管理 UI（狀態燈號、上傳、驗證）
+- **目前狀態**：程式碼已 merge 到 main，Vercel 前端應自動部署
+- **使用者需要執行的**：
+  - `firebase deploy --only firestore:rules`（部署 system_config 規則）
+  - `gcloud run deploy nephro-brain-api --source ./backend --region asia-east1 --clear-base-image`（部署後端）
+  - 在瀏覽器登入 OpenEvidence → 匯出 Cookie → Settings 頁面上傳
+  - 測試 Deep Research 功能
+- **重要決策**：
+  - Deep Research 是 opt-in toggle（不影響現有 Normal mode）
+  - OE Cookie 存 Firestore（不存 .env），支援 Cloud Run 無本地檔案環境
+  - Deep Research 用 Gemini 2.5 Pro（成本較高但品質好），Normal mode 維持 Flash
+  - OE 查詢用獨立 threading.Thread（不在 ThreadPoolExecutor 裡），避免 with block 提早 join
+  - OE 失敗時 graceful fallback（只用 RAG + PubMed 繼續綜合）
+  - Cookie 管理支援三種格式：JSON array、JSON object、raw string（name=val; name2=val2）
+
+## 2026-04-06（第三次更新）
 - **完成事項**：
   1. **知識庫全面擴充 — 三個 Phase 全部完成**：
      - **Phase 1: 擴大現有管道**

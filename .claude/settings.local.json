@@ -1,6 +1,5 @@
 {
   "permissions": {
-    "allow": [
       "Bash(find:*)",
       "Bash(xargs cat:*)",
       "Bash(ls -la /d/GitHub-Projects/Nephro-brain-os/crawlers/.env*)",
@@ -11,6 +10,7 @@
       "Bash(where gh:*)",
       "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" --version)",
       "Bash(\"/c/Users/suiam/AppData/Local/GitHub CLI/gh.exe\" --version)"
+
     ]
   }
 }
