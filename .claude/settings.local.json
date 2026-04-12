@@ -1,12 +1,16 @@
 {
   "permissions": {
-    "allow": [
-      "WebFetch(domain:github.com)",
-      "Bash(npx vite:*)",
-      "Bash(npm install:*)",
-      "Bash(gh pr create --title 'feat: 整合 OpenEvidence Deep Research 模式' --body ':*)",
+      "Bash(find:*)",
+      "Bash(xargs cat:*)",
+      "Bash(ls -la /d/GitHub-Projects/Nephro-brain-os/crawlers/.env*)",
+      "Bash(python3 -c \"import json; data=json.load\\(open\\('D:/GitHub-Projects/Nephro-brain-os/backend/drug_database.json'\\)\\); print\\(f'Total drugs: {len\\(data\\)}'\\); print\\('Keys:', list\\(data.keys\\(\\)\\)\\)\")",
+      "Bash(python -c \"import json; data=json.load\\(open\\('D:/GitHub-Projects/Nephro-brain-os/backend/drug_database.json'\\)\\); print\\(f'Total drugs: {len\\(data\\)}'\\); print\\('Keys:', list\\(data.keys\\(\\)\\)\\)\")",
+      "Bash(python:*)",
+      "Bash(gh pr create --title 'feat: 知識庫全面擴充 — 多來源高實證資料整合' --body ':*)",
       "Bash(where gh:*)",
-      "Bash(python -c ':*)"
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" --version)",
+      "Bash(\"/c/Users/suiam/AppData/Local/GitHub CLI/gh.exe\" --version)"
+
     ]
   }
 }

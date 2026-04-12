@@ -161,7 +161,7 @@
             <!-- Guideline org filter -->
             <div class="flex items-center gap-1.5 mb-3 sticky top-0 bg-slate-50 z-10 py-1">
               <button
-                v-for="opt in [{key:'all',label:'全部'},{key:'KDIGO',label:'KDIGO'},{key:'KDOQI',label:'KDOQI'}]"
+                v-for="opt in [{key:'all',label:'全部'},{key:'KDIGO',label:'KDIGO'},{key:'KDOQI',label:'KDOQI'},{key:'NICE',label:'NICE'},{key:'ERBP',label:'ERBP'}]"
                 :key="opt.key"
                 class="px-3 py-1.5 text-xs rounded-lg border transition-colors"
                 :class="guidelineOrgFilter === opt.key ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
@@ -182,6 +182,33 @@
               :guideline="g"
               :selected="selectedGuideline?.id === g.id"
               @select="selectedGuideline = $event; selectedArticle = null"
+            />
+          </template>
+          <template v-else-if="activeTab === 'trials'">
+            <div class="flex items-center gap-1.5 mb-3 sticky top-0 bg-slate-50 z-10 py-1">
+              <button
+                v-for="opt in [{key:'all',label:'全部'},{key:'recruiting',label:'Recruiting'},{key:'taiwan',label:'Taiwan'}]"
+                :key="opt.key"
+                class="px-3 py-1.5 text-xs rounded-lg border transition-colors"
+                :class="trialFilter === opt.key ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
+                @click="trialFilter = opt.key"
+              >
+                {{ opt.label }}
+              </button>
+              <span class="text-[10px] text-slate-400 ml-auto">{{ filteredTrials.length }} 項試驗</span>
+            </div>
+            <div v-if="trialsLoading" class="text-center py-16 text-slate-400 text-sm">載入臨床試驗中...</div>
+            <div v-else-if="!filteredTrials.length" class="text-center py-16 text-slate-400">
+              <div class="text-4xl mb-3">🔬</div>
+              <p class="text-sm">尚無臨床試驗資料</p>
+              <p class="text-xs mt-1">執行 crawler_clinicaltrials.py 抓取</p>
+            </div>
+            <TrialCard
+              v-for="t in filteredTrials"
+              :key="t.nct_id || t.id"
+              :trial="t"
+              :selected="false"
+              @select="() => {}"
             />
           </template>
           <template v-else>
@@ -249,7 +276,7 @@
         <template v-else-if="activeTab === 'guidelines'">
           <div class="flex items-center gap-1.5 mb-2">
             <button
-              v-for="opt in [{key:'all',label:'全部'},{key:'KDIGO',label:'KDIGO'},{key:'KDOQI',label:'KDOQI'}]"
+              v-for="opt in [{key:'all',label:'全部'},{key:'KDIGO',label:'KDIGO'},{key:'KDOQI',label:'KDOQI'},{key:'NICE',label:'NICE'},{key:'ERBP',label:'ERBP'}]"
               :key="opt.key"
               class="px-3 py-1.5 text-xs rounded-lg border transition-colors"
               :class="guidelineOrgFilter === opt.key ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
@@ -269,6 +296,20 @@
             :guideline="g"
             :selected="selectedGuideline?.id === g.id"
             @select="selectedGuideline = $event"
+          />
+        </template>
+        <template v-else-if="activeTab === 'trials'">
+          <div v-if="trialsLoading" class="text-center py-16 text-slate-400 text-sm">載入臨床試驗中...</div>
+          <div v-else-if="!filteredTrials.length" class="text-center py-16 text-slate-400">
+            <div class="text-4xl mb-3">🔬</div>
+            <p class="text-sm">尚無臨床試驗資料</p>
+          </div>
+          <TrialCard
+            v-for="t in filteredTrials"
+            :key="t.nct_id || t.id"
+            :trial="t"
+            :selected="false"
+            @select="() => {}"
           />
         </template>
         <template v-else>
@@ -451,6 +492,7 @@ import ArticleDetail from '../components/ArticleDetail.vue'
 import GuidelineCard from '../components/GuidelineCard.vue'
 import GuidelineDetail from '../components/GuidelineDetail.vue'
 import GuidelineContentViewer from '../components/GuidelineContentViewer.vue'
+import TrialCard from '../components/TrialCard.vue'
 import SelectionToolbar from '../components/SelectionToolbar.vue'
 import TeachPickerModal from '../components/TeachPickerModal.vue'
 
@@ -499,9 +541,21 @@ const {
   guidelines,
   kdigoGuidelines,
   kdoqiGuidelines,
+  niceGuidelines,
+  erbpGuidelines,
   loading: guidelinesLoading,
   unsubscribe: unsubGuidelines,
 } = useGuidelines()
+
+// Clinical Trials
+import { useClinicalTrials } from '../composables/useClinicalTrials.js'
+const {
+  trials,
+  recruitingTrials,
+  taiwanTrials,
+  loading: trialsLoading,
+  unsubscribe: unsubTrials,
+} = useClinicalTrials()
 
 // UI state
 const activeTab = ref('ESRD/HD')
@@ -517,7 +571,14 @@ function handleViewChapters(guideline) {
 function handleBackFromChapters() {
   viewingChapters.value = false
 }
-const guidelineOrgFilter = ref('all') // 'all' | 'KDIGO' | 'KDOQI'
+const guidelineOrgFilter = ref('all') // 'all' | 'KDIGO' | 'KDOQI' | 'NICE' | 'ERBP'
+const trialFilter = ref('all') // 'all' | 'recruiting' | 'taiwan'
+
+const filteredTrials = computed(() => {
+  if (trialFilter.value === 'recruiting') return recruitingTrials.value
+  if (trialFilter.value === 'taiwan') return taiwanTrials.value
+  return trials.value
+})
 const showDailyBrief = ref(false)
 
 // Mobile detection
@@ -534,6 +595,7 @@ onUnmounted(() => {
   unsubArticles()
   unsubCollection()
   unsubGuidelines()
+  unsubTrials()
 })
 
 // Tabs config — 分為主題與特殊分類
@@ -556,6 +618,7 @@ const topicTabs = computed(() => [
 const specialTabs = computed(() => [
   { key: 'journal', label: '📰 期刊', count: journalArticles.value.length, newCount: newCountByTopic.value['journal'] || 0 },
   { key: 'guidelines', label: '📋 臨床指引', count: guidelines.value.length, newCount: 0 },
+  { key: 'trials', label: '🔬 臨床試驗', count: trials.value.length, newCount: 0 },
   { key: 'collection', label: '✅ 收藏庫', count: savedArticles.value.length, newCount: 0 },
 ])
 
@@ -586,6 +649,8 @@ const articleCount = computed(() => articles.value.length)
 const filteredGuidelines = computed(() => {
   if (guidelineOrgFilter.value === 'KDIGO') return kdigoGuidelines.value
   if (guidelineOrgFilter.value === 'KDOQI') return kdoqiGuidelines.value
+  if (guidelineOrgFilter.value === 'NICE') return niceGuidelines.value
+  if (guidelineOrgFilter.value === 'ERBP') return erbpGuidelines.value
   return guidelines.value
 })
 

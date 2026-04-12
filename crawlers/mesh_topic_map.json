@@ -1,0 +1,153 @@
+{
+  "_comment": "MeSH Descriptor → Nephro Brain OS topic 映射表。key 為 MeSH descriptor name（小寫），value 為對應的 topic。優先匹配最具體的 descriptor。",
+
+  "ESRD/HD": [
+    "renal dialysis",
+    "hemodialysis, home",
+    "hemodiafiltration",
+    "kidney failure, chronic",
+    "end stage renal disease",
+    "arteriovenous shunt, surgical",
+    "arteriovenous fistula",
+    "central venous catheters",
+    "dialysis solutions",
+    "ultrafiltration",
+    "hemoperfusion"
+  ],
+  "AKI": [
+    "acute kidney injury",
+    "renal replacement therapy",
+    "continuous renal replacement therapy",
+    "kidney tubular necrosis, acute",
+    "crush syndrome",
+    "hepatorenal syndrome",
+    "rhabdomyolysis"
+  ],
+  "CKD": [
+    "renal insufficiency, chronic",
+    "kidney diseases",
+    "proteinuria",
+    "albuminuria",
+    "glomerular filtration rate",
+    "kidney function tests",
+    "renal insufficiency"
+  ],
+  "GN": [
+    "glomerulonephritis",
+    "glomerulonephritis, iga",
+    "glomerulonephritis, membranous",
+    "glomerulonephritis, membranoproliferative",
+    "glomerulosclerosis, focal segmental",
+    "nephrotic syndrome",
+    "nephrosis, lipoid",
+    "lupus nephritis",
+    "anti-neutrophil cytoplasmic antibody-associated vasculitis",
+    "granulomatosis with polyangiitis",
+    "microscopic polyangiitis",
+    "eosinophilic granulomatosis with polyangiitis",
+    "glomerulonephritis, membranoproliferative",
+    "complement c3 nephritic factor",
+    "antiglomerular basement membrane disease",
+    "purpura, schoenlein-henoch"
+  ],
+  "Transplant": [
+    "kidney transplantation",
+    "graft rejection",
+    "graft survival",
+    "immunosuppressive agents",
+    "living donors",
+    "tissue donors",
+    "organ preservation",
+    "transplant recipients",
+    "bk virus",
+    "polyomavirus infections"
+  ],
+  "Electrolyte": [
+    "hyperkalemia",
+    "hypokalemia",
+    "hyponatremia",
+    "hypernatremia",
+    "hypercalcemia",
+    "hypocalcemia",
+    "hyperphosphatemia",
+    "hypophosphatemia",
+    "hypermagnesemia",
+    "hypomagnesemia",
+    "acidosis, renal tubular",
+    "acidosis, metabolic",
+    "alkalosis, metabolic",
+    "water-electrolyte balance",
+    "acid-base imbalance"
+  ],
+  "PD": [
+    "peritoneal dialysis",
+    "peritoneal dialysis, continuous ambulatory",
+    "peritonitis",
+    "peritoneal fibrosis",
+    "dialysis solutions"
+  ],
+  "CKM": [
+    "diabetic nephropathies",
+    "diabetes mellitus, type 2",
+    "sodium-glucose transporter 2 inhibitors",
+    "glucagon-like peptide 1",
+    "glucagon-like peptide-1 receptor",
+    "mineralocorticoid receptor antagonists",
+    "cardiorenal syndrome",
+    "heart failure",
+    "cardiovascular diseases",
+    "metabolic syndrome"
+  ],
+  "HTN": [
+    "hypertension, renovascular",
+    "nephrosclerosis",
+    "renal artery obstruction",
+    "hypertension, malignant",
+    "hypertension, renal"
+  ],
+  "PKD": [
+    "polycystic kidney, autosomal dominant",
+    "polycystic kidney, autosomal recessive",
+    "polycystic kidney diseases",
+    "nephronophthisis",
+    "alport syndrome",
+    "fabry disease",
+    "nephritis, hereditary",
+    "kidney diseases, cystic"
+  ],
+  "CKD-MBD": [
+    "chronic kidney disease-mineral and bone disorder",
+    "hyperparathyroidism, secondary",
+    "renal osteodystrophy",
+    "calciphylaxis",
+    "phosphorus metabolism disorders",
+    "calcium metabolism disorders",
+    "vitamin d",
+    "calcitriol",
+    "parathyroid hormone",
+    "cinacalcet",
+    "phosphate-binding agents"
+  ],
+  "Stone": [
+    "nephrolithiasis",
+    "kidney calculi",
+    "urolithiasis",
+    "urinary calculi",
+    "hyperoxaluria",
+    "cystinuria",
+    "hypercalciuria",
+    "lithotripsy",
+    "ureteroscopy"
+  ],
+  "Onco-Nephro": [
+    "tumor lysis syndrome",
+    "cisplatin",
+    "nephrotoxicity",
+    "multiple myeloma",
+    "amyloidosis",
+    "paraproteinemias",
+    "monoclonal gammopathy of undetermined significance",
+    "immune checkpoint inhibitors",
+    "light chain deposition disease"
+  ]
+}

@@ -81,7 +81,7 @@ else:
 # --- 速率設定 ---
 GEMINI_DELAY = 7        # Gemini 免費版 10 RPM → 安全間隔 7 秒
 GROQ_DELAY = 2.5        # Groq 免費版 30 RPM → 安全間隔 2.5 秒
-MAX_ARTICLES_PER_RUN = 80  # 每次最多處理篇數
+MAX_ARTICLES_PER_RUN = 150  # 每次最多處理篇數（擴充期刊後提高）
 
 # ============================================================
 # 2. 查詢配置
@@ -95,6 +95,13 @@ TARGET_JOURNALS = {
     "NEJM": '"N Engl J Med"[Journal] AND (Kidney OR Renal OR Dialysis)',
     "Lancet": '"Lancet"[Journal] AND (Kidney OR Renal OR Dialysis)',
     "JAMA": '"JAMA"[Journal] AND (Kidney OR Renal OR Dialysis)',
+    # Phase 4: 擴充期刊
+    "AJT": '"Am J Transplant"[Journal]',
+    "Transplantation": '"Transplantation"[Journal] AND (Kidney OR Renal)',
+    "NDT": '"Nephrol Dial Transplant"[Journal]',
+    "AJKD": '"Am J Kidney Dis"[Journal]',
+    "Kidney360": '"Kidney360"[Journal]',
+    "KI Reports": '"Kidney Int Rep"[Journal]',
 }
 
 TOPIC_QUERIES = {
