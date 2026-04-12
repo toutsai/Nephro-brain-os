@@ -450,6 +450,15 @@ BASE_PUBMED_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
 INDEX_FILE = "nephro_brain.index"
 DATA_FILE = "nephro_data.pkl"
 
+# --- 知識庫 FAISS 索引（articles_v2 + guideline_chapters + clinical_trials）---
+KB_INDEX_FILE = "knowledge_base.index"
+KB_DATA_FILE = "knowledge_base_data.pkl"
+kb_index = None
+kb_doc_ids = []
+kb_doc_types = []
+kb_lock = threading.Lock()
+last_kb_load = 0
+
 TARGET_JOURNALS = {
     "JASN": '"J Am Soc Nephrol"[Journal]',
     "CJASN": '"Clin J Am Soc Nephrol"[Journal]',
@@ -725,6 +734,173 @@ def search_textbook(question, top_k=5):
     return "無教科書相關資料。"
 
 
+# --- 知識庫搜尋（articles_v2 + guideline_chapters + clinical_trials）---
+
+def download_knowledge_base():
+    global kb_index, kb_doc_ids, kb_doc_types, last_kb_load
+
+    if not storage_bucket_obj:
+        return False
+    try:
+        blob_idx = storage_bucket_obj.blob(f"brain_memory/{KB_INDEX_FILE}")
+        if not blob_idx.exists():
+            return False
+        blob_idx.download_to_filename(KB_INDEX_FILE)
+
+        blob_data = storage_bucket_obj.blob(f"brain_memory/{KB_DATA_FILE}")
+        if blob_data.exists():
+            blob_data.download_to_filename(KB_DATA_FILE)
+
+        with kb_lock:
+            if os.path.exists(KB_INDEX_FILE):
+                kb_index = faiss.read_index(KB_INDEX_FILE)
+            if os.path.exists(KB_DATA_FILE):
+                with open(KB_DATA_FILE, "rb") as f:
+                    data = pickle.load(f)
+                    kb_doc_ids = data.get("doc_ids", [])
+                    kb_doc_types = data.get("doc_types", [])
+
+        last_kb_load = time.time()
+        print(f"✅ 知識庫索引載入: {len(kb_doc_ids)} docs")
+        return True
+    except Exception as e:
+        print(f"⚠️ 知識庫索引載入失敗: {e}")
+        return False
+
+
+def ensure_kb_loaded():
+    global last_kb_load
+    if kb_index is None or time.time() - last_kb_load > 300:
+        download_knowledge_base()
+
+
+def fetch_kb_content(doc_ids, doc_types):
+    """按 doc_type 路由到正確的 Firestore collection，取回完整內容"""
+    if not db:
+        return []
+    contents = []
+    for doc_id, dtype in zip(doc_ids, doc_types):
+        try:
+            if dtype == "article":
+                doc = db.collection("articles_v2").document(doc_id).get()
+                if doc.exists:
+                    d = doc.to_dict()
+                    title = d.get("title_zh") or d.get("title", "")
+                    evidence = d.get("evidence_level", "")
+                    journal = d.get("journal", "")
+                    takeaways = d.get("clinical_takeaways", [])
+                    pico = d.get("pico", {})
+                    link = d.get("link", "")
+                    text = f"[文獻] {title} ({journal}, {evidence})\n"
+                    if takeaways:
+                        text += "臨床重點: " + "; ".join(takeaways[:3]) + "\n"
+                    if pico:
+                        text += f"PICO: P={pico.get('P','')} I={pico.get('I','')} C={pico.get('C','')} O={pico.get('O','')}\n"
+                    if link:
+                        text += f"連結: {link}\n"
+                    contents.append(text)
+
+            elif dtype == "guideline":
+                doc = db.collection("guideline_chapters").document(doc_id).get()
+                if doc.exists:
+                    d = doc.to_dict()
+                    title = d.get("guideline_title", "")
+                    chapter = d.get("chapter_title_zh") or d.get("chapter_title", "")
+                    org = d.get("org", "")
+                    content_zh = d.get("content_zh", "")
+                    recs = d.get("key_recommendations", [])
+                    text = f"[指引] {org} — {title} — {chapter}\n"
+                    if content_zh:
+                        text += content_zh[:600] + "\n"
+                    if recs:
+                        for r in recs[:5]:
+                            if isinstance(r, dict):
+                                text += f"  • ({r.get('grade','')}) {r.get('text','')}\n"
+                    contents.append(text)
+
+            elif dtype == "trial":
+                doc = db.collection("clinical_trials").document(doc_id).get()
+                if doc.exists:
+                    d = doc.to_dict()
+                    title = d.get("title_zh") or d.get("title", "")
+                    status = d.get("status", "")
+                    phase = d.get("phase", "")
+                    conditions = ", ".join(d.get("conditions", [])[:3])
+                    link = d.get("link", "")
+                    text = f"[臨床試驗] {title} ({status}, {phase})\n"
+                    text += f"適應症: {conditions}\n"
+                    if link:
+                        text += f"連結: {link}\n"
+                    contents.append(text)
+
+        except Exception as e:
+            print(f"⚠️ KB fetch error ({dtype}/{doc_id}): {e}")
+    return contents
+
+
+def search_knowledge_base(question, top_k=5):
+    """搜尋知識庫 FAISS 索引（articles + guidelines + trials）"""
+    ensure_kb_loaded()
+
+    found = []
+    with kb_lock:
+        if kb_index is not None and len(kb_doc_ids) > 0:
+            q_vec = get_embedding(question)
+            if q_vec:
+                q_arr = np.array([q_vec]).astype("float32")
+                D, I = kb_index.search(q_arr, k=min(top_k * 2, len(kb_doc_ids)))
+                for rank, idx in enumerate(I[0]):
+                    if idx != -1 and idx < len(kb_doc_ids):
+                        found.append((kb_doc_ids[idx], kb_doc_types[idx], float(D[0][rank])))
+
+    if not found:
+        return ""
+
+    found.sort(key=lambda x: x[2])
+    top = found[:top_k]
+    top_ids = [r[0] for r in top]
+    top_types = [r[1] for r in top]
+
+    results = fetch_kb_content(top_ids, top_types)
+    return "\n".join(results) if results else ""
+
+
+def get_drug_nhi_context(question):
+    """從問題中偵測藥物名稱，回傳結構化藥物/健保資料"""
+    import re
+    words = re.findall(r'[a-zA-Z]{3,}', question)
+    context_parts = []
+    seen = set()
+
+    for word in words:
+        drugs = search_drug(word)
+        for d in drugs:
+            name = d.get("drug_name_en", "")
+            if name and name not in seen:
+                seen.add(name)
+                context_parts.append(
+                    f"【{name}】{d.get('class_zh', '')} | "
+                    f"排除: {d.get('elimination', '')} | "
+                    f"透析可移除: {d.get('dialyzable', '')} | "
+                    f"腎毒性: {d.get('nephrotoxic', '')}\n"
+                    f"劑量調整: normal={d.get('dose_adjustments',{}).get('normal',{}).get('dose','')} "
+                    f"HD={d.get('dose_adjustments',{}).get('hd',{}).get('dose','')} "
+                    f"CRRT={d.get('dose_adjustments',{}).get('crrt',{}).get('dose','')}"
+                )
+    # NHI
+    for name in seen:
+        nhi_results = search_nhi(name)
+        if nhi_results:
+            n = nhi_results[0]
+            indications = "; ".join(n.get("indications_nhi", [])[:3])
+            context_parts.append(
+                f"【{name} 健保給付】{indications} | "
+                f"事前審查: {'是' if n.get('prior_auth_required') else '否'}"
+            )
+
+    return "\n".join(context_parts)
+
+
 # ============================================================
 # 4. 核心問答引擎
 # ============================================================
@@ -759,11 +935,12 @@ def generate_answer(question):
 
 【要求】：
 1. 結構化回答：教科書觀點、最新實證、臨床指引、綜合建議
-2. 如果教科書和 PubMed 資料不足，請用 Google Search 搜尋補充最新證據。搜尋時優先查詢學術來源：PubMed、Google Scholar、KDIGO/KDOQI 指引、UpToDate、Cochrane Library、各醫學會官方指引。避免引用 Wikipedia、Reddit、一般健康資訊網站等非學術來源。
-3. 使用 Markdown 格式
-4. 醫學術語用「中文 (English)」格式
-5. 引用文獻時，必須以學術論文引用格式呈現，包含作者、標題、期刊、年份，並附上 PubMed 連結。格式範例：「Smith J, et al. Title of paper. *Journal Name*. 2024;Volume(Issue):Pages. [PubMed](https://pubmed.ncbi.nlm.nih.gov/PMID/)」。每個重要醫學主張都應有對應的參考來源。回答末尾的參考文獻列表必須依年份由新到舊排序。
-6. 全程使用繁體中文
+2. 如有【藥物/健保資料庫】資料，優先引用其劑量和給付規定（這是經過驗證的結構化資料）
+3. 如果教科書和 NB 文獻庫資料不足，請用 Google Search 搜尋補充最新證據。搜尋時優先查詢學術來源：PubMed、Google Scholar、KDIGO/KDOQI 指引、UpToDate、Cochrane Library、各醫學會官方指引。避免引用 Wikipedia、Reddit、一般健康資訊網站等非學術來源。
+4. 使用 Markdown 格式
+5. 醫學術語用「中文 (English)」格式，藥物名稱一律維持英文
+6. 引用文獻時，必須以學術論文引用格式呈現，包含作者、標題、期刊、年份，並附上 PubMed 連結。格式範例：「Smith J, et al. Title of paper. *Journal Name*. 2024;Volume(Issue):Pages. [PubMed](https://pubmed.ncbi.nlm.nih.gov/PMID/)」。每個重要醫學主張都應有對應的參考來源。回答末尾的參考文獻列表必須依年份由新到舊排序。
+7. 全程使用繁體中文
 
 【視覺化格式要求 — 務必遵守，這是最重要的規則】：
 
@@ -1010,9 +1187,12 @@ def ask():
 # ============================================================
 
 DEEP_RESEARCH_PROMPT = """你是一位崇尚實證醫學的腎臟科專家。我從多個來源為你蒐集了以下資訊，請整合為一篇完整的 Evidence Review。
-
+{drug_nhi_section}
 【教科書知識庫】
 {textbook_ctx}
+
+【NB 文獻與指引庫】
+{kb_ctx}
 
 【PubMed 文獻摘要】
 {pubmed_ctx}
@@ -1100,9 +1280,13 @@ def _generate_deep_research(question):
             oe_thread.start()
             yield _sse('status', '正在查詢 OpenEvidence 實證資料庫...')
 
-        # RAG + PubMed in ThreadPool
-        with ThreadPoolExecutor(max_workers=2) as executor:
+        # 結構化藥物/健保查表（同步，<1ms）
+        drug_nhi_ctx = get_drug_nhi_context(question)
+
+        # RAG + KB + PubMed in ThreadPool
+        with ThreadPoolExecutor(max_workers=3) as executor:
             textbook_future = executor.submit(search_textbook, question)
+            kb_future = executor.submit(search_knowledge_base, question)
             pubmed_future = executor.submit(search_pubmed, question)
 
             try:
@@ -1110,6 +1294,13 @@ def _generate_deep_research(question):
             except Exception:
                 textbook_ctx = "無教科書資料（搜尋逾時）。"
             yield _sse('status', '教科書搜尋完成')
+
+            try:
+                kb_ctx = kb_future.result(timeout=15) or ""
+            except Exception:
+                kb_ctx = ""
+            if kb_ctx:
+                yield _sse('status', 'NB 文獻與指引庫搜尋完成')
 
             try:
                 pubmed_ctx = pubmed_future.result(timeout=15) or "無 PubMed 結果。"
@@ -1137,8 +1328,14 @@ def _generate_deep_research(question):
         # Phase 2: Synthesis with Gemini Pro
         model = get_model_for_task("consult_deep_research")
 
+        drug_nhi_section = ""
+        if drug_nhi_ctx:
+            drug_nhi_section = f"\n【藥物/健保資料庫】\n{drug_nhi_ctx}\n"
+
         prompt = DEEP_RESEARCH_PROMPT.format(
+            drug_nhi_section=drug_nhi_section,
             textbook_ctx=textbook_ctx,
+            kb_ctx=kb_ctx or "（無知識庫相關資料）",
             pubmed_ctx=pubmed_ctx,
             oe_answer=oe_answer or "（OpenEvidence 未回傳資料）",
             oe_citations=oe_citations or "（無引用文獻）",
@@ -1252,9 +1449,13 @@ def ask_stream():
                 yield from _generate_deep_research(question)
                 return
 
-            # === Normal Mode (unchanged) ===
-            with ThreadPoolExecutor(max_workers=2) as executor:
+            # === Normal Mode ===
+            # 結構化藥物/健保查表（同步，<1ms）
+            drug_nhi_ctx = get_drug_nhi_context(question)
+
+            with ThreadPoolExecutor(max_workers=3) as executor:
                 textbook_future = executor.submit(search_textbook, question)
+                kb_future = executor.submit(search_knowledge_base, question)
                 pubmed_future = executor.submit(search_pubmed, question)
 
                 try:
@@ -1263,20 +1464,33 @@ def ask_stream():
                     textbook_ctx = "無教科書資料（搜尋逾時）。"
 
                 try:
+                    kb_ctx = kb_future.result(timeout=15) or ""
+                except:
+                    kb_ctx = ""
+
+                try:
                     pubmed_ctx = pubmed_future.result(timeout=15) or "無 PubMed 結果。"
                 except:
                     pubmed_ctx = "無 PubMed 結果（搜尋逾時）。"
 
-            yield f"data: {json.dumps({'type': 'status', 'content': '搜尋完成，開始生成回答...'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({{'type': 'status', 'content': '搜尋完成，開始生成回答...'}}, ensure_ascii=False)}\n\n"
 
             task_key = classify_question_complexity(question)
             model = get_model_for_task(task_key)
 
-            prompt = f"""你是一位崇尚「實證醫學 (EBM)」的腎臟科專家。
+            drug_nhi_section = ""
+            if drug_nhi_ctx:
+                drug_nhi_section = f"\n【藥物/健保資料庫】\n{drug_nhi_ctx}\n"
 
+            kb_section = ""
+            if kb_ctx:
+                kb_section = f"\n【NB 文獻與指引庫】\n{kb_ctx}\n"
+
+            prompt = f"""你是一位崇尚「實證醫學 (EBM)」的腎臟科專家。
+{drug_nhi_section}
 【教科書知識庫】
 {textbook_ctx}
-
+{kb_section}
 【PubMed 文獻】
 {pubmed_ctx}
 
@@ -1284,11 +1498,12 @@ def ask_stream():
 
 【要求】：
 1. 結構化回答：教科書觀點、最新實證、臨床指引、綜合建議
-2. 如果教科書和 PubMed 資料不足，請用 Google Search 搜尋補充最新證據。搜尋時優先查詢學術來源：PubMed、Google Scholar、KDIGO/KDOQI 指引、UpToDate、Cochrane Library、各醫學會官方指引。避免引用 Wikipedia、Reddit、一般健康資訊網站等非學術來源。
-3. 使用 Markdown 格式
-4. 醫學術語用「中文 (English)」格式
-5. 引用文獻時，必須以學術論文引用格式呈現，包含作者、標題、期刊、年份，並附上 PubMed 連結。格式範例：「Smith J, et al. Title of paper. *Journal Name*. 2024;Volume(Issue):Pages. [PubMed](https://pubmed.ncbi.nlm.nih.gov/PMID/)」。每個重要醫學主張都應有對應的參考來源。回答末尾的參考文獻列表必須依年份由新到舊排序。
-6. 全程使用繁體中文
+2. 如有【藥物/健保資料庫】資料，優先引用其劑量和給付規定（這是經過驗證的結構化資料）
+3. 如果教科書和 NB 文獻庫資料不足，請用 Google Search 搜尋補充最新證據。搜尋時優先查詢學術來源：PubMed、Google Scholar、KDIGO/KDOQI 指引、UpToDate、Cochrane Library、各醫學會官方指引。避免引用 Wikipedia、Reddit、一般健康資訊網站等非學術來源。
+4. 使用 Markdown 格式
+5. 醫學術語用「中文 (English)」格式，藥物名稱一律維持英文
+6. 引用文獻時，必須以學術論文引用格式呈現，包含作者、標題、期刊、年份，並附上 PubMed 連結。格式範例：「Smith J, et al. Title of paper. *Journal Name*. 2024;Volume(Issue):Pages. [PubMed](https://pubmed.ncbi.nlm.nih.gov/PMID/)」。每個重要醫學主張都應有對應的參考來源。回答末尾的參考文獻列表必須依年份由新到舊排序。
+7. 全程使用繁體中文
 
 【視覺化格式要求】：
 ■ 規則 1：摘要卡片（每次回答都必須有）
@@ -3054,6 +3269,7 @@ def validate_oe_cookies():
 print("🚀 Nephro Brain API Server v2 初始化中...")
 print(f"🤖 模型：{GEMINI_MODEL}")
 download_memory()
+download_knowledge_base()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
