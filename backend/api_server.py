@@ -1473,7 +1473,8 @@ def ask_stream():
                 except:
                     pubmed_ctx = "無 PubMed 結果（搜尋逾時）。"
 
-            yield f"data: {json.dumps({{'type': 'status', 'content': '搜尋完成，開始生成回答...'}}, ensure_ascii=False)}\n\n"
+            status_msg = json.dumps({'type': 'status', 'content': '搜尋完成，開始生成回答...'}, ensure_ascii=False)
+            yield f"data: {status_msg}\n\n"
 
             task_key = classify_question_complexity(question)
             model = get_model_for_task(task_key)
