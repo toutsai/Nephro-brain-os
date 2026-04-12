@@ -81,7 +81,7 @@ MID_EVIDENCE_FILTER = (
 # ============================================================
 NB_INSIGHT_PROMPT = """你是資深腎臟科專科醫師，負責為 Nephro Brain OS 的 NB Insight 模組產出臨床等級的結構化文獻摘要。
 
-請閱讀以下論文資訊，並以繁體中文整理，專有名詞可保留英文（如 AKI、CKD、ESRD、CRRT、HDF 等）。
+請閱讀以下論文資訊，並以繁體中文整理。藥物名稱一律維持英文（如 Dapagliflozin、Tacrolimus），醫學縮寫亦保留英文（如 AKI、CKD、ESRD、CRRT、HDF 等）。
 
 標題：{title}
 期刊：{journal}

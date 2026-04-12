@@ -187,7 +187,7 @@ def parse_study(study: dict) -> dict:
 # AI 翻譯（Groq，最低成本）
 # ============================================================
 
-TRANSLATE_PROMPT = """請將以下臨床試驗資訊翻譯成繁體中文。專有名詞可保留英文（如 CKD、SGLT2、GFR 等）。
+TRANSLATE_PROMPT = """請將以下臨床試驗資訊翻譯成繁體中文。藥物名稱一律維持英文（如 Dapagliflozin、Rituximab），醫學縮寫亦保留英文（如 CKD、SGLT2、GFR 等）。
 
 請以 JSON 格式回傳（不要加 markdown code block）：
 {{"title_zh": "繁體中文標題", "summary_zh": "繁體中文簡要摘要（2-3句話）"}}
