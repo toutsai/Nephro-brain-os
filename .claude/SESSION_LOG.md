@@ -1,6 +1,67 @@
 # Session Log
 
 ## 最近一次更新
+- **日期**：2026-04-13（第二次更新）
+- **完成事項**：
+
+### 一、GitHub Actions 自動化
+  1. `backfill-pubmed-monthly.yml` — 每月 1 日自動回溯上月 PubMed 高實證文章（手動可設 months_back/limit）
+  2. `process-guidelines-monthly.yml` — 每月 15 日自動處理新指引 PDF（--resume 冪等執行）
+  3. 兩者完成後皆自動執行 knowledge base index incremental update
+
+### 二、Knowledge Graph Phase 1（feature/knowledge-graph-phase1 → merged to main）
+  1. **概念種子腳本** `crawlers/kg_build_concepts.py`
+     - 從 topic taxonomy（13 topics）、guideline chapters、drug database（72 drugs）、guideline key_topics 收集候選
+     - Gemini 批次叢集：去重、slug 命名、中文翻譯、topic 分配、parent 階層
+     - 寫入 Firestore `kg_concepts` collection
+  2. **自動連結腳本** `crawlers/kg_auto_link.py`
+     - Pass 1: 關鍵字/topic 比對（零 AI 成本）
+     - Pass 2: Gemini 確認 relevance_score + reason
+     - 寫入 `kg_links` collection，更新 concept link_counts
+  3. **Backend API 端點**
+     - `GET /kg/concepts` — 列出概念（topic/status 篩選）
+     - `GET /kg/concepts/<id>` — 概念詳情 + 關聯資料
+     - `POST /kg/concepts/<id>/review` — 審核摘要
+     - `POST /kg/links/<id>/review` — 審核連結
+     - `GET /kg/review-queue` — 待審核佇列
+     - `GET /kg/gaps` — 缺口報告
+  4. **Frontend `/knowledge` 頁面**
+     - ConceptCard.vue — 概念卡片（topics badges, link counts, status badge）
+     - ConceptDetail.vue — 詳情頁（synthesis note + tabbed sources: Articles/Guidelines/Trials/Drugs）
+     - useKnowledgeGraph.js — Firestore real-time composables
+     - 主題篩選 chips + 搜尋功能
+     - NavBar 新增 Knowledge (🧠) 項目
+  5. **Firestore rules + indexes**
+     - 新增 kg_concepts、kg_links、kg_consult_extractions、kg_gap_reports 規則
+     - 4 組複合索引
+
+### 三、修復
+  - `.claude/settings.local.json` JSON 格式修復
+
+- **目前狀態**：程式碼全部在 main branch，已 push
+- **使用者需要執行的**：
+  - 首次跑概念種子：`python crawlers/kg_build_concepts.py`（本機，需 .env）
+  - 概念建好後跑連結：`python crawlers/kg_auto_link.py`（本機，需 .env）
+  - 部署後端：`gcloud run deploy nephro-brain-api --source ./backend --region asia-east1 --clear-base-image`
+  - 手動觸發 GitHub Actions PubMed Monthly Backfill（months_back=12）做首次全量回溯
+  - 部署 Firestore rules：`firebase deploy --only firestore:rules,firestore:indexes`
+- **下次待辦**：
+  - 確認 Knowledge 頁面前端顯示正確
+  - 確認 kg_build_concepts.py 產生合理數量的概念節點
+  - Phase 2: Consult 知識萃取（修改 ask_stream 持久化 sources_used）
+  - Phase 2: kg_generate_synthesis.py 為概念生成整合摘要
+  - Phase 3: Review tab + approve/reject 流程
+  - Phase 3: kg_gap_analysis.py 缺口偵測週報
+
+## 重要架構決策（新增）
+- **Knowledge Graph 是 overlay，不替換三層搜尋**：RAG pipeline 保持不變，KG 提供瀏覽/審核/缺口偵測
+- **AI 產出預設 pending**：所有 AI 生成的 synthesis/links 需人工審核後才正式生效
+- **批次而非即時**：醫療領域需審核，batch processing 可控且可追蹤
+- **Firestore 而非 Neo4j**：現有 stack，規模 ~500 concepts / ~10K links 足夠
+
+---
+
+## 上一次更新
 - **日期**：2026-04-13
 - **完成事項**：
 
