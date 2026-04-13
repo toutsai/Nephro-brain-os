@@ -838,7 +838,7 @@ def fetch_kb_content(doc_ids, doc_types):
     return contents
 
 
-def search_knowledge_base(question, top_k=5):
+def search_knowledge_base(question, top_k=5, return_sources=False):
     """搜尋知識庫 FAISS 索引（articles + guidelines + trials）"""
     ensure_kb_loaded()
 
@@ -854,7 +854,7 @@ def search_knowledge_base(question, top_k=5):
                         found.append((kb_doc_ids[idx], kb_doc_types[idx], float(D[0][rank])))
 
     if not found:
-        return ""
+        return ("", []) if return_sources else ""
 
     found.sort(key=lambda x: x[2])
     top = found[:top_k]
@@ -862,7 +862,12 @@ def search_knowledge_base(question, top_k=5):
     top_types = [r[1] for r in top]
 
     results = fetch_kb_content(top_ids, top_types)
-    return "\n".join(results) if results else ""
+    text = "\n".join(results) if results else ""
+
+    if return_sources:
+        sources = [{"type": t, "doc_id": d} for d, t in zip(top_ids, top_types)]
+        return (text, sources)
+    return text
 
 
 def get_drug_nhi_context(question):
@@ -1432,6 +1437,8 @@ def ask_stream():
     data = request.get_json()
     question = data.get('question', '')
     deep_research = data.get('deep_research', False)
+    chat_id = data.get('chat_id', '')
+    user_id = data.get('user_id', '')
 
     if not question:
         return jsonify({"error": "請提供問題"}), 400
@@ -1450,12 +1457,20 @@ def ask_stream():
                 return
 
             # === Normal Mode ===
+            # 收集 sources_used 供 KG consult extraction
+            sources_used = []
+
             # 結構化藥物/健保查表（同步，<1ms）
             drug_nhi_ctx = get_drug_nhi_context(question)
+            if drug_nhi_ctx:
+                # 記錄用了哪些藥物
+                import re as _re
+                for _m in _re.findall(r'【([A-Za-z\-]+)】', drug_nhi_ctx):
+                    sources_used.append({"type": "drug_db", "key": _m.lower()})
 
             with ThreadPoolExecutor(max_workers=3) as executor:
                 textbook_future = executor.submit(search_textbook, question)
-                kb_future = executor.submit(search_knowledge_base, question)
+                kb_future = executor.submit(search_knowledge_base, question, 5, True)
                 pubmed_future = executor.submit(search_pubmed, question)
 
                 try:
@@ -1464,7 +1479,12 @@ def ask_stream():
                     textbook_ctx = "無教科書資料（搜尋逾時）。"
 
                 try:
-                    kb_ctx = kb_future.result(timeout=15) or ""
+                    kb_result = kb_future.result(timeout=15)
+                    if isinstance(kb_result, tuple):
+                        kb_ctx, kb_sources = kb_result
+                        sources_used.extend(kb_sources)
+                    else:
+                        kb_ctx = kb_result or ""
                 except:
                     kb_ctx = ""
 
@@ -1639,6 +1659,13 @@ graph TD
                     yield f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
 
             _log_token_usage(response, model, "consult", meta=last_usage)
+
+            # === KG: 儲存 consult extraction ===
+            _save_consult_extraction(
+                chat_id=chat_id, user_id=user_id,
+                question=question, sources_used=sources_used,
+            )
+
             yield "data: [DONE]\n\n"
 
         except Exception as e:
@@ -1656,6 +1683,26 @@ graph TD
             'X-Accel-Buffering': 'no',
         }
     )
+
+
+def _save_consult_extraction(chat_id, user_id, question, sources_used):
+    """將 Consult 來源資訊寫入 kg_consult_extractions（非阻塞）"""
+    try:
+        if not sources_used:
+            return
+        db.collection("kg_consult_extractions").add({
+            "chat_id": chat_id or "",
+            "user_id": user_id or "",
+            "question": question[:500],
+            "sources_used": sources_used,
+            "concepts_extracted": [],
+            "coverage_score": None,
+            "gap_flag": False,
+            "status": "raw",
+            "created_at": firestore.SERVER_TIMESTAMP,
+        })
+    except Exception as e:
+        print(f"⚠️ KG extraction save failed: {e}")
 
 
 @app.route('/consult/chat-stream', methods=['POST'])

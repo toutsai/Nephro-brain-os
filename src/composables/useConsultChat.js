@@ -190,6 +190,8 @@ export function useConsultChat() {
         body: JSON.stringify({
           question,
           deep_research: options.deep_research || false,
+          chat_id: chatId,
+          user_id: uid.value || '',
         }),
       })
 
