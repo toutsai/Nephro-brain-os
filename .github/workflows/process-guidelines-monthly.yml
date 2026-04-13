@@ -1,0 +1,52 @@
+name: Guideline PDF Processing (Monthly)
+
+on:
+  schedule:
+    - cron: '0 20 15 * *'  # 每月 15 日 UTC 20:00 = 台灣 04:00
+  workflow_dispatch:        # 手動觸發
+    inputs:
+      guideline_id:
+        description: '指定處理特定指引 (book doc ID，留空 = 全部)'
+        default: ''
+        type: string
+      limit:
+        description: '處理數量上限 (0 = 全部)'
+        default: '0'
+        type: string
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r crawlers/requirements_v2.txt
+
+      - name: Process guideline PDFs
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          ARGS="--resume"
+          if [ -n "${{ github.event.inputs.guideline_id }}" ]; then
+            ARGS="$ARGS --guideline-id ${{ github.event.inputs.guideline_id }}"
+          fi
+          if [ "${{ github.event.inputs.limit }}" != "0" ] && [ -n "${{ github.event.inputs.limit }}" ]; then
+            ARGS="$ARGS --limit ${{ github.event.inputs.limit }}"
+          fi
+          python crawlers/process_guideline_content.py $ARGS
+
+      - name: Update knowledge index (incremental)
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: python crawlers/build_knowledge_index.py --incremental

@@ -1,0 +1,48 @@
+name: PubMed Monthly Backfill
+
+on:
+  schedule:
+    - cron: '0 20 1 * *'  # 每月 1 日 UTC 20:00 = 台灣 04:00
+  workflow_dispatch:       # 保留手動觸發（可用於首次全量回溯）
+    inputs:
+      months_back:
+        description: '回溯月數'
+        default: '1'
+        type: string
+      limit:
+        description: '每月文章上限'
+        default: '50'
+        type: string
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r crawlers/requirements_v2.txt
+
+      - name: Run backfill
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          python crawlers/backfill_pubmed.py \
+            --months-back ${{ github.event.inputs.months_back || '1' }} \
+            --limit ${{ github.event.inputs.limit || '50' }}
+
+      - name: Update knowledge index (incremental)
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: python crawlers/build_knowledge_index.py --incremental
