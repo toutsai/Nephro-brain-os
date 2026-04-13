@@ -1,7 +1,7 @@
 # Session Log
 
 ## 最近一次更新
-- **日期**：2026-04-13（第二次更新）
+- **日期**：2026-04-14
 - **完成事項**：
 
 ### 一、GitHub Actions 自動化
@@ -38,20 +38,33 @@
 ### 三、修復
   - `.claude/settings.local.json` JSON 格式修復
 
-- **目前狀態**：程式碼全部在 main branch，已 push
-- **使用者需要執行的**：
-  - 首次跑概念種子：`python crawlers/kg_build_concepts.py`（本機，需 .env）
-  - 概念建好後跑連結：`python crawlers/kg_auto_link.py`（本機，需 .env）
-  - 部署後端：`gcloud run deploy nephro-brain-api --source ./backend --region asia-east1 --clear-base-image`
-  - 手動觸發 GitHub Actions PubMed Monthly Backfill（months_back=12）做首次全量回溯
-  - 部署 Firestore rules：`firebase deploy --only firestore:rules,firestore:indexes`
+### 四、Knowledge Graph Phase 2（feature/knowledge-graph-phase2 → merged to main）
+  1. **Consult 來源記錄**
+     - `ask_stream()` 回答後自動儲存 sources_used 到 `kg_consult_extractions`
+     - `search_knowledge_base()` 新增 `return_sources` 回傳 doc_id/type
+     - 前端 `useConsultChat.js` 傳 `chat_id` + `user_id` 給後端
+     - ✅ 已驗證：Consult 問答後 Firestore 有新 extraction 文件
+  2. **批次腳本**
+     - `crawlers/kg_process_consults.py`：每日批次萃取 Consult 概念 + 覆蓋率評估 + 缺口標記
+     - `crawlers/kg_generate_synthesis.py`：為概念生成 ~500 字整合摘要
+  3. **Auto-linker AI 確認**
+     - 前 50 個概念已用 Gemini 評分（背景完成中）
+     - 其餘 384 個概念使用 keyword match 預設 0.7 分
+
+- **目前狀態**：Phase 1 + Phase 2 全部在 main branch，已部署
+- **已執行的一次性任務**：
+  - ✅ kg_build_concepts.py → 434 concepts
+  - ✅ kg_auto_link.py --skip-ai → 66,768 links
+  - ✅ kg_auto_link.py --limit 50 (AI) → 背景完成中
+  - ✅ Cloud Run 部署 ×2
+  - ✅ Firestore rules + indexes 部署
 - **下次待辦**：
-  - 確認 Knowledge 頁面前端顯示正確
-  - 確認 kg_build_concepts.py 產生合理數量的概念節點
-  - Phase 2: Consult 知識萃取（修改 ask_stream 持久化 sources_used）
-  - Phase 2: kg_generate_synthesis.py 為概念生成整合摘要
+  - 手動觸發 GitHub Actions PubMed Monthly Backfill（months_back=12）做首次全量回溯
+  - 跑 `kg_generate_synthesis.py` 為 top 概念產生整合摘要
   - Phase 3: Review tab + approve/reject 流程
   - Phase 3: kg_gap_analysis.py 缺口偵測週報
+  - Phase 3: GitHub Actions 排程（kg_process_consults 每日、kg_auto_link + synthesis 每週）
+  - 考慮：Knowledge 頁面顯示 synthesis note（目前前端已有，等摘要產生後可見）
 
 ## 重要架構決策（新增）
 - **Knowledge Graph 是 overlay，不替換三層搜尋**：RAG pipeline 保持不變，KG 提供瀏覽/審核/缺口偵測
