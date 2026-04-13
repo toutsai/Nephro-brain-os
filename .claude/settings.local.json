@@ -14,7 +14,9 @@
       "Read(//c/Users/suiam/AppData/Local/Programs//**)",
       "Bash(cmd:*)",
       "Bash(git merge:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(firebase deploy:*)",
+      "Bash(gcloud run:*)"
     ]
   }
 }
