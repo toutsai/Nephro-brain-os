@@ -71,6 +71,39 @@
         { "fieldPath": "process_status", "order": "ASCENDING" },
         { "fieldPath": "updated_at", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "kg_concepts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "synthesis_status", "order": "ASCENDING" },
+        { "fieldPath": "updated_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "kg_links",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "concept_id", "order": "ASCENDING" },
+        { "fieldPath": "source_type", "order": "ASCENDING" },
+        { "fieldPath": "relevance_score", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "kg_links",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "kg_consult_extractions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

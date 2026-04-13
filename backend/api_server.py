@@ -3263,7 +3263,162 @@ def validate_oe_cookies():
 
 
 # ============================================================
-# 7. 啟動
+# 7. Knowledge Graph API
+# ============================================================
+
+@app.route('/kg/concepts', methods=['GET'])
+def kg_list_concepts():
+    """列出知識圖譜概念（支援 topic 與 status 篩選）"""
+    topic = request.args.get('topic')
+    status = request.args.get('status')
+
+    ref = db.collection('kg_concepts')
+    if topic:
+        ref = ref.where('topics', 'array_contains', topic)
+    if status:
+        ref = ref.where('synthesis_status', '==', status)
+
+    docs = ref.order_by('updated_at', direction=firestore.Query.DESCENDING).limit(200).stream()
+    concepts = []
+    for doc in docs:
+        d = doc.to_dict()
+        d['id'] = doc.id
+        # 移除大欄位減少傳輸量
+        d.pop('search_text', None)
+        concepts.append(d)
+
+    return jsonify({"concepts": concepts, "total": len(concepts)})
+
+
+@app.route('/kg/concepts/<concept_id>', methods=['GET'])
+def kg_get_concept(concept_id):
+    """取得單一概念詳情 + 關聯資料"""
+    doc = db.collection('kg_concepts').document(concept_id).get()
+    if not doc.exists:
+        return jsonify({"error": "Concept not found"}), 404
+
+    concept = doc.to_dict()
+    concept['id'] = doc.id
+
+    # 取得關聯 links
+    links_ref = db.collection('kg_links').where('concept_id', '==', concept_id)
+    links = []
+    for link_doc in links_ref.stream():
+        ld = link_doc.to_dict()
+        ld['id'] = link_doc.id
+        links.append(ld)
+
+    # 按 source_type 分組並依 relevance_score 排序
+    links_by_type = {}
+    for link in links:
+        st = link.get('source_type', 'other')
+        if st not in links_by_type:
+            links_by_type[st] = []
+        links_by_type[st].append(link)
+    for st in links_by_type:
+        links_by_type[st].sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
+
+    return jsonify({
+        "concept": concept,
+        "links": links_by_type,
+        "total_links": len(links),
+    })
+
+
+@app.route('/kg/concepts/<concept_id>/review', methods=['POST'])
+@require_admin
+def kg_review_concept(concept_id):
+    """審核概念（approve / reject）"""
+    data = request.get_json()
+    action = data.get('action')  # 'approve' or 'reject'
+    note = data.get('note', '')
+
+    if action not in ('approve', 'reject'):
+        return jsonify({"error": "action must be 'approve' or 'reject'"}), 400
+
+    doc_ref = db.collection('kg_concepts').document(concept_id)
+    if not doc_ref.get().exists:
+        return jsonify({"error": "Concept not found"}), 404
+
+    doc_ref.update({
+        'synthesis_status': 'approved' if action == 'approve' else 'rejected',
+        'review_note': note,
+        'updated_at': firestore.SERVER_TIMESTAMP,
+    })
+
+    return jsonify({"success": True, "concept_id": concept_id, "status": action + 'd'})
+
+
+@app.route('/kg/links/<link_id>/review', methods=['POST'])
+@require_admin
+def kg_review_link(link_id):
+    """審核連結（approve / reject）"""
+    data = request.get_json()
+    action = data.get('action')
+
+    if action not in ('approve', 'reject'):
+        return jsonify({"error": "action must be 'approve' or 'reject'"}), 400
+
+    doc_ref = db.collection('kg_links').document(link_id)
+    if not doc_ref.get().exists:
+        return jsonify({"error": "Link not found"}), 404
+
+    doc_ref.update({
+        'status': 'approved' if action == 'approve' else 'rejected',
+        'updated_at': firestore.SERVER_TIMESTAMP,
+    })
+
+    return jsonify({"success": True, "link_id": link_id, "status": action + 'd'})
+
+
+@app.route('/kg/review-queue', methods=['GET'])
+@require_admin
+def kg_review_queue():
+    """取得待審核項目"""
+    # 待審核概念
+    pending_concepts = []
+    for doc in db.collection('kg_concepts').where(
+        'synthesis_status', '==', 'pending_review'
+    ).order_by('updated_at', direction=firestore.Query.DESCENDING).limit(50).stream():
+        d = doc.to_dict()
+        d['id'] = doc.id
+        d['_type'] = 'concept'
+        pending_concepts.append(d)
+
+    # 待審核連結
+    pending_links = []
+    for doc in db.collection('kg_links').where(
+        'status', '==', 'pending'
+    ).order_by('created_at', direction=firestore.Query.DESCENDING).limit(100).stream():
+        d = doc.to_dict()
+        d['id'] = doc.id
+        d['_type'] = 'link'
+        pending_links.append(d)
+
+    return jsonify({
+        "concepts": pending_concepts,
+        "links": pending_links,
+        "total": len(pending_concepts) + len(pending_links),
+    })
+
+
+@app.route('/kg/gaps', methods=['GET'])
+def kg_gaps():
+    """取得最新缺口報告"""
+    docs = db.collection('kg_gap_reports').order_by(
+        'generated_at', direction=firestore.Query.DESCENDING
+    ).limit(1).stream()
+
+    for doc in docs:
+        d = doc.to_dict()
+        d['id'] = doc.id
+        return jsonify(d)
+
+    return jsonify({"message": "No gap reports yet"}), 404
+
+
+# ============================================================
+# 8. 啟動
 # ============================================================
 
 # Gunicorn 啟動時也載入記憶（不只 __main__）

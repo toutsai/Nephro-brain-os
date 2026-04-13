@@ -32,6 +32,11 @@ const routes = [
     component: () => import('./views/AssistPage.vue'),
   },
   {
+    path: '/knowledge',
+    name: 'knowledge',
+    component: () => import('./views/KnowledgePage.vue'),
+  },
+  {
     path: '/settings',
     name: 'settings',
     component: () => import('./views/SettingsPage.vue'),

@@ -85,6 +85,27 @@ service cloud.firestore {
       allow read: if true;
     }
 
+    // 知識圖譜 — 概念與連結（公開讀取，登入者可寫）
+    match /kg_concepts/{conceptId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /kg_links/{linkId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // 知識圖譜 — Consult 萃取（僅後端寫入，本人可讀）
+    match /kg_consult_extractions/{extractionId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // 知識圖譜 — 缺口報告（登入者可讀）
+    match /kg_gap_reports/{reportId} {
+      allow read: if request.auth != null;
+    }
+
     // 系統設定（含 OE cookies）— 僅 admin 可讀寫
     match /system_config/{doc} {
       allow read, write: if request.auth != null

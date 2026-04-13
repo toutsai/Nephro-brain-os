@@ -151,11 +151,12 @@ const loginError = ref('')
 const showMobileLogin = ref(false)
 
 const navItems = [
-  { path: '/insight', icon: '🔍', label: 'Insight' },
-  { path: '/consult', icon: '💬', label: 'Consult' },
-  { path: '/notes',   icon: '📝', label: 'Notes' },
-  { path: '/teach',   icon: '🎓', label: 'Teach' },
-  { path: '/assist',  icon: '🏥', label: 'Assist' },
+  { path: '/insight',   icon: '🔍', label: 'Insight' },
+  { path: '/consult',   icon: '💬', label: 'Consult' },
+  { path: '/knowledge', icon: '🧠', label: 'Knowledge' },
+  { path: '/notes',     icon: '📝', label: 'Notes' },
+  { path: '/teach',     icon: '🎓', label: 'Teach' },
+  { path: '/assist',    icon: '🏥', label: 'Assist' },
 ]
 
 function isActive(path) {
