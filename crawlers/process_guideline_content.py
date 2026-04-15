@@ -1,8 +1,12 @@
 """
-Process Guideline Content — Nephro Brain OS
-=============================================
+Process Guideline Content — Nephro Brain OS (v2 - 省錢版)
+==========================================================
 讀取 Firestore books collection 中的指引 PDF，使用 Gemini AI 擷取結構化章節內容，
 儲存至 guideline_chapters collection。
+
+v2 優化：
+  - 每章 1 次 Gemini 呼叫（合併 content + recs + flowchart），省 2/3 API 費用
+  - TOC 擷取頁碼範圍 → PyPDF 裁切每章頁面 → 只上傳相關頁面，省 input tokens
 
 使用方式：
   python crawlers/process_guideline_content.py                      # 處理全部
@@ -17,7 +21,6 @@ import json
 import logging
 import os
 import re
-import sys
 import tempfile
 import time
 
@@ -41,7 +44,6 @@ logger = logging.getLogger(__name__)
 # Firebase init
 # ---------------------------------------------------------------------------
 load_dotenv()
-# fallback: 讀取 backend/.env
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "backend", ".env"))
 
 FIREBASE_SERVICE_ACCOUNT_JSON = os.getenv(
@@ -68,26 +70,31 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 client = genai.Client(api_key=GOOGLE_API_KEY)
 MODEL = "gemini-2.5-flash"
 
-RATE_LIMIT_DELAY = 2  # seconds between Gemini calls
+RATE_LIMIT_DELAY = 2
 MAX_RETRIES = 3
-RETRY_DELAY = 2  # seconds
+RETRY_DELAY = 3
 
 # ---------------------------------------------------------------------------
 # Prompts
 # ---------------------------------------------------------------------------
-TOC_PROMPT = """請分析這份臨床指引 PDF，擷取完整的章節目錄。
+
+TOC_PROMPT = """請分析這份臨床指引 PDF，擷取完整的章節目錄，包含每章的起始和結束頁碼。
 回傳 JSON 陣列，格式：
 [
-  {"chapter_number": 1, "title": "Chapter title in English"},
-  {"chapter_number": 2, "title": "Chapter title in English"},
+  {"chapter_number": 1, "title": "Chapter title in English", "page_start": 10, "page_end": 25},
+  {"chapter_number": 2, "title": "Chapter title in English", "page_start": 26, "page_end": 40},
   ...
 ]
-只列出主要章節（不含附錄、參考文獻、縮寫表等）。
+注意：
+- 只列出主要章節（不含附錄、參考文獻、縮寫表等）
+- page_start 和 page_end 是 PDF 的實際頁碼（從 1 開始）
+- 如果無法確定頁碼，用 null
 回傳純 JSON，不要加 markdown code fence。"""
 
-CONTENT_PROMPT = """請閱讀這份指引的第 {chapter_number} 章「{chapter_title}」。
+COMBINED_PROMPT = """請閱讀這份指引章節內容，完成以下三個任務。
 
-產生繁體中文結構化摘要，使用 Markdown 格式：
+=== 任務 1：繁體中文結構化摘要 ===
+產生 Markdown 格式的結構化摘要：
 
 ## 核心概念
 （2-3 段說明本章重點）
@@ -98,47 +105,37 @@ CONTENT_PROMPT = """請閱讀這份指引的第 {chapter_number} 章「{chapter_
 ## 實作建議
 （具體的臨床操作建議）
 
-醫學術語用「中文 (English)」格式。目標 800-1500 字。"""
+醫學術語用「中文 (English)」格式。目標 800-1500 字。
 
-RECS_PROMPT = """從這份指引的第 {chapter_number} 章「{chapter_title}」中，擷取所有正式的臨床建議 (Recommendations) 和實作要點 (Practice Points)。
+=== 任務 2：關鍵建議擷取 ===
+擷取所有正式的臨床建議 (Recommendations) 和實作要點 (Practice Points)。
+grade 必須是：1A, 1B, 1C, 1D, 2A, 2B, 2C, 2D, Not Graded
+如果沒有正式建議，回傳空陣列。
 
-回傳 JSON 陣列：
-[
-  {{
-    "text": "建議內容（繁體中文）",
-    "grade": "1A",
-    "description": "簡要說明為何如此建議"
-  }}
-]
+=== 任務 3：治療/診斷流程圖 ===
+產生 Mermaid flowchart TD 格式的流程圖。
+- 節點標籤用繁體中文，20 字以內
+- 決策節點用菱形 {{{{}}}}
+- 不超過 15 個節點
+- 如果不適合做流程圖，回傳 null
 
-grade 必須是以下之一：1A, 1B, 1C, 1D, 2A, 2B, 2C, 2D, Not Graded
-如果該章節沒有正式建議，回傳空陣列 []。
-回傳純 JSON，不要加 markdown code fence。"""
+=== 回傳格式 ===
+回傳純 JSON（不要加 markdown code fence），格式：
+{{
+  "content_zh": "完整的 Markdown 摘要...",
+  "key_recommendations": [
+    {{"text": "建議內容（繁體中文）", "grade": "1A", "description": "簡要說明"}}
+  ],
+  "flowchart_mermaid": "flowchart TD\\n    A[節點] --> B[節點]",
+  "chapter_title_zh": "本章的繁體中文標題"
+}}"""
 
-FLOWCHART_PROMPT = """根據這份指引第 {chapter_number} 章「{chapter_title}」的內容，
-產生一個診斷或治療決策流程圖。使用 Mermaid flowchart TD 格式。
-
-規則：
-- 節點標籤用繁體中文，保持簡短（20 字以內）
-- 決策節點使用菱形 {{{{}}}}
-- 用 -->|是| 和 -->|否| 表示分支
-- 不要超過 15 個節點
-- 如果本章不適合做流程圖（例如概論章節），回傳 "SKIP"
-
-範例：
-flowchart TD
-    A[初始評估] --> B{{{{eGFR < 60?}}}}
-    B -->|是| C[CKD 確認]
-    B -->|否| D[追蹤觀察]
-
-只回傳 mermaid code 或 "SKIP"，不要加其他文字或 code fence。"""
 
 # ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
 
 def detect_org(title: str) -> str:
-    """Detect organization from title."""
     upper = title.upper()
     if "KDIGO" in upper:
         return "KDIGO"
@@ -148,7 +145,6 @@ def detect_org(title: str) -> str:
 
 
 def extract_year(title: str) -> int | None:
-    """Extract 4-digit year from title."""
     match = re.search(r"(19|20)\d{2}", title)
     return int(match.group()) if match else None
 
@@ -179,14 +175,13 @@ def _normalize(s):
 
 
 def find_guideline_doc(title: str):
-    """Find matching guideline doc in guidelines collection by title similarity."""
+    """Find matching guideline doc in guidelines collection."""
     guidelines_ref = db.collection("guidelines")
     docs = list(guidelines_ref.stream())
 
     title_words = _normalize(title)
     title_upper = set(re.findall(r'[A-Z]{2,}', title))
 
-    # Expand abbreviations
     expanded_title = set(title_words)
     for abbr in title_upper:
         if abbr in ABBREV_MAP:
@@ -222,20 +217,19 @@ def find_guideline_doc(title: str):
     return None, None
 
 
-def call_gemini(uploaded_file, prompt: str, expect_json: bool = False):
-    """Call Gemini with retry logic."""
+def call_gemini(contents, expect_json: bool = False):
+    """Call Gemini with retry logic. contents can be [file, prompt] or just prompt."""
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             response = client.models.generate_content(
                 model=MODEL,
-                contents=[uploaded_file, prompt],
+                contents=contents,
             )
             text = response.text.strip()
 
-            # Strip markdown code fences if present
+            # Strip markdown code fences
             if text.startswith("```"):
                 lines = text.split("\n")
-                # Remove first and last lines (code fences)
                 lines = lines[1:]
                 if lines and lines[-1].strip() == "```":
                     lines = lines[:-1]
@@ -246,18 +240,14 @@ def call_gemini(uploaded_file, prompt: str, expect_json: bool = False):
             return text
 
         except json.JSONDecodeError as e:
-            logger.warning(
-                "  JSON 解析失敗 (attempt %d/%d): %s", attempt, MAX_RETRIES, e
-            )
+            logger.warning("  JSON 解析失敗 (attempt %d/%d): %s", attempt, MAX_RETRIES, e)
             if attempt == MAX_RETRIES:
-                logger.error("  JSON 解析最終失敗，回傳原始文字")
-                return {"_raw": text, "_error": str(e)} if expect_json else text
+                logger.error("  JSON 解析最終失敗")
+                return {"_error": str(e)} if expect_json else text
             time.sleep(RETRY_DELAY)
 
         except Exception as e:
-            logger.warning(
-                "  Gemini 呼叫失敗 (attempt %d/%d): %s", attempt, MAX_RETRIES, e
-            )
+            logger.warning("  Gemini 呼叫失敗 (attempt %d/%d): %s", attempt, MAX_RETRIES, e)
             if attempt == MAX_RETRIES:
                 raise
             time.sleep(RETRY_DELAY)
@@ -265,12 +255,47 @@ def call_gemini(uploaded_file, prompt: str, expect_json: bool = False):
     return None
 
 
+def extract_pages(pdf_path: str, page_start: int, page_end: int) -> str | None:
+    """Extract specific pages from PDF, return path to new smaller PDF."""
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except ImportError:
+        try:
+            from PyPDF2 import PdfReader, PdfWriter
+        except ImportError:
+            logger.warning("  pypdf/PyPDF2 未安裝，無法裁切頁面，將使用完整 PDF")
+            return None
+
+    try:
+        reader = PdfReader(pdf_path)
+        total_pages = len(reader.pages)
+
+        # Convert to 0-indexed, clamp to valid range
+        start = max(0, page_start - 1)
+        end = min(total_pages, page_end)
+
+        if start >= end:
+            return None
+
+        writer = PdfWriter()
+        for i in range(start, end):
+            writer.add_page(reader.pages[i])
+
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False, prefix="chapter_") as f:
+            writer.write(f)
+            return f.name
+
+    except Exception as e:
+        logger.warning("  PDF 裁切失敗: %s", e)
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Main processing
 # ---------------------------------------------------------------------------
 
 def process_book(book_doc_id: str, book_data: dict, dry_run: bool = False) -> bool:
-    """Process a single guideline book. Returns True on success."""
+    """Process a single guideline book."""
     book_title = book_data.get("title", "Unknown")
     book_url = book_data.get("url", "")
 
@@ -280,16 +305,18 @@ def process_book(book_doc_id: str, book_data: dict, dry_run: bool = False) -> bo
 
     org = detect_org(book_title)
     version_year = extract_year(book_title)
-
     logger.info("  組織: %s | 年份: %s", org, version_year)
 
     if dry_run:
         logger.info("  [DRY-RUN] 會處理: %s", book_title)
         return True
 
-    # Step 2: Download PDF and upload to Gemini
     temp_path = None
+    chapter_temp_files = []
+    uploaded_files = []
+
     try:
+        # Download PDF
         logger.info("  下載 PDF...")
         resp = requests.get(book_url, timeout=120)
         resp.raise_for_status()
@@ -298,78 +325,113 @@ def process_book(book_doc_id: str, book_data: dict, dry_run: bool = False) -> bo
             f.write(resp.content)
             temp_path = f.name
 
+        # Upload full PDF for TOC extraction
         logger.info("  上傳至 Gemini File API...")
-        uploaded_file = client.files.upload(
+        full_file = client.files.upload(
             file=temp_path, config={"display_name": book_title}
         )
+        uploaded_files.append(full_file)
         time.sleep(RATE_LIMIT_DELAY)
 
-        # Step 3: Extract TOC
-        logger.info("  擷取目錄...")
-        toc = call_gemini(uploaded_file, TOC_PROMPT, expect_json=True)
+        # Extract TOC with page ranges
+        logger.info("  擷取目錄（含頁碼範圍）...")
+        toc = call_gemini([full_file, TOC_PROMPT], expect_json=True)
 
         if not isinstance(toc, list):
-            logger.error("  目錄擷取失敗，結果不是陣列: %s", type(toc))
+            logger.error("  目錄擷取失敗: %s", type(toc))
             return False
 
         logger.info("  找到 %d 個章節", len(toc))
         time.sleep(RATE_LIMIT_DELAY)
 
-        # Step 4: Process each chapter
+        # Check if page ranges are available
+        has_pages = any(
+            ch.get("page_start") is not None and ch.get("page_end") is not None
+            for ch in toc
+        )
+
+        # Delete full PDF from Gemini after TOC (save quota)
+        try:
+            client.files.delete(name=full_file.name)
+            uploaded_files.remove(full_file)
+            logger.info("  已刪除 Gemini 上的完整 PDF")
+        except Exception:
+            pass
+
+        # Process each chapter
         chapters_ref = db.collection("guideline_chapters")
-        guideline_doc_id, guideline_data = find_guideline_doc(book_title)
+        guideline_doc_id, _ = find_guideline_doc(book_title)
 
         for i, chapter in enumerate(toc, 1):
             ch_num = chapter.get("chapter_number", i)
             ch_title = chapter.get("title", f"Chapter {i}")
-            prefix = f"  [{i}/{len(toc)}] Chapter {ch_num}: {ch_title}"
+            page_start = chapter.get("page_start")
+            page_end = chapter.get("page_end")
+            prefix = f"  [{i}/{len(toc)}] Ch.{ch_num}: {ch_title}"
 
-            # 4a: Content
-            logger.info("%s — generating content...", prefix)
-            content_prompt = CONTENT_PROMPT.format(
-                chapter_number=ch_num, chapter_title=ch_title
-            )
+            # Try to extract chapter pages
+            chapter_file = None
+            chapter_pdf_path = None
+
+            if has_pages and page_start and page_end:
+                chapter_pdf_path = extract_pages(temp_path, page_start, page_end)
+
+            if chapter_pdf_path:
+                chapter_temp_files.append(chapter_pdf_path)
+                chapter_file = client.files.upload(
+                    file=chapter_pdf_path,
+                    config={"display_name": f"{book_title}_ch{ch_num}"}
+                )
+                uploaded_files.append(chapter_file)
+                pages_info = f"p.{page_start}-{page_end}"
+            else:
+                # Fallback: re-upload full PDF
+                chapter_file = client.files.upload(
+                    file=temp_path,
+                    config={"display_name": f"{book_title}_full_ch{ch_num}"}
+                )
+                uploaded_files.append(chapter_file)
+                pages_info = "full PDF"
+
+            # Single combined call
+            logger.info("%s — 生成中... (%s)", prefix, pages_info)
+            prompt = f"這是指引的第 {ch_num} 章「{ch_title}」。\n\n{COMBINED_PROMPT}"
+
             try:
-                content_result = call_gemini(uploaded_file, content_prompt)
+                result = call_gemini([chapter_file, prompt], expect_json=True)
             except Exception as e:
-                logger.error("%s — content 生成失敗: %s", prefix, e)
-                content_result = None
+                logger.error("%s — 生成失敗: %s", prefix, e)
+                result = None
+
+            # Delete chapter file from Gemini immediately
+            try:
+                client.files.delete(name=chapter_file.name)
+                uploaded_files.remove(chapter_file)
+            except Exception:
+                pass
+
             time.sleep(RATE_LIMIT_DELAY)
 
-            # 4b: Recommendations
-            logger.info("%s — generating recommendations...", prefix)
-            recs_prompt = RECS_PROMPT.format(
-                chapter_number=ch_num, chapter_title=ch_title
-            )
-            try:
-                recs_result = call_gemini(uploaded_file, recs_prompt, expect_json=True)
-            except Exception as e:
-                logger.error("%s — recommendations 生成失敗: %s", prefix, e)
-                recs_result = []
-            time.sleep(RATE_LIMIT_DELAY)
-
-            # 4c: Flowchart
-            logger.info("%s — generating flowchart...", prefix)
-            flowchart_prompt = FLOWCHART_PROMPT.format(
-                chapter_number=ch_num, chapter_title=ch_title
-            )
-            try:
-                flowchart_result = call_gemini(uploaded_file, flowchart_prompt)
-            except Exception as e:
-                logger.error("%s — flowchart 生成失敗: %s", prefix, e)
-                flowchart_result = "SKIP"
-            time.sleep(RATE_LIMIT_DELAY)
-
-            # Handle error flags
+            # Parse result
             processing_status = "ready"
-            if content_result is None:
+            if result is None or (isinstance(result, dict) and "_error" in result):
                 processing_status = "error"
-                content_result = ""
-            if isinstance(recs_result, dict) and "_error" in recs_result:
-                processing_status = "error"
-                recs_result = []
+                content_zh = ""
+                recs = []
+                flowchart = None
+                title_zh = ""
+            else:
+                content_zh = result.get("content_zh", "")
+                recs = result.get("key_recommendations", [])
+                flowchart = result.get("flowchart_mermaid")
+                title_zh = result.get("chapter_title_zh", "")
 
-            # Step 5: Store results
+                if not isinstance(recs, list):
+                    recs = []
+                if flowchart and flowchart.strip().upper() in ("NULL", "SKIP", "NONE", ""):
+                    flowchart = None
+
+            # Store
             doc_data = {
                 "guideline_id": guideline_doc_id,
                 "guideline_title": book_title,
@@ -377,10 +439,10 @@ def process_book(book_doc_id: str, book_data: dict, dry_run: bool = False) -> bo
                 "version_year": version_year,
                 "chapter_number": ch_num,
                 "chapter_title": ch_title,
-                "chapter_title_zh": "",
-                "content_zh": content_result,
-                "key_recommendations": recs_result,
-                "flowchart_mermaid": flowchart_result if flowchart_result != "SKIP" else None,
+                "chapter_title_zh": title_zh,
+                "content_zh": content_zh,
+                "key_recommendations": recs,
+                "flowchart_mermaid": flowchart,
                 "diff_from_previous": None,
                 "book_id": book_doc_id,
                 "processing_status": processing_status,
@@ -391,7 +453,7 @@ def process_book(book_doc_id: str, book_data: dict, dry_run: bool = False) -> bo
             chapters_ref.add(doc_data)
             logger.info("%s — done (%s)", prefix, processing_status)
 
-        # Step 6: Update guidelines collection
+        # Update guidelines collection
         if guideline_doc_id:
             logger.info("  更新 guidelines doc: %s", guideline_doc_id)
             db.collection("guidelines").document(guideline_doc_id).update({
@@ -410,10 +472,19 @@ def process_book(book_doc_id: str, book_data: dict, dry_run: bool = False) -> bo
         return False
 
     finally:
-        # Clean up temp file
+        # Clean up temp files
         if temp_path and os.path.exists(temp_path):
             os.unlink(temp_path)
-            logger.info("  已清理暫存檔案")
+        for f in chapter_temp_files:
+            if os.path.exists(f):
+                os.unlink(f)
+        # Clean up any remaining Gemini files
+        for uf in uploaded_files:
+            try:
+                client.files.delete(name=uf.name)
+            except Exception:
+                pass
+        logger.info("  已清理暫存檔案")
 
 
 def process_all(
@@ -423,9 +494,8 @@ def process_all(
     dry_run: bool = False,
 ) -> None:
     """Process all guideline PDFs from the books collection."""
-    logger.info("=== 開始處理指引 PDF ===")
+    logger.info("=== 開始處理指引 PDF (v2 省錢版) ===")
 
-    # Query books with type=guideline and status=ready
     from google.cloud.firestore_v1.base_query import FieldFilter
     books_ref = db.collection("books")
     query = books_ref.where(filter=FieldFilter("type", "==", "guideline")).where(filter=FieldFilter("status", "==", "ready"))
@@ -437,34 +507,27 @@ def process_all(
 
     logger.info("找到 %d 部指引 PDF", len(books))
 
-    # Filter by guideline_id if specified
     if guideline_id:
-        # Match against guidelines collection, then find corresponding book
         books = [b for b in books if b.id == guideline_id]
         if not books:
             logger.error("找不到指定的 book ID: %s", guideline_id)
             return
 
-    # Resume: skip books that already have chapters
     if resume:
         existing_book_ids = set()
-        chapters = db.collection("guideline_chapters").stream()
-        for ch in chapters:
-            ch_data = ch.to_dict()
-            bid = ch_data.get("book_id")
+        for ch in db.collection("guideline_chapters").stream():
+            bid = ch.to_dict().get("book_id")
             if bid:
                 existing_book_ids.add(bid)
 
         before = len(books)
         books = [b for b in books if b.id not in existing_book_ids]
-        logger.info("Resume 模式: 跳過 %d 部已處理，剩餘 %d 部", before - len(books), len(books))
+        logger.info("Resume: 跳過 %d 部已處理，剩餘 %d 部", before - len(books), len(books))
 
-    # Apply limit
     if limit > 0:
         books = books[:limit]
         logger.info("限制處理 %d 部", limit)
 
-    # Process each book
     success = 0
     failed = 0
     for idx, book_doc in enumerate(books, 1):
@@ -482,20 +545,12 @@ def process_all(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="用 Gemini AI 解析指引 PDF 生成章節內容"
+        description="用 Gemini AI 解析指引 PDF 生成章節內容 (v2 省錢版)"
     )
-    parser.add_argument(
-        "--limit", type=int, default=0, help="最多處理幾部指引 (0=全部)"
-    )
-    parser.add_argument(
-        "--guideline-id", type=str, help="只處理指定的 book doc ID"
-    )
-    parser.add_argument(
-        "--resume", action="store_true", help="跳過已有 chapters 的指引"
-    )
-    parser.add_argument(
-        "--dry-run", action="store_true", help="只顯示會處理什麼"
-    )
+    parser.add_argument("--limit", type=int, default=0, help="最多處理幾部指引 (0=全部)")
+    parser.add_argument("--guideline-id", type=str, help="只處理指定的 book doc ID")
+    parser.add_argument("--resume", action="store_true", help="跳過已有 chapters 的指引")
+    parser.add_argument("--dry-run", action="store_true", help="只顯示會處理什麼")
     args = parser.parse_args()
 
     process_all(
