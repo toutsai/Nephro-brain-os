@@ -6,7 +6,7 @@
 ## 最近一次 session：2026-07-06（Fable 5 制度設計）
 
 - **做了什麼**：建立 `.claude/playbooks/` 制度檔案（診斷、調度守則、判斷 rubric、派工模板、維護協議、給未來 session 的信）；重寫 CLAUDE.md 為精簡路由；刪除重複的 `.claude/rules/workflow.md`；SESSION_LOG 瘦身（歷史移至 SESSION_ARCHIVE.md）；新增 `.claude/agents/verifier.md` 驗收 agent。舊檔備份在 `.claude/archive/2026-07-06-pre-fable5/`。
-- **分支/PR**：`claude/fable5-system-design-hdejfh`，draft PR 待使用者 review 後 merge。
+- **分支/PR**：`claude/fable5-system-design-hdejfh`，draft PR #94 待使用者 review 後 merge。merge 後本檔規則即生效。
 
 ## 系統目前狀態（截至 2026-04-14，之後未再變動）
 
