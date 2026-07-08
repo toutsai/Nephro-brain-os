@@ -1,8 +1,9 @@
-name: Rebuild Knowledge Base Index (Weekly)
+name: Rebuild Knowledge Base Index (Monthly)
 
 on:
   schedule:
-    - cron: '0 21 * * 0'  # UTC 21:00 Sunday = 台灣週一 05:00
+    # 全量重建成本隨知識庫成長，改為每月一次；日常增量更新由 crawl-daily.yml 的 --incremental 負責
+    - cron: '0 21 1 * *'  # UTC 21:00 每月 1 日 = 台灣每月 1 日 05:00
   workflow_dispatch:       # 手動觸發
 
 jobs:

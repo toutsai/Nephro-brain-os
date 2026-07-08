@@ -15,6 +15,7 @@ COPY openevidence_client.py .
 COPY scoring_calculators.py .
 COPY clinical_pathways.py .
 COPY drug_database.json .
+COPY nhi_database.json .
 
 ENV PORT=8080
 EXPOSE 8080

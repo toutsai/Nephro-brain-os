@@ -85,6 +85,49 @@
         </ul>
       </Section>
 
+      <!-- 品質評讀（study_quality，靜態 class 避免 Tailwind purge 動態顏色） -->
+      <div
+        v-if="hasQuality"
+        class="rounded-lg border-l-4 border-indigo-400 pl-4"
+      >
+        <h3 class="text-xs font-semibold uppercase tracking-wide mb-2 text-indigo-600">
+          品質評讀
+        </h3>
+        <div class="space-y-2">
+          <div v-if="qualityScore" class="flex items-center gap-2">
+            <span class="text-sm font-semibold text-slate-700">方法學品質</span>
+            <span class="text-amber-500 text-sm">{{ qualityStars }}</span>
+            <span class="text-xs text-slate-500">{{ qualityScore }} / 5</span>
+          </div>
+          <div v-if="article.study_quality?.strengths?.length">
+            <p class="text-xs font-semibold text-emerald-600 mb-1">優點</p>
+            <ul class="space-y-1">
+              <li
+                v-for="(s, i) in article.study_quality.strengths"
+                :key="'s' + i"
+                class="text-sm text-slate-700 leading-relaxed flex gap-2"
+              >
+                <span class="text-emerald-500 shrink-0">✓</span>
+                <span>{{ s }}</span>
+              </li>
+            </ul>
+          </div>
+          <div v-if="article.study_quality?.weaknesses?.length">
+            <p class="text-xs font-semibold text-orange-600 mb-1">缺點</p>
+            <ul class="space-y-1">
+              <li
+                v-for="(w, i) in article.study_quality.weaknesses"
+                :key="'w' + i"
+                class="text-sm text-slate-700 leading-relaxed flex gap-2"
+              >
+                <span class="text-orange-500 shrink-0">△</span>
+                <span>{{ w }}</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       <!-- 建議下一步 -->
       <Section v-if="article.next_steps" title="建議下一步" color="purple">
         <p class="text-sm text-slate-700 leading-relaxed">
@@ -170,4 +213,25 @@ const formatBold = (text) => {
     '<strong class="text-red-600 font-semibold">$1</strong>'
   )
 }
+
+// study_quality.score 可能是數字、"4"、"4/5" 或含說明的字串，統一抽出 1-5 的整數
+const qualityScore = computed(() => {
+  const raw = props.article?.study_quality?.score
+  if (raw === null || raw === undefined || raw === '') return null
+  // 抓「前後不接其他數字」的 1-5，避免把 "8/10" 這類十分制誤讀成 1
+  const n = typeof raw === 'number' ? raw : parseInt(String(raw).match(/(?<![0-9])[1-5](?![0-9])/)?.[0] ?? '', 10)
+  return Number.isFinite(n) && n >= 1 && n <= 5 ? n : null
+})
+
+const qualityStars = computed(() =>
+  qualityScore.value
+    ? '★'.repeat(qualityScore.value) + '☆'.repeat(5 - qualityScore.value)
+    : ''
+)
+
+const hasQuality = computed(() => {
+  const q = props.article?.study_quality
+  if (!q) return false
+  return Boolean(qualityScore.value || q.strengths?.length || q.weaknesses?.length)
+})
 </script>

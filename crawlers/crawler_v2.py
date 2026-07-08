@@ -773,6 +773,7 @@ def step4_save_to_firestore(articles: list) -> dict:
                 "clinical_takeaways": summary.get("clinical_takeaways", []),
                 "limitations": summary.get("limitations", []),
                 "next_steps": summary.get("next_steps", ""),
+                "study_quality": summary.get("study_quality", {}),
                 "link": article["link"],
                 "pubdate": article.get("pubdate", ""),
                 "journal": article.get("journal", ""),
