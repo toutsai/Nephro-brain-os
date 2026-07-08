@@ -3,31 +3,26 @@
 > 容量上限 80 行。超過時把最舊的 session 摘要搬到 `.claude/SESSION_ARCHIVE.md` 最上方。
 > 格式規則見 `.claude/playbooks/maintenance.md`。本檔每次 session 開場會全文自動載入——只放「下個 session 需要知道的事」，不放歷史。
 
-## 最近一次 session：2026-07-08（成本審視 + 兩份 plan 實作）
+## 最近一次 session：2026-07-08（第二場：快速修包 + email 摘要 plan）
 
-- **制度**：PR #94/#95 已 merge，`.claude/playbooks/` 制度生效。
-- **止血包 PR #96 已 merge（⚠️ 未部署）**：修 study_quality 丟棄、Dockerfile 補 nhi_database.json、rebuild 索引改每月、前端顯示文章優劣。**Dockerfile 改動需重新部署 backend 才生效**。
-- **PR #97 已 merge（⚠️ 未部署）**：①grounding 按需第一階段（環境變數 `GROUNDING_OPTIMIZE` 預設 false＝只加 log 零行為改變，未來看 `grounding_logs` 數據後設 true 才省錢）②新價值功能：`kg_generate_insights.py`→`kg_insights`、`kg_check_guideline_updates.py`→`kg_guideline_flags`，backend review API + 前端待審核區 + rules/indexes + 週三/週五排程。全部 pending、強制引用來源。
-
-## 待部署（#96/#97 都在 main 未部署，使用者本機執行）
-
-1. `gcloud run deploy nephro-brain-api --source ./backend --region asia-east1 --clear-base-image`（#96 的 nhi + #97 的 backend）。
-2. `firebase deploy --only firestore`（#97 的 rules + indexes）。
-3. grounding 省錢：先觀察 `grounding_logs`，有信心才在 Cloud Run 設 `GROUNDING_OPTIMIZE=true`。
-4. 新爬蟲先 `--dry-run --limit 5` 試跑看產出品質，再靠排程自動化。
-
-## 系統目前狀態（截至 2026-04-14，之後未再變動）
-
-- Knowledge Graph Phase 1 + 2 已 merge 到 main 並部署（434 concepts、66,768 links）。
-- Cloud Run 後端、Firestore rules/indexes 皆已部署。
-- 每月自動化：PubMed backfill（每月 1 日）、guideline PDF 處理（每月 15 日）；每週：Cochrane / SR / ClinicalTrials 爬蟲。
+- **#96/#97 部署完成**：使用者已在本機部署 backend（Cloud Run）與 Firestore rules/indexes，前一場的「待部署」全數解除。
+- **快速修包（本場 PR）**：①daily crawler 上限 150→50（`crawlers/crawler_v2.py` 的 `MAX_ARTICLES_PER_RUN`）②`DetailSection.vue` 動態顏色改完整 class map，修 Tailwind purge 掉邊框顏色的 bug（已驗證六色都進 build 產物）③`deploy.yml` 改為僅 workflow_dispatch 手動觸發——它有 IAM 權限問題且 `--project` 指向舊專案 `gen-lang-client-0247770936`，留著 push 觸發只會一直紅叉。
+- **每日 email 摘要 plan 已完成**（Gmail SMTP + App Password、新增 `crawlers/send_daily_digest.py`、接在 `crawl-daily.yml` job 尾端、無新文章日也寄「心跳信」）。實作狀態見下方待辦。
 
 ## 待辦（依優先序）
 
-1. 手動觸發 GitHub Actions「PubMed Monthly Backfill」（months_back=12）做首次全量回溯。
-2. 跑 `crawlers/kg_generate_synthesis.py` 為 top 概念產生整合摘要。
-3. KG Phase 3：Review tab + approve/reject 流程；`kg_gap_analysis.py` 缺口週報；排程（kg_process_consults 每日、kg_auto_link + synthesis 每週）。
-4. 觀察每週 GitHub Actions 排程是否正常觸發。
+1. **Email 摘要**：plan 已交使用者確認；確認後實作 `crawlers/send_daily_digest.py` + 修改 `crawl-daily.yml`。需使用者手動：開 Gmail 兩步驟驗證 → 產生 App Password → 設 GitHub Secrets `GMAIL_ADDRESS` / `GMAIL_APP_PASSWORD`。
+2. **使用者手動（GitHub/GCP 網頁操作）**：①Enable「NB Insight Daily Crawler」恢復論文更新（上限已降 50，建議快速修包 merge 後再開）②KG Insights（週三）/ Guideline Checker（週五）週排程若不用就 Disable ③清 Artifact Registry 舊映像檔（省 ~NT$30/月）。
+3. **grounding 省錢**：觀察 `grounding_logs` 數據，有信心才在 Cloud Run 設 `GROUNDING_OPTIMIZE=true`。
+4. 知識庫整理排程／「最省自動配置」（前場遺留，規格未定，需與使用者討論）。
+5. kg_concepts 多數仍是 draft，KG 洞見功能首跑可能產出少（既知限制，非 bug）。
+
+## 系統目前狀態
+
+- main 上所有已 merge 內容（含 #96/#97）皆已部署生效：Cloud Run backend、Firestore rules/indexes、Vercel 前端。
+- Knowledge Graph：434 concepts、66,768 links（Phase 1+2）；洞見/指引比對功能已上線（pending 人工審核）。
+- 排程：每日 crawl-daily（UTC 22:00，**目前 Disabled**）；每週 Cochrane / SR / ClinicalTrials（週日）、KG insights（週三）、guideline checker（週五）；每月 backfill（1 日）、guideline PDF（15 日）、index 全量重建（1 日）。
+- 營運成本 ~NT$106/月（Gemini 64 + Artifact Registry 32 + Storage 4），維持付費層。
 
 ## 重要架構決策（不可輕易推翻，推翻前先問使用者）
 
@@ -39,3 +34,4 @@
 - **藥物名稱一律英文**（也寫在 CLAUDE.md 硬規則）。
 - **NHI 結構化優先**：`_assist_nhi()` 先查 JSON，找不到才 AI + Google Search。
 - **Cochrane 走 PubMed 搜尋**（免付費 API）；**ClinicalTrials 獨立 collection**（schema 差異大，Groq 翻譯）。
+- **backend 部署只能本機 `gcloud run deploy`**：Actions 的 deploy.yml 有 IAM 問題且指向舊專案，已改僅手動觸發。

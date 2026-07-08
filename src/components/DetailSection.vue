@@ -15,6 +15,16 @@ const props = defineProps({
   color: { type: String, default: 'slate' },
 })
 
-const borderClass = computed(() => `border-${props.color}-400`)
-const textClass = computed(() => `text-${props.color}-600`)
+// Tailwind 會 purge 動態組出的 class，必須用完整字面值對照表
+const COLOR_CLASSES = {
+  emerald: { border: 'border-emerald-400', text: 'text-emerald-600' },
+  blue: { border: 'border-blue-400', text: 'text-blue-600' },
+  amber: { border: 'border-amber-400', text: 'text-amber-600' },
+  red: { border: 'border-red-400', text: 'text-red-600' },
+  purple: { border: 'border-purple-400', text: 'text-purple-600' },
+  slate: { border: 'border-slate-400', text: 'text-slate-600' },
+}
+
+const borderClass = computed(() => (COLOR_CLASSES[props.color] || COLOR_CLASSES.slate).border)
+const textClass = computed(() => (COLOR_CLASSES[props.color] || COLOR_CLASSES.slate).text)
 </script>
