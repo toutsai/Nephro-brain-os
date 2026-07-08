@@ -1,10 +1,10 @@
+# ⚠️ 停用自動觸發：此 workflow 有 IAM 權限問題無法成功部署（且 --project 指向舊專案）。
+# 正式部署方式：使用者在本機執行
+#   gcloud run deploy nephro-brain-api --source ./backend --region asia-east1 --clear-base-image
+# 修好 IAM 前僅保留手動觸發入口，避免每次 backend 改動都跑出失敗紅叉。
 name: Deploy Backend to Cloud Run
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'backend/**'
   workflow_dispatch:  # 手動觸發
 
 jobs:
