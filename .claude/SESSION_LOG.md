@@ -3,10 +3,18 @@
 > 容量上限 80 行。超過時把最舊的 session 摘要搬到 `.claude/SESSION_ARCHIVE.md` 最上方。
 > 格式規則見 `.claude/playbooks/maintenance.md`。本檔每次 session 開場會全文自動載入——只放「下個 session 需要知道的事」，不放歷史。
 
-## 最近一次 session：2026-07-06（Fable 5 制度設計）
+## 最近一次 session：2026-07-08（成本審視 + 兩份 plan 實作）
 
-- **做了什麼**：建立 `.claude/playbooks/` 制度檔案（診斷、調度守則、判斷 rubric、派工模板、維護協議、給未來 session 的信）；重寫 CLAUDE.md 為精簡路由；刪除重複的 `.claude/rules/workflow.md`；SESSION_LOG 瘦身（歷史移至 SESSION_ARCHIVE.md）；新增 `.claude/agents/verifier.md` 驗收 agent。舊檔備份在 `.claude/archive/2026-07-06-pre-fable5/`。
-- **狀態**：PR #94 已 merge 到 main（2026-07-08），制度已生效。無未部署項目（本次只動 .md 與 .claude/，不涉及 Cloud Run / Firestore）。
+- **制度**：PR #94/#95 已 merge，`.claude/playbooks/` 制度生效。
+- **止血包 PR #96 已 merge（⚠️ 未部署）**：修 study_quality 丟棄、Dockerfile 補 nhi_database.json、rebuild 索引改每月、前端顯示文章優劣。**Dockerfile 改動需重新部署 backend 才生效**。
+- **PR #97 draft 待審 + 待部署**：①grounding 按需第一階段（環境變數 `GROUNDING_OPTIMIZE` 預設 false＝只加 log 零行為改變，未來看 `grounding_logs` 數據後設 true 才省錢）②新價值功能：`kg_generate_insights.py`→`kg_insights`、`kg_check_guideline_updates.py`→`kg_guideline_flags`，backend review API + 前端待審核區 + rules/indexes + 週三/週五排程。全部 pending、強制引用來源。
+
+## 待部署（PR #96/#97 merge 後，使用者本機執行）
+
+1. `gcloud run deploy nephro-brain-api --source ./backend --region asia-east1 --clear-base-image`（#96 的 nhi + #97 的 backend）。
+2. `firebase deploy --only firestore`（#97 的 rules + indexes）。
+3. grounding 省錢：先觀察 `grounding_logs`，有信心才在 Cloud Run 設 `GROUNDING_OPTIMIZE=true`。
+4. 新爬蟲先 `--dry-run --limit 5` 試跑看產出品質，再靠排程自動化。
 
 ## 系統目前狀態（截至 2026-04-14，之後未再變動）
 
