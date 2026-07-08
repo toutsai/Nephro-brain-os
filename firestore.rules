@@ -96,6 +96,16 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
 
+    // 知識圖譜 — 跨文獻洞見（AI 產出，僅後端寫入，前端唯讀）
+    match /kg_insights/{insightId} {
+      allow read: if true;
+    }
+
+    // 知識圖譜 — 指引更新旗標（AI 產出，僅後端寫入，前端唯讀）
+    match /kg_guideline_flags/{flagId} {
+      allow read: if true;
+    }
+
     // 知識圖譜 — Consult 萃取（僅後端寫入，本人可讀）
     match /kg_consult_extractions/{extractionId} {
       allow read: if request.auth != null && resource.data.userId == request.auth.uid;
