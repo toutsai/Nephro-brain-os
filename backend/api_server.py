@@ -70,6 +70,12 @@ if GOOGLE_API_KEY:
     gemini_client = genai.Client(api_key=GOOGLE_API_KEY)
     print(f"✅ Gemini API 已啟用 ({GEMINI_MODEL})")
 
+# --- Grounding 按需全域開關 ---
+# 第一階段預設 false：should_ground 照算、log 照記，但最終一律強制 ground=True
+# （不關閉任何端點的 grounding），只收集 grounding_logs 數據。
+# 使用者看過數據有信心後，於 Cloud Run 設 GROUNDING_OPTIMIZE=true 才真正啟用省錢關閉邏輯。
+GROUNDING_OPTIMIZE = os.getenv("GROUNDING_OPTIMIZE", "false").lower() == "true"
+
 # --- OpenEvidence Client ---
 oe_client = None
 oe_cookie_mgr = None
@@ -167,6 +173,41 @@ def _log_token_usage(response, model, feature, meta=None):
         print(f"  📊 Token usage: {input_tokens} in / {output_tokens} out → ${cost:.6f} ({feature}/{model})")
     except Exception as e:
         print(f"⚠️ Token usage log failed: {e}")
+
+
+def should_ground(textbook_dist=None, kb_dist=None, db_found=False,
+                  textbook_threshold=None, kb_threshold=None):
+    """
+    回傳 (ground: bool, reason: str)。安全預設：不確定就 ground。
+    FAISS L2 distance 越小越相似。閾值預設 None = 停用（永不因 distance 關閉）。
+    註：此函式的關閉建議只有在 GROUNDING_OPTIMIZE=true 時才會被採納（見 D.0 / D.4）。
+    """
+    if db_found:
+        return (False, "db_hit")
+    if textbook_threshold is not None and textbook_dist is not None and textbook_dist <= textbook_threshold:
+        return (False, "textbook_confident")
+    if kb_threshold is not None and kb_dist is not None and kb_dist <= kb_threshold:
+        return (False, "kb_confident")
+    return (True, "default_ground")
+
+
+def _log_grounding_decision(feature, grounded, reason,
+                            textbook_dist=None, kb_dist=None, db_found=False):
+    """記錄 grounding 決策到 Firestore（聚合計數）；distance 只進 print 不進 Increment。"""
+    try:
+        print(f"  🔍 Grounding: {feature} grounded={grounded} reason={reason} "
+              f"tb_dist={textbook_dist} kb_dist={kb_dist} db_found={db_found}")
+        month_key = time.strftime("%Y-%m")
+        doc_ref = db.collection("grounding_logs").document(month_key)
+        doc_ref.set({"month": month_key}, merge=True)
+        state = "grounded" if grounded else "not_grounded"
+        doc_ref.update({
+            f"by_feature.{feature}.{state}": firestore.Increment(1),
+            f"by_feature.{feature}.total": firestore.Increment(1),
+            "updated_at": firestore.SERVER_TIMESTAMP,
+        })
+    except Exception as e:
+        print(f"⚠️ Grounding log failed: {e}")
 
 
 def classify_question_complexity(question):
@@ -702,8 +743,12 @@ def search_pubmed(query):
         return ""
 
 
-def search_textbook(question, top_k=5):
-    """RAG 搜尋教科書（Phase 2 強化：取 top-20 → rerank → top-k）"""
+def search_textbook(question, top_k=5, return_confidence=False):
+    """RAG 搜尋教科書（Phase 2 強化：取 top-20 → rerank → top-k）
+
+    return_confidence=False（預設）：回傳 str，行為與原本完全一致。
+    return_confidence=True：回傳 (text, min_distance)；無資料時 ("無教科書相關資料。", None)。
+    """
     ensure_memory_loaded()
 
     found = []  # [(chunk_id, distance)]
@@ -721,17 +766,19 @@ def search_textbook(question, top_k=5):
                             found.append((chunk_id, float(D[0][rank])))
 
     if not found:
-        return "無教科書相關資料。"
+        return ("無教科書相關資料。", None) if return_confidence else "無教科書相關資料。"
 
     # Reranking: 按 FAISS distance 排序（越小越相似），取 top-k
     found.sort(key=lambda x: x[1])
+    min_distance = found[0][1]
     top_ids = [cid for cid, _ in found[:top_k]]
 
     chunks_text = fetch_content_from_firestore(top_ids)
     if chunks_text:
-        return "\n".join(chunks_text)
+        text = "\n".join(chunks_text)
+        return (text, min_distance) if return_confidence else text
 
-    return "無教科書相關資料。"
+    return ("無教科書相關資料。", None) if return_confidence else "無教科書相關資料。"
 
 
 # --- 知識庫搜尋（articles_v2 + guideline_chapters + clinical_trials）---
@@ -865,7 +912,9 @@ def search_knowledge_base(question, top_k=5, return_sources=False):
     text = "\n".join(results) if results else ""
 
     if return_sources:
-        sources = [{"type": t, "doc_id": d} for d, t in zip(top_ids, top_types)]
+        top_dists = [r[2] for r in top]
+        sources = [{"type": t, "doc_id": d, "distance": dist}
+                   for d, t, dist in zip(top_ids, top_types, top_dists)]
         return (text, sources)
     return text
 
@@ -915,13 +964,14 @@ def generate_answer(question):
         return "❌ Gemini API 未設定，無法回答。"
 
     with ThreadPoolExecutor(max_workers=2) as executor:
-        textbook_future = executor.submit(search_textbook, question)
+        textbook_future = executor.submit(search_textbook, question, return_confidence=True)
         pubmed_future = executor.submit(search_pubmed, question)
 
         try:
-            textbook_ctx = textbook_future.result(timeout=20)
+            textbook_ctx, tb_dist = textbook_future.result(timeout=20)
         except:
             textbook_ctx = "無教科書資料（搜尋逾時）。"
+            tb_dist = None
 
         try:
             pubmed_ctx = pubmed_future.result(timeout=15) or "無 PubMed 結果。"
@@ -1004,12 +1054,18 @@ graph TD
     model = get_model_for_task(task_key)
     print(f"  🤖 模型路由: {task_key} → {model}")
 
+    ground, reason = should_ground(textbook_dist=tb_dist, kb_dist=None, db_found=False)
+    if not GROUNDING_OPTIMIZE:
+        ground, reason = True, "optimize_off"
+    _log_grounding_decision("consult", ground, reason, textbook_dist=tb_dist, db_found=False)
+    tools = [types.Tool(google_search=types.GoogleSearch())] if ground else []
+
     try:
         response = gemini_client.models.generate_content(
             model=model,
             contents=prompt,
             config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())],
+                tools=tools,
             )
         )
         _log_token_usage(response, model, "consult")
@@ -1023,7 +1079,7 @@ def generate_cheat_sheet(topic):
     if not gemini_client:
         return "❌ Gemini API 未設定。"
 
-    textbook_ctx = search_textbook(topic)
+    textbook_ctx, tb_dist = search_textbook(topic, return_confidence=True)
 
     prompt = f"""請為 "{topic}" 製作一份 **單頁臨床懶人包**。
 
@@ -1054,13 +1110,19 @@ def generate_cheat_sheet(topic):
      B -->|否| D[門診追蹤]
    ```"""
 
+    ground, reason = should_ground(textbook_dist=tb_dist, kb_dist=None, db_found=False)
+    if not GROUNDING_OPTIMIZE:
+        ground, reason = True, "optimize_off"
+    _log_grounding_decision("consult", ground, reason, textbook_dist=tb_dist, db_found=False)
+    tools = [types.Tool(google_search=types.GoogleSearch())] if ground else []
+
     try:
         model = get_model_for_task("consult_simple")
         response = gemini_client.models.generate_content(
             model=model,
             contents=prompt,
             config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())],
+                tools=tools,
             )
         )
         _log_token_usage(response, model, "consult")
@@ -1290,20 +1352,23 @@ def _generate_deep_research(question):
 
         # RAG + KB + PubMed in ThreadPool
         with ThreadPoolExecutor(max_workers=3) as executor:
-            textbook_future = executor.submit(search_textbook, question)
-            kb_future = executor.submit(search_knowledge_base, question)
+            textbook_future = executor.submit(search_textbook, question, return_confidence=True)
+            kb_future = executor.submit(search_knowledge_base, question, 5, True)
             pubmed_future = executor.submit(search_pubmed, question)
 
             try:
-                textbook_ctx = textbook_future.result(timeout=20)
+                textbook_ctx, tb_dist = textbook_future.result(timeout=20)
             except Exception:
                 textbook_ctx = "無教科書資料（搜尋逾時）。"
+                tb_dist = None
             yield _sse('status', '教科書搜尋完成')
 
             try:
-                kb_ctx = kb_future.result(timeout=15) or ""
+                kb_ctx, kb_sources = kb_future.result(timeout=15)
+                kb_ctx = kb_ctx or ""
             except Exception:
                 kb_ctx = ""
+                kb_sources = []
             if kb_ctx:
                 yield _sse('status', 'NB 文獻與指引庫搜尋完成')
 
@@ -1347,11 +1412,19 @@ def _generate_deep_research(question):
             question=anonymize_text(question),
         )
 
+        kb_dist = min((s["distance"] for s in kb_sources), default=None)
+        ground, reason = should_ground(textbook_dist=tb_dist, kb_dist=kb_dist, db_found=False)
+        if not GROUNDING_OPTIMIZE:
+            ground, reason = True, "optimize_off"
+        _log_grounding_decision("deep_research", ground, reason,
+                                textbook_dist=tb_dist, kb_dist=kb_dist, db_found=False)
+        tools = [types.Tool(google_search=types.GoogleSearch())] if ground else []
+
         response = gemini_client.models.generate_content_stream(
             model=model,
             contents=prompt,
             config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())],
+                tools=tools,
             )
         )
 
@@ -1468,15 +1541,18 @@ def ask_stream():
                 for _m in _re.findall(r'【([A-Za-z\-]+)】', drug_nhi_ctx):
                     sources_used.append({"type": "drug_db", "key": _m.lower()})
 
+            tb_dist = None
+            kb_sources = []
             with ThreadPoolExecutor(max_workers=3) as executor:
-                textbook_future = executor.submit(search_textbook, question)
+                textbook_future = executor.submit(search_textbook, question, return_confidence=True)
                 kb_future = executor.submit(search_knowledge_base, question, 5, True)
                 pubmed_future = executor.submit(search_pubmed, question)
 
                 try:
-                    textbook_ctx = textbook_future.result(timeout=20)
+                    textbook_ctx, tb_dist = textbook_future.result(timeout=20)
                 except:
                     textbook_ctx = "無教科書資料（搜尋逾時）。"
+                    tb_dist = None
 
                 try:
                     kb_result = kb_future.result(timeout=15)
@@ -1576,11 +1652,19 @@ graph TD
 
 ■ 總原則：優先用視覺化方式呈現。"""
 
+            kb_dist = min((s["distance"] for s in kb_sources), default=None)
+            ground, reason = should_ground(textbook_dist=tb_dist, kb_dist=kb_dist, db_found=False)
+            if not GROUNDING_OPTIMIZE:
+                ground, reason = True, "optimize_off"
+            _log_grounding_decision("consult", ground, reason,
+                                    textbook_dist=tb_dist, kb_dist=kb_dist, db_found=False)
+            tools = [types.Tool(google_search=types.GoogleSearch())] if ground else []
+
             response = gemini_client.models.generate_content_stream(
                 model=model,
                 contents=prompt,
                 config=types.GenerateContentConfig(
-                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    tools=tools,
                 )
             )
 
@@ -2232,11 +2316,16 @@ def _assist_clinical(scenario, images=None):
     contents.append(prompt)
 
     model = get_model_for_task("assist_clinical")
+    ground, reason = should_ground(db_found=False)
+    if not GROUNDING_OPTIMIZE:
+        ground, reason = True, "optimize_off"
+    _log_grounding_decision("assist", ground, reason, db_found=False)
+    tools = [types.Tool(google_search=types.GoogleSearch())] if ground else []
     response = gemini_client.models.generate_content(
         model=model,
         contents=contents,
         config=types.GenerateContentConfig(
-            tools=[types.Tool(google_search=types.GoogleSearch())],
+            tools=tools,
         )
     )
     _log_token_usage(response, model, "assist")
@@ -2336,11 +2425,17 @@ def _assist_dose(data, images=None):
     contents.append(prompt)
 
     model = get_model_for_task("assist_dose")
+    ground, reason = should_ground(db_found=db_found)
+    if not GROUNDING_OPTIMIZE:
+        ground, reason = True, "optimize_off"
+    # 用獨立 feature 名，讓 grounding_logs 能單獨觀察 dose（第二階段唯一會被關閉的端點）
+    _log_grounding_decision("assist_dose", ground, reason, db_found=db_found)
+    tools = [types.Tool(google_search=types.GoogleSearch())] if ground else []
     response = gemini_client.models.generate_content(
         model=model,
         contents=contents,
         config=types.GenerateContentConfig(
-            tools=[types.Tool(google_search=types.GoogleSearch())],
+            tools=tools,
         )
     )
     _log_token_usage(response, model, "assist")
@@ -2391,11 +2486,16 @@ def _assist_lab(lab_data, images=None):
     contents.append(prompt)
 
     model = get_model_for_task("assist_lab")
+    ground, reason = should_ground(db_found=False)
+    if not GROUNDING_OPTIMIZE:
+        ground, reason = True, "optimize_off"
+    _log_grounding_decision("assist", ground, reason, db_found=False)
+    tools = [types.Tool(google_search=types.GoogleSearch())] if ground else []
     response = gemini_client.models.generate_content(
         model=model,
         contents=contents,
         config=types.GenerateContentConfig(
-            tools=[types.Tool(google_search=types.GoogleSearch())],
+            tools=tools,
         )
     )
     _log_token_usage(response, model, "assist")
@@ -2495,11 +2595,16 @@ def _assist_nhi(query_text, images=None):
     contents.append(prompt)
 
     model = get_model_for_task("assist_nhi")
+    ground, reason = should_ground(db_found=False)
+    if not GROUNDING_OPTIMIZE:
+        ground, reason = True, "optimize_off"
+    _log_grounding_decision("assist", ground, reason, db_found=False)
+    tools = [types.Tool(google_search=types.GoogleSearch())] if ground else []
     response = gemini_client.models.generate_content(
         model=model,
         contents=contents,
         config=types.GenerateContentConfig(
-            tools=[types.Tool(google_search=types.GoogleSearch())],
+            tools=tools,
         )
     )
     _log_token_usage(response, model, "assist")
@@ -2554,11 +2659,16 @@ def _assist_interaction(drugs_text, images=None):
     contents.append(prompt)
 
     model = get_model_for_task("assist_interaction")
+    ground, reason = should_ground(db_found=False)
+    if not GROUNDING_OPTIMIZE:
+        ground, reason = True, "optimize_off"
+    _log_grounding_decision("assist", ground, reason, db_found=False)
+    tools = [types.Tool(google_search=types.GoogleSearch())] if ground else []
     response = gemini_client.models.generate_content(
         model=model,
         contents=contents,
         config=types.GenerateContentConfig(
-            tools=[types.Tool(google_search=types.GoogleSearch())],
+            tools=tools,
         )
     )
     _log_token_usage(response, model, "assist")
@@ -2612,11 +2722,16 @@ def _assist_transplant(data, images=None):
     contents.append(prompt)
 
     model = get_model_for_task("assist_transplant")
+    ground, reason = should_ground(db_found=False)
+    if not GROUNDING_OPTIMIZE:
+        ground, reason = True, "optimize_off"
+    _log_grounding_decision("assist", ground, reason, db_found=False)
+    tools = [types.Tool(google_search=types.GoogleSearch())] if ground else []
     response = gemini_client.models.generate_content(
         model=model,
         contents=contents,
         config=types.GenerateContentConfig(
-            tools=[types.Tool(google_search=types.GoogleSearch())],
+            tools=tools,
         )
     )
     _log_token_usage(response, model, "assist")
@@ -2684,11 +2799,16 @@ def _assist_pd(data, images=None):
     contents.append(prompt)
 
     model = get_model_for_task("assist_pd")
+    ground, reason = should_ground(db_found=False)
+    if not GROUNDING_OPTIMIZE:
+        ground, reason = True, "optimize_off"
+    _log_grounding_decision("assist", ground, reason, db_found=False)
+    tools = [types.Tool(google_search=types.GoogleSearch())] if ground else []
     response = gemini_client.models.generate_content(
         model=model,
         contents=contents,
         config=types.GenerateContentConfig(
-            tools=[types.Tool(google_search=types.GoogleSearch())],
+            tools=tools,
         )
     )
     _log_token_usage(response, model, "assist")
@@ -3180,11 +3300,16 @@ def pathway_interactive(pathway_id):
 
     try:
         model = get_model_for_task("pathway_interactive")
+        ground, reason = should_ground(db_found=False)
+        if not GROUNDING_OPTIMIZE:
+            ground, reason = True, "optimize_off"
+        _log_grounding_decision("assist", ground, reason, db_found=False)
+        tools = [types.Tool(google_search=types.GoogleSearch())] if ground else []
         response = gemini_client.models.generate_content(
             model=model,
             contents=prompt,
             config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())],
+                tools=tools,
             )
         )
         _log_token_usage(response, model, "assist")
@@ -3442,11 +3567,120 @@ def kg_review_queue():
         d['_type'] = 'link'
         pending_links.append(d)
 
+    # 待審核跨文獻洞見
+    pending_insights = []
+    for doc in db.collection('kg_insights').where(
+        'status', '==', 'pending'
+    ).order_by('created_at', direction=firestore.Query.DESCENDING).limit(50).stream():
+        d = doc.to_dict()
+        d['id'] = doc.id
+        d['_type'] = 'insight'
+        pending_insights.append(d)
+
+    # 待審核指引更新旗標
+    pending_flags = []
+    for doc in db.collection('kg_guideline_flags').where(
+        'status', '==', 'pending'
+    ).order_by('created_at', direction=firestore.Query.DESCENDING).limit(50).stream():
+        d = doc.to_dict()
+        d['id'] = doc.id
+        d['_type'] = 'flag'
+        pending_flags.append(d)
+
     return jsonify({
         "concepts": pending_concepts,
         "links": pending_links,
-        "total": len(pending_concepts) + len(pending_links),
+        "insights": pending_insights,
+        "flags": pending_flags,
+        "total": len(pending_concepts) + len(pending_links)
+                 + len(pending_insights) + len(pending_flags),
     })
+
+
+@app.route('/kg/insights/<insight_id>/review', methods=['POST'])
+@require_admin
+def kg_review_insight(insight_id):
+    """審核跨文獻洞見（approve / reject）"""
+    data = request.get_json()
+    action = data.get('action')
+    note = data.get('note', '')
+
+    if action not in ('approve', 'reject'):
+        return jsonify({"error": "action must be 'approve' or 'reject'"}), 400
+
+    doc_ref = db.collection('kg_insights').document(insight_id)
+    if not doc_ref.get().exists:
+        return jsonify({"error": "Insight not found"}), 404
+
+    doc_ref.update({
+        'status': 'approved' if action == 'approve' else 'rejected',
+        'review_note': note,
+        'updated_at': firestore.SERVER_TIMESTAMP,
+    })
+
+    return jsonify({"success": True, "insight_id": insight_id, "status": action + 'd'})
+
+
+@app.route('/kg/guideline-flags/<flag_id>/review', methods=['POST'])
+@require_admin
+def kg_review_guideline_flag(flag_id):
+    """審核指引更新旗標（approve / reject）"""
+    data = request.get_json()
+    action = data.get('action')
+    note = data.get('note', '')
+
+    if action not in ('approve', 'reject'):
+        return jsonify({"error": "action must be 'approve' or 'reject'"}), 400
+
+    doc_ref = db.collection('kg_guideline_flags').document(flag_id)
+    if not doc_ref.get().exists:
+        return jsonify({"error": "Guideline flag not found"}), 404
+
+    doc_ref.update({
+        'status': 'approved' if action == 'approve' else 'rejected',
+        'review_note': note,
+        'updated_at': firestore.SERVER_TIMESTAMP,
+    })
+
+    return jsonify({"success": True, "flag_id": flag_id, "status": action + 'd'})
+
+
+@app.route('/kg/insights', methods=['GET'])
+def kg_list_insights():
+    """列出跨文獻洞見（預設 status=pending，可選 concept_id 過濾）"""
+    status = request.args.get('status', 'pending')
+    concept_id = request.args.get('concept_id')
+
+    insights = []
+    for doc in db.collection('kg_insights').where(
+        'status', '==', status
+    ).order_by('created_at', direction=firestore.Query.DESCENDING).limit(100).stream():
+        d = doc.to_dict()
+        if concept_id and d.get('concept_id') != concept_id:
+            continue
+        d['id'] = doc.id
+        insights.append(d)
+
+    return jsonify({"insights": insights})
+
+
+@app.route('/kg/guideline-flags', methods=['GET'])
+def kg_list_guideline_flags():
+    """列出指引更新旗標（預設 status=pending，可選 concept_id 過濾）"""
+    status = request.args.get('status', 'pending')
+    concept_id = request.args.get('concept_id')
+
+    flags = []
+    for doc in db.collection('kg_guideline_flags').where(
+        'status', '==', status
+    ).order_by('created_at', direction=firestore.Query.DESCENDING).limit(100).stream():
+        d = doc.to_dict()
+        if concept_id and d.get('concept_id') != concept_id:
+            continue
+        d['id'] = doc.id
+        flags.append(d)
+
+    return jsonify({"flags": flags})
 
 
 @app.route('/kg/gaps', methods=['GET'])

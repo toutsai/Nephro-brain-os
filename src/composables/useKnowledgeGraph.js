@@ -94,6 +94,82 @@ export function useKnowledgeConcepts() {
 }
 
 /**
+ * Real-time listener on pending kg_insights (cross-literature AI insights awaiting review)
+ */
+export function usePendingInsights() {
+  const insights = ref([])
+  const loading = ref(true)
+
+  const q = query(
+    collection(db, 'kg_insights'),
+    where('status', '==', 'pending'),
+    orderBy('created_at', 'desc')
+  )
+
+  const unsubscribe = onSnapshot(
+    q,
+    (snapshot) => {
+      insights.value = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }))
+      loading.value = false
+    },
+    (err) => {
+      console.error('kg_insights Firestore error:', err)
+      loading.value = false
+    }
+  )
+
+  onUnmounted(() => {
+    unsubscribe()
+  })
+
+  return {
+    insights,
+    loading,
+  }
+}
+
+/**
+ * Real-time listener on pending kg_guideline_flags (AI-flagged guideline updates awaiting review)
+ */
+export function usePendingGuidelineFlags() {
+  const flags = ref([])
+  const loading = ref(true)
+
+  const q = query(
+    collection(db, 'kg_guideline_flags'),
+    where('status', '==', 'pending'),
+    orderBy('created_at', 'desc')
+  )
+
+  const unsubscribe = onSnapshot(
+    q,
+    (snapshot) => {
+      flags.value = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }))
+      loading.value = false
+    },
+    (err) => {
+      console.error('kg_guideline_flags Firestore error:', err)
+      loading.value = false
+    }
+  )
+
+  onUnmounted(() => {
+    unsubscribe()
+  })
+
+  return {
+    flags,
+    loading,
+  }
+}
+
+/**
  * Fetch single concept + its links
  */
 export function useConceptDetail(conceptId) {

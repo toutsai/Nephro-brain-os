@@ -1,0 +1,30 @@
+name: KG Guideline Update Checker Weekly
+
+on:
+  schedule:
+    - cron: '0 20 * * 5'   # 週五 20:00 UTC
+  workflow_dispatch:
+
+jobs:
+  check-guideline-updates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r crawlers/requirements_v2.txt
+
+      - name: Run KG guideline update checker
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: python crawlers/kg_check_guideline_updates.py --limit 20
