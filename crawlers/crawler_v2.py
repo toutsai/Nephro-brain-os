@@ -717,13 +717,19 @@ def step2_dedup_and_enrich(all_articles: dict) -> list:
     return to_process
 
 
-def step3_generate_summaries(articles: list) -> tuple:
-    """用分層 AI 生成結構化摘要，回傳 (成功, 失敗)"""
+def step3_generate_and_save(articles: list) -> tuple:
+    """逐篇生成結構化摘要並「立即存檔」，回傳 (成功, 失敗, 存檔統計)。
+
+    刻意做成「生成一篇就存一篇」而非全部跑完才一次存：GitHub Actions job 有
+    timeout-minutes 上限，若中途被取消，已生成的摘要必須已落地 Firestore，
+    下一次排程才能靠 step2 的 article_exists() 跳過、從斷點接續，不重跑重花 AI 錢。
+    """
     print("\n" + "=" * 60)
-    print("🤖 Step 3：AI 結構化摘要生成")
+    print("🤖 Step 3：AI 結構化摘要生成 + 即時存檔")
     print("=" * 60)
 
     success, failed = [], []
+    save_stats = {"created": 0, "updated_tags": 0, "errors": 0}
 
     for i, article in enumerate(articles, 1):
         pmid = article["pmid"]
@@ -734,19 +740,63 @@ def step3_generate_summaries(articles: list) -> tuple:
 
         result = generate_summary(article)
 
-        if result:
-            article["ai_summary"] = result
-            success.append(article)
-            model_used = result.get("ai_model", "?")
-            title_zh = result.get("title_zh", "?")[:20]
-            print(f"  ✅ {title_zh}... ({model_used})")
-        else:
+        if not result:
             failed.append(article)
             save_to_retry_queue(article, "AI summary generation failed")
             print(f"  ❌ 失敗，已加入 retry queue")
+            continue
+
+        article["ai_summary"] = result
+
+        # 生成成功就立刻存檔，不累積到最後才寫
+        try:
+            data = _build_article_doc(article)
+            save_result = save_article(pmid, data)
+            save_stats[save_result] = save_stats.get(save_result, 0) + 1
+            success.append(article)
+            model_used = result.get("ai_model", "?")
+            title_zh = result.get("title_zh", "?")[:20]
+            print(f"  ✅ {title_zh}... ({model_used}) → {save_result}")
+        except Exception as e:
+            save_stats["errors"] += 1
+            failed.append(article)
+            save_to_retry_queue(article, f"Firestore save failed: {e}")
+            print(f"  ❌ 儲存失敗 ({pmid}): {e}")
 
     print(f"\n  📊 結果：✅ {len(success)} / ❌ {len(failed)}")
-    return success, failed
+    return success, failed, save_stats
+
+
+def _build_article_doc(article: dict) -> dict:
+    """把 article + ai_summary 組成 Firestore articles_v2 的文件內容"""
+    pmid = article["pmid"]
+    summary = article.get("ai_summary", {})
+    return {
+        "id": pmid,
+        "title": article["title"],
+        "title_zh": summary.get("title_zh", ""),
+        "abstract": article["abstract"],
+        "study_design": summary.get("study_design", ""),
+        "summary_points": summary.get("summary_points", []),
+        "pico": summary.get("pico", {}),
+        "clinical_takeaways": summary.get("clinical_takeaways", []),
+        "limitations": summary.get("limitations", []),
+        "next_steps": summary.get("next_steps", ""),
+        "study_quality": summary.get("study_quality", {}),
+        "link": article["link"],
+        "pubdate": article.get("pubdate", ""),
+        "journal": article.get("journal", ""),
+        "journals": article.get("journals", []),
+        "topics": article.get("topics", []),
+        "mesh_terms": article.get("mesh_terms", []),
+        "publication_types": article.get("publication_types", []),
+        "evidence_group": article.get("evidence_group", ""),
+        "evidence_level": article.get("evidence_level", ""),
+        "priority": article.get("priority", 2),
+        "ai_model": summary.get("ai_model", ""),
+        "sources": article.get("sources", []),
+        "process_status": "completed",
+    }
 
 
 def step4_save_to_firestore(articles: list) -> dict:
@@ -759,39 +809,12 @@ def step4_save_to_firestore(articles: list) -> dict:
 
     for article in articles:
         pmid = article["pmid"]
-        summary = article.get("ai_summary", {})
 
         try:
-            data = {
-                "id": pmid,
-                "title": article["title"],
-                "title_zh": summary.get("title_zh", ""),
-                "abstract": article["abstract"],
-                "study_design": summary.get("study_design", ""),
-                "summary_points": summary.get("summary_points", []),
-                "pico": summary.get("pico", {}),
-                "clinical_takeaways": summary.get("clinical_takeaways", []),
-                "limitations": summary.get("limitations", []),
-                "next_steps": summary.get("next_steps", ""),
-                "study_quality": summary.get("study_quality", {}),
-                "link": article["link"],
-                "pubdate": article.get("pubdate", ""),
-                "journal": article.get("journal", ""),
-                "journals": article.get("journals", []),
-                "topics": article.get("topics", []),
-                "mesh_terms": article.get("mesh_terms", []),
-                "publication_types": article.get("publication_types", []),
-                "evidence_group": article.get("evidence_group", ""),
-                "evidence_level": article.get("evidence_level", ""),
-                "priority": article.get("priority", 2),
-                "ai_model": summary.get("ai_model", ""),
-                "sources": article.get("sources", []),
-                "process_status": "completed",
-            }
-
+            data = _build_article_doc(article)
             result = save_article(pmid, data)
             stats[result] = stats.get(result, 0) + 1
-            title_zh = summary.get("title_zh", pmid)[:30]
+            title_zh = article.get("ai_summary", {}).get("title_zh", pmid)[:30]
             print(f"  ✅ {result}: {title_zh}")
 
         except Exception as e:
@@ -891,8 +914,7 @@ def main():
     to_process = step2_dedup_and_enrich(all_articles)
 
     if to_process:
-        success, failed = step3_generate_summaries(to_process)
-        save_stats = step4_save_to_firestore(success) if success else {}
+        success, failed, save_stats = step3_generate_and_save(to_process)
     else:
         success, failed = [], []
         save_stats = {}
