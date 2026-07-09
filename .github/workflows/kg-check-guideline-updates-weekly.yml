@@ -1,8 +1,8 @@
-name: KG Guideline Update Checker Weekly
+name: KG Guideline Update Checker Monthly
 
 on:
   schedule:
-    - cron: '0 20 * * 5'   # 週五 20:00 UTC
+    - cron: '0 20 22 * *'   # 每月 22 號 20:00 UTC（原為每週五，改月排程降頻降本）
   workflow_dispatch:
 
 jobs:
