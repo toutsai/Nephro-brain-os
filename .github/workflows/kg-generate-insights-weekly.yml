@@ -1,8 +1,8 @@
-name: KG Insights Weekly Generator
+name: KG Insights Monthly Generator
 
 on:
   schedule:
-    - cron: '0 20 * * 3'   # 週三 20:00 UTC
+    - cron: '0 20 8 * *'   # 每月 8 號 20:00 UTC（原為每週三，改月排程降頻降本）
   workflow_dispatch:
 
 jobs:
