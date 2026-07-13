@@ -9,12 +9,9 @@
 - **快速修包（本場 PR）**：①daily crawler 上限 150→50（`crawlers/crawler_v2.py` 的 `MAX_ARTICLES_PER_RUN`）②`DetailSection.vue` 動態顏色改完整 class map，修 Tailwind purge 掉邊框顏色的 bug（已驗證六色都進 build 產物）③`deploy.yml` 改為僅 workflow_dispatch 手動觸發——它有 IAM 權限問題且 `--project` 指向舊專案 `gen-lang-client-0247770936`，留著 push 觸發只會一直紅叉。
 - **每日 email 摘要已實作**（plan 經使用者確認）：新增 `crawlers/send_daily_digest.py`（Gmail SMTP、純取 Firestore 資料不呼叫 LLM、`--dry-run`/`--date`/`--skip-if-empty`、無新文章日預設寄「心跳信」、缺 Secrets 時 exit 0 不紅叉），step 接在 `crawl-daily.yml` job 尾端。verifier 逐條驗收 PASS。
 - **crawler 即時存檔修復 PR #101（已 merge）**：`crawler_v2.py` 原本 step3 全部生成摘要才 step4 一次性存 Firestore，job 撞 `timeout-minutes:20` 被取消時整批進度丟失、且因 `article_exists` 去重下次會重抓重花 AI 錢再撞——無限重跑。改成 `step3_generate_and_save()` 逐篇生成即存（抽 `_build_article_doc()` 共用，欄位不變），中斷也只損失當下一篇、下次自動接續。verifier 9/9 PASS。
-- **KG 週排程改月排程 PR #103（已 merge）**：KG Insights 週三→每月 8 號、Guideline Checker 週五→每月 22 號，保留 `workflow_dispatch`。
-- **Insight 頁 Firestore 錯誤修復（#104 #105 已 merge，⚠️ 未部署 rules/indexes）**：診斷三個 console 錯誤——①缺 `guidelines`/`guideline_chapters` composite index（#104 補）②裸權限錯誤：全 app 唯一開場即跑、無 guard 無 error label 的是 NavBar 的 `token_usage` 監聽器（#105 補 error callback），但 repo 規則是公開讀取＝**線上 rules 疑似落後 repo** ③未登入存筆記撞 rules（#105 前端先擋提示登入）。②③ 前端已修，①② 真正生效要跑 `firebase deploy --only firestore`。
 
 ## 待辦（依優先序）
 
-0. **⚠️ 待部署（使用者本機）**：`firebase deploy --only firestore`——一次同步 #104 的 index（修 Insight「requires an index」）＋ repo 目前 rules（`token_usage` 公開讀取，疑似修掉裸權限錯誤 ②）。部署後若 ② 仍在，console 會改顯示帶標籤 `token_usage snapshot error:`，再用 devtools stack trace 定位。
 1. **Email 摘要啟用（使用者手動）**：①Gmail 開兩步驟驗證 → myaccount.google.com/apppasswords 產生 App Password ②GitHub Secrets 設 `GMAIL_ADDRESS` / `GMAIL_APP_PASSWORD`（選填 `DIGEST_TO_EMAIL`）③本機先 `python crawlers/send_daily_digest.py --dry-run --date <有資料日期>` 驗版型，再真寄一次確認進收件匣（留意垃圾信匣）。未設 Secrets 前該 step 會自動跳過，不影響爬蟲。
 2. **使用者手動（GitHub/GCP 網頁操作）**：①Enable「NB Insight Daily Crawler」恢復論文更新（上限已降 50 + #101 即時存檔，現在開很安全）②清 Artifact Registry 舊映像檔（省 ~NT$30/月）——本機跑，建議設「保留最近 3 版」cleanup policy 一勞永逸（`gcloud artifacts repositories set-cleanup-policies`，專案 nephro-brain / asia-east1）。⚠️ 2026-07-09 有一個舊 sha 的排程 run #96 卡在 timeout，使用者已去手動 Cancel。
 3. **grounding 省錢**：觀察 `grounding_logs` 數據，有信心才在 Cloud Run 設 `GROUNDING_OPTIMIZE=true`。
