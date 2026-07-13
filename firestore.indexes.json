@@ -57,10 +57,19 @@
       ]
     },
     {
+      "collectionGroup": "guidelines",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "org", "order": "ASCENDING" },
+        { "fieldPath": "year", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "guideline_chapters",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "guideline_id", "order": "ASCENDING" },
+        { "fieldPath": "processing_status", "order": "ASCENDING" },
         { "fieldPath": "chapter_number", "order": "ASCENDING" }
       ]
     },
