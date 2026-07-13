@@ -15,8 +15,8 @@
 ## 待辦（依優先序）
 
 0. **⚠️ 待部署（使用者本機）**：`firebase deploy --only firestore`——一次同步 #104 的 index（修 Insight「requires an index」）＋ repo 目前 rules（`token_usage` 公開讀取，疑似修掉裸權限錯誤 ②）。部署後若 ② 仍在，console 會改顯示帶標籤 `token_usage snapshot error:`，再用 devtools stack trace 定位。
-1. **Email 摘要已啟用**（Gmail Secrets 已設、Daily Crawler 已 Enable）：待下次 crawl-daily 跑完收**首封信驗收**（版型、藥名英文、是否進垃圾信匣）。若沒收到先查 workflow log 的 digest step。
-2. **清 Artifact Registry 舊映像檔**（省 ~NT$30/月，不急）——本機跑，建議設「保留最近 3 版」cleanup policy 一勞永逸（`gcloud artifacts repositories set-cleanup-policies`，專案 nephro-brain / asia-east1）。
+1. **Email 摘要啟用（使用者手動）**：①Gmail 開兩步驟驗證 → myaccount.google.com/apppasswords 產生 App Password ②GitHub Secrets 設 `GMAIL_ADDRESS` / `GMAIL_APP_PASSWORD`（選填 `DIGEST_TO_EMAIL`）③本機先 `python crawlers/send_daily_digest.py --dry-run --date <有資料日期>` 驗版型，再真寄一次確認進收件匣（留意垃圾信匣）。未設 Secrets 前該 step 會自動跳過，不影響爬蟲。
+2. **使用者手動（GitHub/GCP 網頁操作）**：①Enable「NB Insight Daily Crawler」恢復論文更新（上限已降 50 + #101 即時存檔，現在開很安全）②清 Artifact Registry 舊映像檔（省 ~NT$30/月）——本機跑，建議設「保留最近 3 版」cleanup policy 一勞永逸（`gcloud artifacts repositories set-cleanup-policies`，專案 nephro-brain / asia-east1）。⚠️ 2026-07-09 有一個舊 sha 的排程 run #96 卡在 timeout，使用者已去手動 Cancel。
 3. **grounding 省錢**：觀察 `grounding_logs` 數據，有信心才在 Cloud Run 設 `GROUNDING_OPTIMIZE=true`。
 4. 知識庫整理排程／「最省自動配置」（前場遺留，規格未定，需與使用者討論）。
 5. kg_concepts 多數仍是 draft，KG 洞見功能首跑可能產出少（既知限制，非 bug）。
@@ -25,7 +25,7 @@
 
 - main 上所有已 merge 內容（含 #96/#97）皆已部署生效：Cloud Run backend、Firestore rules/indexes、Vercel 前端。
 - Knowledge Graph：434 concepts、66,768 links（Phase 1+2）；洞見/指引比對功能已上線（pending 人工審核）。
-- 排程：每日 crawl-daily（UTC 22:00，**已 Enable**，跑新碼＝上限 50 + 即時存檔 + 尾端寄 email 摘要）；每週 Cochrane / SR / ClinicalTrials（週日）；**KG insights 改每月 8 號、guideline checker 改每月 22 號**（原每週三/五，降頻降本，保留 workflow_dispatch 手動觸發）；每月 backfill（1 日）、guideline PDF（15 日）、index 全量重建（1 日）。
+- 排程：每日 crawl-daily（UTC 22:00，**目前 Disabled**）；每週 Cochrane / SR / ClinicalTrials（週日）；**KG insights 改每月 8 號、guideline checker 改每月 22 號**（原每週三/五，降頻降本，保留 workflow_dispatch 手動觸發）；每月 backfill（1 日）、guideline PDF（15 日）、index 全量重建（1 日）。
 - 營運成本 ~NT$106/月（Gemini 64 + Artifact Registry 32 + Storage 4），維持付費層。
 
 ## 重要架構決策（不可輕易推翻，推翻前先問使用者）
