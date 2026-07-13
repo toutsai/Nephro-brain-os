@@ -660,6 +660,10 @@ function handleGuidelineDeepConsult(guideline) {
 }
 
 async function handleGuidelineSaveToNotes(guideline) {
+  if (!uid.value) {
+    showToast('請先登入才能存入 Notes')
+    return
+  }
   try {
     const content = [
       `# ${guideline.title_zh || guideline.title}`,
@@ -710,6 +714,10 @@ function handleDeepConsult(article) {
 }
 
 async function handleSaveToNotes(article) {
+  if (!uid.value) {
+    showToast('請先登入才能存入 Notes')
+    return
+  }
   try {
     const content = [
       `# ${article.title_zh || article.title}`,

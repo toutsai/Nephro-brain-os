@@ -24,7 +24,11 @@ export function useCollection() {
 
   function subscribe() {
     if (unsubscribe) unsubscribe()
-    if (!uid.value) return
+    if (!uid.value) {
+      savedArticles.value = []
+      loading.value = false
+      return
+    }
 
     const q = query(
       collection(db, 'insight_collection'),
@@ -32,13 +36,20 @@ export function useCollection() {
       orderBy('saved_at', 'desc')
     )
 
-    unsubscribe = onSnapshot(q, (snapshot) => {
-      savedArticles.value = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }))
-      loading.value = false
-    })
+    unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        savedArticles.value = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }))
+        loading.value = false
+      },
+      (err) => {
+        console.error('insight_collection snapshot error:', err)
+        loading.value = false
+      }
+    )
   }
 
   subscribe()
