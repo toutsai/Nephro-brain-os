@@ -29,10 +29,18 @@ export function useTokenUsage() {
 
   onMounted(() => {
     const docRef = doc(db, 'token_usage', monthKey.value)
-    unsubscribe = onSnapshot(docRef, (snap) => {
-      monthlyData.value = snap.exists() ? snap.data() : null
-      loading.value = false
-    })
+    unsubscribe = onSnapshot(
+      docRef,
+      (snap) => {
+        monthlyData.value = snap.exists() ? snap.data() : null
+        loading.value = false
+      },
+      (err) => {
+        // 沒有 error callback 時被拒會冒出「裸」FirebaseError；帶標籤方便定位
+        console.error('token_usage snapshot error:', err)
+        loading.value = false
+      }
+    )
   })
 
   onUnmounted(() => {
